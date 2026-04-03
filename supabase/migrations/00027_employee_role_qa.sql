@@ -1,0 +1,6 @@
+-- Add "QA" as a valid employee_roles.role value (distinct from field "QC").
+
+ALTER TABLE public.employee_roles DROP CONSTRAINT IF EXISTS employee_roles_role_check;
+
+ALTER TABLE public.employee_roles ADD CONSTRAINT employee_roles_role_check
+  CHECK (role IN ('DT', 'Driver/Rigger', 'QC', 'QA', 'Project Manager', 'Self DT'));

@@ -1,0 +1,232 @@
+"use client";
+
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+
+export type ImportPreviewRow = {
+  full_name: string;
+  passport_number: string;
+  country: string;
+  email: string;
+  phone: string;
+  iqama_number: string;
+  roles_display: string;
+  region_name: string;
+  project_name: string;
+  onboarding_date: string | null;
+  status: string;
+  _payload: {
+    full_name: string;
+    passport_number: string;
+    country: string;
+    email: string;
+    phone: string;
+    iqama_number: string;
+    roles: string[];
+    region_id: string | null;
+    project_id: string | null;
+    project_name_other: string | null;
+    onboarding_date: string | null;
+    status: string;
+  };
+  _error?: string;
+};
+
+type PreviewColumnKey = Exclude<keyof ImportPreviewRow, "_payload" | "_error">;
+
+const PREVIEW_COLUMNS: { key: PreviewColumnKey; label: string }[] = [
+  { key: "full_name", label: "Full name" },
+  { key: "passport_number", label: "Passport" },
+  { key: "country", label: "Country" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "iqama_number", label: "Iqama" },
+  { key: "roles_display", label: "Roles" },
+  { key: "region_name", label: "Region" },
+  { key: "project_name", label: "Project" },
+  { key: "onboarding_date", label: "Onboarding" },
+  { key: "status", label: "Status" },
+];
+
+export function EmployeeImport() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [previewRows, setPreviewRows] = useState<ImportPreviewRow[]>([]);
+  const [parseError, setParseError] = useState("");
+  const [saveResult, setSaveResult] = useState<{ inserted: number; errors?: { row: number; message: string }[] } | null>(null);
+
+  async function handleParse() {
+    if (!file) {
+      setParseError("Select a CSV file first.");
+      return;
+    }
+    setParseError("");
+    setMessage("");
+    setSaveResult(null);
+    setParsing(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const res = await fetch("/api/employees/import/parse", { method: "POST", body: formData });
+      const data = await res.json().catch(() => ({}));
+      setParsing(false);
+      if (!res.ok) {
+        setParseError(data.message || "Failed to parse file");
+        setPreviewRows(data.previewRows || []);
+        return;
+      }
+      setPreviewRows(data.previewRows || []);
+      setMessage(data.message || "Preview ready.");
+    } catch {
+      setParsing(false);
+      setParseError("Failed to parse file");
+    }
+  }
+
+  async function handleSave() {
+    const validRows = previewRows.filter((r) => !r._error).map((r) => r._payload);
+    if (validRows.length === 0) {
+      setParseError("No valid rows to save. Fix errors in the CSV and parse again.");
+      return;
+    }
+    setSaving(true);
+    setParseError("");
+    try {
+      const res = await fetch("/api/employees/import/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: validRows }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setSaving(false);
+      if (!res.ok) {
+        setParseError(data.message || "Failed to save");
+        return;
+      }
+      setSaveResult({ inserted: data.inserted ?? 0, errors: data.errors });
+      setMessage(`${data.inserted ?? 0} employee(s) imported successfully.`);
+      if (data.errors?.length) setMessage((m) => m + ` ${data.errors.length} row(s) failed.`);
+      router.refresh();
+    } catch {
+      setSaving(false);
+      setParseError("Failed to save");
+    }
+  }
+
+  const validCount = previewRows.filter((r) => !r._error).length;
+
+  return (
+    <div className="inline-block">
+      <button
+        type="button"
+        onClick={() => { setOpen(true); setPreviewRows([]); setMessage(""); setParseError(""); setSaveResult(null); setFile(null); }}
+        className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+      >
+        Import
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-zinc-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-zinc-900">Import employees</h2>
+              <button type="button" onClick={() => setOpen(false)} className="text-zinc-500 hover:text-zinc-900">✕</button>
+            </div>
+            <div className="overflow-y-auto max-h-[calc(90vh-8rem)] px-6 py-4 space-y-4">
+              <p className="text-sm text-zinc-600">
+                Upload a CSV with columns: full_name, passport_number, country, email, phone, iqama_number, roles, region, project (or OTHER), project_name_other (if OTHER), onboarding_date, status. Use semicolons in roles e.g. <code className="rounded bg-zinc-100 px-1">DT;Driver/Rigger</code> or a single role such as <code className="rounded bg-zinc-100 px-1">QA</code>.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="text-sm"
+                  onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreviewRows([]); setSaveResult(null); }}
+                />
+                <button
+                  type="button"
+                  onClick={handleParse}
+                  disabled={parsing || !file}
+                  className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                >
+                  {parsing ? "Parsing…" : "Parse file"}
+                </button>
+                <a href="/api/employees/import/template" download className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                  Download template
+                </a>
+              </div>
+              {parseError && <p className="text-sm text-red-600">{parseError}</p>}
+              {message && <p className="text-sm text-green-700">{message}</p>}
+
+              {previewRows.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-zinc-700">
+                      Preview — how data will appear and be saved ({validCount} valid, {previewRows.length - validCount} with errors)
+                    </span>
+                    {validCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {saving ? "Saving…" : `Save ${validCount} to database`}
+                      </button>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto rounded border border-zinc-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-zinc-200 bg-zinc-50">
+                          {PREVIEW_COLUMNS.map((col) => (
+                            <th key={col.key} className="px-3 py-2 text-left font-medium text-zinc-700">{col.label}</th>
+                          ))}
+                          <th className="px-3 py-2 text-left font-medium text-zinc-700">Validation</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewRows.map((row, idx) => (
+                          <tr
+                            key={idx}
+                            className={`border-b border-zinc-100 ${row._error ? "bg-red-50" : ""}`}
+                          >
+                            {PREVIEW_COLUMNS.map((col) => {
+                              const val = row[col.key];
+                              const display = val === null || val === undefined ? "—" : String(val);
+                              return (
+                                <td key={col.key} className="px-3 py-2 text-zinc-800">
+                                  {display}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2">
+                              {row._error ? <span className="text-red-600 text-xs">{row._error}</span> : <span className="text-green-600">OK</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {saveResult && saveResult.errors?.length ? (
+                    <ul className="text-sm text-red-600 list-disc pl-4">
+                      {saveResult.errors.map((e, i) => (
+                        <li key={i}>Row {e.row}: {e.message}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
