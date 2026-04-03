@@ -10,7 +10,8 @@ export type SendUserCredentialsResult = { sent: boolean; error?: string };
 export async function sendUserCredentials(
   email: string,
   fullName: string,
-  password: string
+  password: string,
+  options?: { acceptInvitationUrl?: string }
 ): Promise<SendUserCredentialsResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const adminPortalUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.ADMIN_PORTAL_URL || "";
@@ -24,13 +25,21 @@ export async function sendUserCredentials(
     };
   }
 
+  const acceptBlock =
+    options?.acceptInvitationUrl?.trim() ?
+      `<p><strong>Step 1 — Accept your invitation (required, link expires in 24 hours):</strong><br/>
+      <a href="${options.acceptInvitationUrl}">${options.acceptInvitationUrl}</a></p>
+      <p><strong>Admin portal (sign in here):</strong> <a href="${adminPortalUrl}">${adminPortalUrl || "—"}</a></p>
+      <p>Sign in with the email and password below, then click the accept link (or open it in another tab while signed in).</p>`
+    : `<p><strong>Portal:</strong> <a href="${adminPortalUrl}">${adminPortalUrl}</a></p>`;
+
   const html = `
     <p>Hello${fullName ? ` ${fullName}` : ""},</p>
-    <p>Your admin portal account has been created. Use the credentials below to sign in.</p>
-    <p><strong>Portal:</strong> <a href="${adminPortalUrl}">${adminPortalUrl}</a></p>
+    <p>Your admin portal account has been created.</p>
+    ${acceptBlock}
     <p><strong>Email:</strong> ${email}</p>
     <p><strong>Password:</strong> ${password}</p>
-    <p>You can sign in immediately. Change your password after first login if the portal supports it.</p>
+    <p>You can access the dashboard only after you accept the invitation (when an accept link is included). Change your password after first login if the portal supports it.</p>
     <p>If you did not expect this email, contact your administrator.</p>
   `;
 

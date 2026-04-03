@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NotificationBellDropdown } from "@/components/notifications/NotificationBellDropdown";
+import { UserAvatar } from "@/components/profile/UserAvatar";
 
 const SECTION_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
@@ -35,6 +36,9 @@ function getHeading(pathname: string): { primary: string; secondary?: string } {
   if (parts.length === 0) return { primary: "Dashboard" };
 
   const root = parts[0];
+  if (root === "settings" && parts[1] === "profile") {
+    return { primary: "My profile", secondary: "Settings" };
+  }
   const section = SECTION_LABELS[root] ?? titleCaseSegment(root);
 
   if (parts.length === 1) {
@@ -69,7 +73,11 @@ function getHeading(pathname: string): { primary: string; secondary?: string } {
   return { primary: section };
 }
 
-type UserProfile = { full_name?: string | null; email?: string | null } | null;
+type UserProfile = {
+  full_name?: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
+} | null;
 
 export function DashboardHeader({
   userProfile,
@@ -115,6 +123,15 @@ export function DashboardHeader({
         <div className="truncate text-lg font-semibold leading-tight tracking-tight text-slate-900 sm:text-xl">
           {primary}
         </div>
+      </div>
+
+      <div className="hidden shrink-0 items-center gap-2 sm:flex" aria-hidden>
+        <UserAvatar
+          name={displayName}
+          email={userProfile?.email}
+          avatarUrl={userProfile?.avatar_url}
+          size="sm"
+        />
       </div>
 
       <NotificationBellDropdown

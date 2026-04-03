@@ -7,5 +7,11 @@ export default async function LoginPage() {
   if (access.allowed) {
     redirect("/dashboard");
   }
+  if (access.reason === "invitation_pending") {
+    redirect("/invite/accept");
+  }
+  if (access.reason === "invitation_expired") {
+    redirect("/invite/expired");
+  }
   return <LoginForm />;
 }

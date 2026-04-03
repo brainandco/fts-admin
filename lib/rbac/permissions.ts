@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { UsersProfile } from "@/lib/types/database";
+import { getInvitationGate } from "@/lib/invitation";
 
 /** Super role id (must match supabase/seed_super_role.sql). */
 const SUPER_ROLE_ID = "a0000000-0000-0000-0000-000000000000";
@@ -149,6 +150,11 @@ export async function requireActive() {
 
   if (profileError || !profile) {
     return { allowed: false as const, reason: "no_profile" };
+  }
+
+  const invitation = getInvitationGate(profile);
+  if (!invitation.ok) {
+    return { allowed: false as const, reason: invitation.reason };
   }
 
   if (profile.is_super_user) {

@@ -68,12 +68,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, signInRequired: true });
   }
 
-  const { error: insertError } = await supabase.from("users_profile").insert({
-    id: user.id,
-    email: user.email ?? email,
-    full_name: fullName || null,
-    status: "PENDING_ACCESS",
-  });
+  const { error: insertError } = await supabase.from("users_profile").upsert(
+    {
+      id: user.id,
+      email: user.email ?? email,
+      full_name: fullName || null,
+      status: "ACTIVE",
+      invitation_accepted_at: new Date().toISOString(),
+    },
+    { onConflict: "id" }
+  );
 
   if (insertError) {
     if (insertError.code === "23505") {

@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { UserAvatar } from "@/components/profile/UserAvatar";
 
 /** Optional permission: user needs this permission (or be super) to see the link. superOnly: only super user sees it. */
 type NavLink = {
@@ -19,6 +20,7 @@ type NavEntry = { type: "link"; item: NavLink } | { type: "group"; key: string; 
 
 const navStructure: NavEntry[] = [
   { type: "link", item: { href: "/dashboard", label: "Dashboard" } },
+  { type: "link", item: { href: "/settings/profile", label: "My profile" } },
   {
     type: "group",
     key: "organization",
@@ -88,7 +90,7 @@ const navStructure: NavEntry[] = [
   },
 ];
 
-type UserProfile = { full_name?: string | null; email?: string | null } | null;
+type UserProfile = { full_name?: string | null; email?: string | null; avatar_url?: string | null } | null;
 
 function pathInGroup(pathname: string, group: NavGroup): boolean {
   return group.children.some((c) => pathname === c.href || pathname.startsWith(c.href + "/"));
@@ -162,12 +164,6 @@ export function Sidebar({
 
   const displayName = userProfile?.full_name?.trim() || userProfile?.email || "User";
   const displayEmail = userProfile?.email || null;
-  const initials = displayName
-    .split(/\s+/)
-    .map((s) => s[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() || "?";
 
   function handleNav() {
     onCloseMobile?.();
@@ -273,9 +269,7 @@ export function Sidebar({
 
       <div className="shrink-0 px-3 py-4">
         <div className="flex items-center gap-3 rounded-xl bg-white/5 p-2 ring-1 ring-white/10">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white shadow-lg shadow-indigo-900/30">
-            {initials}
-          </div>
+          <UserAvatar name={displayName} email={displayEmail} avatarUrl={userProfile?.avatar_url} size="md" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{displayName}</p>
             {displayEmail && <p className="truncate text-xs text-slate-400">{displayEmail}</p>}

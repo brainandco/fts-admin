@@ -24,6 +24,7 @@ async function ensureProfile(supabase: Awaited<ReturnType<typeof createServerSup
       email,
       full_name: fullName || null,
       status: "ACTIVE",
+      invitation_accepted_at: new Date().toISOString(),
     });
     if (insertErr && insertErr.code !== "23505") return { user, promoted: false, error: insertErr.message };
   }

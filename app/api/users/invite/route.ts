@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { getDataClient } from "@/lib/supabase/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
@@ -5,9 +6,13 @@ import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { sendUserCredentials } from "@/lib/email/send-user-credentials";
 
+function adminPortalBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || process.env.ADMIN_PORTAL_URL || "").replace(/\/$/, "");
+}
+
 /**
  * POST /api/users/invite — Super user creates a new admin user and sends credentials by email.
- * User can access the admin portal immediately. No confirmation step.
+ * User must accept the invitation (24h) before accessing the dashboard.
  */
 export async function POST(req: Request) {
   const access = await requireSuper();
@@ -31,6 +36,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "This email is registered as an employee. Employees use the Employee Portal only and cannot be added as users." }, { status: 400 });
   }
 
+  const token = randomUUID();
+  const sentAt = new Date();
+  const expiresAt = new Date(sentAt.getTime() + 24 * 60 * 60 * 1000);
+
   const admin = createServerSupabaseAdmin();
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
@@ -49,34 +58,41 @@ export async function POST(req: Request) {
   const user = authData.user;
   if (!user) return NextResponse.json({ message: "User creation failed" }, { status: 400 });
 
-  const { error: profileError } = await supabase.from("users_profile").insert({
-    id: user.id,
-    email: user.email ?? email,
-    full_name: full_name || null,
-    status: "ACTIVE",
-  });
+  const base = adminPortalBaseUrl();
+  const acceptInvitationUrl = base ? `${base}/invite/accept?token=${encodeURIComponent(token)}` : undefined;
+
+  const { error: profileError } = await supabase.from("users_profile").upsert(
+    {
+      id: user.id,
+      email: user.email ?? email,
+      full_name: full_name || null,
+      status: "ACTIVE",
+      invitation_token: token,
+      invitation_sent_at: sentAt.toISOString(),
+      invitation_expires_at: expiresAt.toISOString(),
+      invitation_accepted_at: null,
+    },
+    { onConflict: "id" }
+  );
 
   if (profileError) {
-    if (profileError.code === "23505") {
-      return NextResponse.json({ ok: true, message: "User already has a profile." });
-    }
     return NextResponse.json({ message: profileError.message }, { status: 400 });
   }
 
-  const sendResult = await sendUserCredentials(email, full_name, password);
+  const sendResult = await sendUserCredentials(email, full_name, password, { acceptInvitationUrl });
   await auditLog({
     actionType: "create",
     entityType: "user",
     entityId: user.id,
-    newValue: { email, full_name, status: "ACTIVE" },
-    description: "User invited; credentials sent by email",
+    newValue: { email, full_name, status: "ACTIVE", invitation_expires_at: expiresAt.toISOString() },
+    description: "User invited; credentials and invitation link sent by email",
   });
 
   return NextResponse.json({
     ok: true,
     id: user.id,
     message: sendResult.sent
-      ? "User created. Credentials have been sent by email."
+      ? "User created. They must accept the invitation within 24 hours using the link in the email."
       : "User created. Sending email failed: " + (sendResult.error ?? "unknown"),
     emailSent: sendResult.sent,
   });

@@ -20,6 +20,8 @@ export default async function DashboardLayout({
     if (access.reason === "unauthenticated") redirect("/login?redirect=" + encodeURIComponent("/dashboard"));
     if (access.reason === "no_profile") redirect("/api/auth/ensure-profile?next=" + encodeURIComponent("/dashboard"));
     if (access.reason === "disabled") redirect("/account-disabled");
+    if (access.reason === "invitation_pending") redirect("/invite/accept");
+    if (access.reason === "invitation_expired") redirect("/invite/expired");
     redirect("/login");
   }
   const email = (access.user?.email ?? "").trim();
@@ -43,7 +45,15 @@ export default async function DashboardLayout({
       <DashboardChrome
         isSuper={!!isSuper}
         permissions={permissionList}
-        userProfile={access.profile ? { full_name: access.profile.full_name, email: access.profile.email } : null}
+        userProfile={
+          access.profile
+            ? {
+                full_name: access.profile.full_name,
+                email: access.profile.email,
+                avatar_url: access.profile.avatar_url ?? null,
+              }
+            : null
+        }
         unreadNotifications={unreadNotifications ?? 0}
       >
         {children}

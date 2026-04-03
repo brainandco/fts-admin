@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { DashboardHeader } from "./DashboardHeader";
 
-type UserProfile = { full_name?: string | null; email?: string | null } | null;
+type UserProfile = { full_name?: string | null; email?: string | null; avatar_url?: string | null } | null;
 
 export function DashboardChrome({
   children,
