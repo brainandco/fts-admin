@@ -17,7 +17,11 @@ export async function sendUserCredentials(
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
   if (!apiKey?.trim()) {
-    return { sent: false, error: "RESEND_API_KEY not configured" };
+    return {
+      sent: false,
+      error:
+        "RESEND_API_KEY not set. Locally: fts-admin/.env.local + restart dev. On Vercel: Project → Environment Variables.",
+    };
   }
 
   const html = `
@@ -39,7 +43,12 @@ export async function sendUserCredentials(
   });
 
   if (error) {
-    return { sent: false, error: error.message || String(error) };
+    const raw = error.message || String(error);
+    const hint =
+      /verify a domain|testing emails|only send testing/i.test(raw)
+        ? " Add your domain at https://resend.com/domains (DNS), then set RESEND_FROM_EMAIL to an address on that domain."
+        : "";
+    return { sent: false, error: raw + hint };
   }
   return { sent: true };
 }

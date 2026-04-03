@@ -1,8 +1,26 @@
 import { redirect } from "next/navigation";
 import { getDataClient } from "@/lib/supabase/server";
 import { getCurrentUserRolesAndPermissions } from "@/lib/rbac/permissions";
-import { DataTable } from "@/components/ui/DataTable";
-import Link from "next/link";
+import { UsersList, type UserListRow } from "@/components/users/UsersList";
+
+type ProfileWithRoles = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  status: string;
+  is_super_user: boolean | null;
+  created_at: string | null;
+  user_roles: { roles: { name: string } | null }[] | null;
+};
+
+function buildRolesDisplay(u: ProfileWithRoles): string {
+  const names = (u.user_roles ?? [])
+    .map((ur) => ur.roles?.name)
+    .filter((n): n is string => Boolean(n));
+  if (names.length === 0) return "—";
+  return [...new Set(names)].sort().join(", ");
+}
+
 export default async function UsersPage() {
   const { isSuper } = await getCurrentUserRolesAndPermissions();
   if (!isSuper) redirect("/dashboard");
@@ -12,43 +30,38 @@ export default async function UsersPage() {
   const [usersRes, employeesRes] = await Promise.all([
     supabase
       .from("users_profile")
-      .select("id, email, full_name, status, is_super_user, created_at")
+      .select(
+        `
+        id,
+        email,
+        full_name,
+        status,
+        is_super_user,
+        created_at,
+        user_roles ( roles ( name ) )
+      `
+      )
       .order("email"),
     supabase.from("employees").select("email"),
   ]);
 
-  const users = usersRes.data ?? [];
-  const employeeEmails = new Set((employeesRes.data ?? []).map((e) => (e.email ?? "").toLowerCase().trim()).filter(Boolean));
-  const adminOnlyUsers = users.filter((u) => !employeeEmails.has((u.email ?? "").toLowerCase().trim()));
-  const rows = adminOnlyUsers;
-
-  return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Users</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Admin portal users only. Employees (workforce) are managed under Employees and do not appear here.</p>
-        </div>
-        <Link href="/users/invite" className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50">
-          Add user
-        </Link>
-      </div>
-
-      <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <DataTable
-        keyField="id"
-        data={rows}
-        hrefPrefix="/users/"
-        filterKeys={["status"]}
-        searchPlaceholder="Search users…"
-        columns={[
-          { key: "email", label: "Email" },
-          { key: "full_name", label: "Name", format: "text" },
-          { key: "status", label: "Status" },
-          { key: "is_super_user", label: "Super", format: "boolean" },
-        ]}
-        />
-      </div>
-    </div>
+  const profiles = (usersRes.data ?? []) as unknown as ProfileWithRoles[];
+  const employeeEmails = new Set(
+    (employeesRes.data ?? []).map((e) => (e.email ?? "").toLowerCase().trim()).filter(Boolean)
   );
+
+  /** Admin portal users only: exclude anyone whose email exists on the Employees table. */
+  const adminOnly = profiles.filter((u) => !employeeEmails.has((u.email ?? "").toLowerCase().trim()));
+
+  const rows: UserListRow[] = adminOnly.map((u) => ({
+    id: u.id,
+    email: u.email ?? "",
+    full_name: u.full_name,
+    status: u.status ?? "PENDING_ACCESS",
+    is_super_user: Boolean(u.is_super_user),
+    created_at: u.created_at,
+    roles_display: buildRolesDisplay(u),
+  }));
+
+  return <UsersList rows={rows} />;
 }

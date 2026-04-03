@@ -26,10 +26,18 @@ export async function sendEmployeeCredentials(
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
   if (!apiKey?.trim()) {
-    return { sent: false, error: "RESEND_API_KEY not configured" };
+    return {
+      sent: false,
+      error:
+        "RESEND_API_KEY not set for this server. Locally: add RESEND_API_KEY to fts-admin/.env.local and restart dev. On Vercel: Project → Settings → Environment Variables (not .env.local).",
+    };
   }
   if (!portalUrl?.trim()) {
-    return { sent: false, error: "EMPLOYEE_PORTAL_URL not configured" };
+    return {
+      sent: false,
+      error:
+        "EMPLOYEE_PORTAL_URL not set. Add it to fts-admin/.env.local (local) or Vercel env (production), e.g. https://your-employee-app.vercel.app",
+    };
   }
 
   const html = `
@@ -52,7 +60,12 @@ export async function sendEmployeeCredentials(
   });
 
   if (error) {
-    return { sent: false, error: error.message || String(error) };
+    const raw = error.message || String(error);
+    const hint =
+      /verify a domain|testing emails|only send testing/i.test(raw)
+        ? " Add your domain at https://resend.com/domains (DNS), then set RESEND_FROM_EMAIL to an address on that domain in env (e.g. noreply@fts-ksa.com)."
+        : "";
+    return { sent: false, error: raw + hint };
   }
   return { sent: true };
 }

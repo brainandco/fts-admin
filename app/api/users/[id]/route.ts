@@ -54,11 +54,18 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     description: "User deleted",
   });
 
-  const { error: rolesErr } = await supabase.from("user_roles").delete().eq("user_id", id);
-  if (rolesErr) return NextResponse.json({ message: rolesErr.message }, { status: 400 });
-
-  const { error: profileErr } = await supabase.from("users_profile").delete().eq("id", id);
-  if (profileErr) return NextResponse.json({ message: profileErr.message }, { status: 400 });
+  const admin = createServerSupabaseAdmin();
+  const { error: authDelErr } = await admin.auth.admin.deleteUser(id);
+  if (authDelErr) {
+    return NextResponse.json(
+      {
+        message:
+          authDelErr.message ||
+          "Could not delete auth user. If this says a database error, run migration 00034 (FK cleanup) or remove rows referencing this user.",
+      },
+      { status: 400 }
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

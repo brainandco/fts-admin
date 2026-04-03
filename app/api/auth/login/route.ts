@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { mergeCookieOptions } from "@/lib/supabase/cookie-options";
+import { getSupabaseUrlAndAnonKey } from "@/lib/supabase/public-env";
 
 /** Only allow same-origin path redirects (e.g. /dashboard). */
 function safeRedirectTo(raw: string, baseUrl: string): string {
@@ -40,9 +41,17 @@ export async function POST(request: NextRequest) {
   const jsonResponse = NextResponse.json({ ok: true, redirectTo });
   const responseToUse = wantsJson ? jsonResponse : redirectResponse;
 
+  const env = getSupabaseUrlAndAnonKey();
+  if (!env) {
+    if (wantsJson) return NextResponse.json({ error: "Server configuration" }, { status: 500 });
+    addRedirect(loginUrl);
+    loginUrl.searchParams.set("error", "Server configuration");
+    return NextResponse.redirect(loginUrl, 302);
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.url,
+    env.anonKey,
     {
       cookies: {
         getAll() {

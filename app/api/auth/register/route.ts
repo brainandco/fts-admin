@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { mergeCookieOptions } from "@/lib/supabase/cookie-options";
+import { getSupabaseUrlAndAnonKey } from "@/lib/supabase/public-env";
 
 /**
  * Server-side registration: sign up with Supabase Auth and create users_profile
@@ -25,10 +26,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
   }
 
+  const env = getSupabaseUrlAndAnonKey();
+  if (!env) {
+    return NextResponse.json({ error: "Server configuration" }, { status: 500 });
+  }
+
   const res = NextResponse.json({ ok: true });
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.url,
+    env.anonKey,
     {
       cookies: {
         getAll() {
