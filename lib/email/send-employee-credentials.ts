@@ -1,10 +1,11 @@
 /**
  * Send employee portal login credentials by email (Resend SDK).
- * Requires RESEND_API_KEY and EMPLOYEE_PORTAL_URL in env.
+ * Requires RESEND_API_KEY. Portal URLs come from getEmployeePortalBaseUrl() (see employee-portal-base-url.ts).
  * RESEND_FROM_EMAIL must use your verified Resend domain (e.g. noreply@admin.fts-ksa.com if admin.fts-ksa.com is verified).
  */
 
 import { Resend } from "resend";
+import { getEmployeePortalBaseUrl } from "@/lib/email/employee-portal-base-url";
 
 export function randomPassword(length = 12): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -23,8 +24,9 @@ export async function sendEmployeeCredentials(
   password: string
 ): Promise<SendCredentialsResult> {
   const apiKey = process.env.RESEND_API_KEY;
-  const portalUrl = process.env.EMPLOYEE_PORTAL_URL || "";
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  const portalUrl = getEmployeePortalBaseUrl();
+  const loginUrl = `${portalUrl}/login`;
 
   if (!apiKey?.trim()) {
     return {
@@ -33,21 +35,15 @@ export async function sendEmployeeCredentials(
         "RESEND_API_KEY not set for this server. Locally: add RESEND_API_KEY to fts-admin/.env.local and restart dev. On Vercel: Project → Settings → Environment Variables (not .env.local).",
     };
   }
-  if (!portalUrl?.trim()) {
-    return {
-      sent: false,
-      error:
-        "EMPLOYEE_PORTAL_URL not set. Add it to fts-admin/.env.local (local) or Vercel env (production), e.g. https://your-employee-app.vercel.app",
-    };
-  }
 
   const html = `
     <p>Hello${fullName ? ` ${fullName}` : ""},</p>
-    <p>Your employee portal account has been created. Use the credentials below to sign in.</p>
+    <p>Your employee portal account has been created. Use the details below to sign in.</p>
     <p><strong>Portal:</strong> <a href="${portalUrl}">${portalUrl}</a></p>
-    <p><strong>Email:</strong> ${email}</p>
+    <p><strong>Sign in:</strong> <a href="${loginUrl}">${loginUrl}</a></p>
+    <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
     <p><strong>Password:</strong> ${password}</p>
-    <p>Please change your password after your first login if the portal supports it.</p>
+    <p>Change your password after first sign-in from the portal settings if available.</p>
     <p>If you did not expect this email, contact your administrator.</p>
   `;
 
