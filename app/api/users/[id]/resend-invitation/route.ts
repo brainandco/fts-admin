@@ -6,12 +6,9 @@ import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { sendUserCredentials } from "@/lib/email/send-user-credentials";
 import { randomPassword } from "@/lib/email/send-employee-credentials";
+import { getAdminPortalBaseUrl } from "@/lib/email/admin-portal-base-url";
 
 const SUPER_ROLE_ID = "a0000000-0000-0000-0000-000000000000";
-
-function adminPortalBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || process.env.ADMIN_PORTAL_URL || "").replace(/\/$/, "");
-}
 
 /**
  * POST /api/users/[id]/resend-invitation — New 24h invitation link + optional new password (email).
@@ -75,8 +72,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ message: updErr.message }, { status: 400 });
   }
 
-  const base = adminPortalBaseUrl();
-  const acceptInvitationUrl = base ? `${base}/invite/accept?token=${encodeURIComponent(token)}` : undefined;
+  const base = getAdminPortalBaseUrl();
+  const acceptInvitationUrl = `${base}/invite/accept?token=${encodeURIComponent(token)}`;
 
   const sendResult = await sendUserCredentials(email, profile.full_name ?? "", password, { acceptInvitationUrl });
 

@@ -5,10 +5,7 @@ import { NextResponse } from "next/server";
 import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { sendUserCredentials } from "@/lib/email/send-user-credentials";
-
-function adminPortalBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || process.env.ADMIN_PORTAL_URL || "").replace(/\/$/, "");
-}
+import { getAdminPortalBaseUrl } from "@/lib/email/admin-portal-base-url";
 
 /**
  * POST /api/users/invite — Super user creates a new admin user and sends credentials by email.
@@ -58,8 +55,8 @@ export async function POST(req: Request) {
   const user = authData.user;
   if (!user) return NextResponse.json({ message: "User creation failed" }, { status: 400 });
 
-  const base = adminPortalBaseUrl();
-  const acceptInvitationUrl = base ? `${base}/invite/accept?token=${encodeURIComponent(token)}` : undefined;
+  const base = getAdminPortalBaseUrl();
+  const acceptInvitationUrl = `${base}/invite/accept?token=${encodeURIComponent(token)}`;
 
   const { error: profileError } = await supabase.from("users_profile").upsert(
     {
