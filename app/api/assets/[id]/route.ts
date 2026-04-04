@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
+import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
 
 /** PM assigns assets to employees; admin updates details only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -45,6 +46,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const { error } = await supabase.from("assets").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
+
+  if (body.assigned_to_employee_id !== undefined) {
+    const oldEmp = (old as { assigned_to_employee_id?: string | null }).assigned_to_employee_id ?? null;
+    const assigneeChanged = oldEmp !== newEmployeeId;
+    if (assigneeChanged) {
+      const userClient = await createServerSupabaseClient();
+      const { data: { user } } = await userClient.auth.getUser();
+      if (newEmployeeId) {
+        await upsertPendingReceipt(supabase, {
+          employeeId: newEmployeeId,
+          assignedByUserId: user?.id ?? null,
+          resourceType: "asset",
+          resourceId: id,
+        });
+      } else {
+        await deleteReceiptForResource(supabase, "asset", id);
+      }
+    }
+  }
+
   if (newEmployeeId && (old as { assigned_to_employee_id?: string }).assigned_to_employee_id !== newEmployeeId) {
     const userClient = await createServerSupabaseClient();
     const { data: { user } } = await userClient.auth.getUser();

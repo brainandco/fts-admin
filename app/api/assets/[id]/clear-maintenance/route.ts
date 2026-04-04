@@ -2,6 +2,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
+import { deleteReceiptForResource } from "@/lib/resource-receipts";
 
 /** Admin: set asset from Under_Maintenance → Available (back in pool) after repair. */
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -34,6 +35,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (updErr) {
     return NextResponse.json({ message: updErr.message }, { status: 400 });
   }
+
+  await deleteReceiptForResource(supabase, "asset", id);
 
   await auditLog({
     actionType: "update",
