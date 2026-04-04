@@ -5,7 +5,7 @@ import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { getQaProjectId, QA_EMPLOYEE_PROJECT_NAME } from "@/lib/employees/qaProject";
 
-const ALLOWED_ROLES = ["Driver/Rigger", "QC", "QA", "DT", "Project Manager", "Self DT"];
+const ALLOWED_ROLES = ["Driver/Rigger", "QC", "QA", "DT", "Project Manager", "Self DT", "Project Coordinator"];
 
 export async function POST(req: Request) {
   if (!(await can("users.create"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });

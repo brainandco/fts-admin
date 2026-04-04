@@ -60,13 +60,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
   if (Array.isArray(body.roles)) {
-    const allowed = ["Driver/Rigger", "QC", "QA", "PP", "DT", "Project Manager", "Self DT"];
+    const allowed = [
+      "Driver/Rigger",
+      "QC",
+      "QA",
+      "PP",
+      "DT",
+      "Project Manager",
+      "Self DT",
+      "Project Coordinator",
+    ];
     const newRoles = body.roles.filter((r: string) => allowed.includes(r));
     if (newRoles.length !== 1) {
       return NextResponse.json({ message: "Exactly one role is required." }, { status: 400 });
     }
     const nextRole = newRoles[0];
-    if (nextRole === "QC" || nextRole === "QA" || nextRole === "PP" || nextRole === "Project Manager") {
+    if (
+      nextRole === "QC" ||
+      nextRole === "QA" ||
+      nextRole === "PP" ||
+      nextRole === "Project Manager" ||
+      nextRole === "Project Coordinator"
+    ) {
       const { data: teamRows } = await supabase
         .from("teams")
         .select("id")
@@ -76,7 +91,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json(
           {
             message:
-              "QC, QA, PP, and Project Manager cannot be on a team. Remove this employee from their team first, then change this role.",
+              "QC, QA, PP, Project Manager, and Project Coordinator cannot be on a team. Remove this employee from their team first, then change this role.",
           },
           { status: 400 }
         );

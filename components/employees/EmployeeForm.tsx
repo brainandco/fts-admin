@@ -13,6 +13,7 @@ const EMPLOYEE_ROLE_OPTIONS = [
   { value: "QA", label: "QA" },
   { value: "PP", label: "PP" },
   { value: "Project Manager", label: "Project Manager" },
+  { value: "Project Coordinator", label: "Project Coordinator" },
 ] as const;
 
 type Employee = {

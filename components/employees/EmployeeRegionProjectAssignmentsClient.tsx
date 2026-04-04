@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const PROJECT_ROLES = new Set(["Project Manager", "QA", "PP"]);
+const PROJECT_ROLES = new Set(["Project Manager", "QA", "PP", "Project Coordinator"]);
 
 type Row = {
   id: string;
@@ -57,7 +57,7 @@ export function EmployeeRegionProjectAssignmentsClient({
       project_id: PROJECT_ROLES.has(role) ? (projectId || null) : null,
     };
     if (!PROJECT_ROLES.has(role) && projectId) {
-      setMessage({ type: "err", text: "Only Project Manager, QA, and PP can have a project on their record." });
+      setMessage({ type: "err", text: "Only Project Manager, QA, PP, and Project Coordinator can have a project on their record." });
       setSaving(false);
       return;
     }
@@ -83,7 +83,7 @@ export function EmployeeRegionProjectAssignmentsClient({
   return (
     <div className="space-y-4">
       <p className="text-sm text-zinc-600">
-        Set region for any employee. For <strong>Project Manager</strong>, <strong>QA</strong>, and <strong>PP</strong>, choose a project in that region. Other roles only use region (no project).
+        Set region for any employee. For <strong>Project Manager</strong>, <strong>QA</strong>, <strong>PP</strong>, and <strong>Project Coordinator</strong>, choose a project in that region. Other roles only use region (no project).
       </p>
       {message && (
         <p className={`text-sm ${message.type === "ok" ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>

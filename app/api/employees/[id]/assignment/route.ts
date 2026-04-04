@@ -3,11 +3,11 @@ import { NextResponse } from "next/server";
 import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 
-const PROJECT_ROLES = new Set(["Project Manager", "QA", "PP"]);
+const PROJECT_ROLES = new Set(["Project Manager", "QA", "PP", "Project Coordinator"]);
 
 /**
  * PATCH — Super User only. Sets region and formal project for an employee.
- * PM / QA / PP: when region is set, project_id must be set and must belong to that region.
+ * PM / QA / PP / Project Coordinator: when region is set, project_id must be set and must belong to that region.
  * Other roles: project_id is cleared.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -44,7 +44,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (PROJECT_ROLES.has(role)) {
     if (region_id && !project_id) {
       return NextResponse.json(
-        { message: "Select a project for Project Manager, QA, and PP when a region is set." },
+        { message: "Select a project for Project Manager, QA, PP, and Project Coordinator when a region is set." },
         { status: 400 }
       );
     }
@@ -65,7 +65,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   } else {
     if (project_id) {
       return NextResponse.json(
-        { message: "Only Project Manager, QA, and PP can have a project on their employee record." },
+        { message: "Only Project Manager, QA, PP, and Project Coordinator can have a project on their employee record." },
         { status: 400 }
       );
     }

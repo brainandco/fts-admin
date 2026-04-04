@@ -41,9 +41,13 @@ export function TeamForm({
   const [error, setError] = useState("");
 
   const unavailableSet = new Set(unavailableEmployeeIds);
-  /** QC, QA, PP, and PM cannot be on a team (DT / Driver-Rigger / Self-DT slots). */
+  /** QC, QA, PP, PM, and Project Coordinator cannot be on a team (DT / Driver-Rigger / Self-DT slots). */
   const canBeOnTeam = (e: Employee) =>
-    !e.roles.includes("QC") && !e.roles.includes("QA") && !e.roles.includes("PP") && !e.roles.includes("Project Manager");
+    !e.roles.includes("QC") &&
+    !e.roles.includes("QA") &&
+    !e.roles.includes("PP") &&
+    !e.roles.includes("Project Manager") &&
+    !e.roles.includes("Project Coordinator");
   const selectable = employees.filter((e) => {
     if (!canBeOnTeam(e)) return false;
     if (existing && (e.id === existing.dt_employee_id || e.id === existing.driver_rigger_employee_id)) return true;
@@ -141,7 +145,7 @@ export function TeamForm({
         </div>
       </div>
       <p className="text-xs text-zinc-500">
-        Only DT, Driver/Rigger, or Self DT can be members. QC, QA, PP, and Project Manager cannot be on a team.
+        Only DT, Driver/Rigger, or Self DT can be members. QC, QA, PP, Project Manager, and Project Coordinator cannot be on a team.
       </p>
       {isSelfDtTeam ? (
         <div>

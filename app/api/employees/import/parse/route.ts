@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { QA_EMPLOYEE_PROJECT_NAME } from "@/lib/employees/qaProject";
 
-const ALLOWED_ROLES = ["Driver/Rigger", "QC", "QA", "DT", "Project Manager", "Self DT"];
+const ALLOWED_ROLES = ["Driver/Rigger", "QC", "QA", "DT", "Project Manager", "Self DT", "Project Coordinator"];
 
 function parseCSVLine(line: string): string[] {
   const out: string[] = [];
@@ -136,7 +136,8 @@ export async function POST(req: Request) {
     if (!email) errors.push("Email required");
     if (!phone) errors.push("Phone required");
     if (!iqama_number) errors.push("Iqama number required");
-    if (roles.length === 0) errors.push("At least one role required (DT, Driver/Rigger, Self DT, QC, QA, Project Manager)");
+    if (roles.length === 0)
+      errors.push("At least one role required (DT, Driver/Rigger, Self DT, QC, QA, Project Manager, Project Coordinator)");
     if (!region_id) errors.push(regionInput ? "Region name not found" : "Region required");
     if (!isOnlyQa) {
       if (!isOther && !project_id && projectInput) errors.push("Project name not found");

@@ -447,7 +447,7 @@ CREATE TABLE employees (
 
 CREATE TABLE employee_roles (
   employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('DT', 'Driver/Rigger', 'QC', 'QA', 'Project Manager', 'Self DT')),
+  role TEXT NOT NULL CHECK (role IN ('DT', 'Driver/Rigger', 'QC', 'QA', 'Project Manager', 'Self DT', 'PP', 'Project Coordinator')),
   PRIMARY KEY (employee_id, role)
 );
 CREATE INDEX idx_employee_roles_employee ON employee_roles(employee_id);

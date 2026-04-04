@@ -20,7 +20,16 @@ export async function POST(req: Request) {
   if (!email) return NextResponse.json({ message: "Email is required" }, { status: 400 });
   if (!phone) return NextResponse.json({ message: "Phone number is required" }, { status: 400 });
   if (!iqama_number) return NextResponse.json({ message: "Iqama number is required" }, { status: 400 });
-  const allowedRoles = ["Driver/Rigger", "QC", "QA", "PP", "DT", "Project Manager", "Self DT"];
+  const allowedRoles = [
+    "Driver/Rigger",
+    "QC",
+    "QA",
+    "PP",
+    "DT",
+    "Project Manager",
+    "Self DT",
+    "Project Coordinator",
+  ];
   const roles = Array.isArray(input.roles) ? input.roles.filter((r: string) => allowedRoles.includes(r)) : [];
   if (roles.length !== 1) return NextResponse.json({ message: "Exactly one role is required." }, { status: 400 });
 
