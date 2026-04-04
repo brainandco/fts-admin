@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
-import { DataTable } from "@/components/ui/DataTable";
+import { AssetCategoryTables, type AssetCategoryRow } from "@/components/assets/AssetCategoryTables";
 
 function StatCard({
   label,
@@ -85,100 +85,12 @@ export default async function AssetTypePage({ params }: { params: Promise<{ cate
         <StatCard label="Damaged" value={damagedRows.length} tone="red" />
       </section>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-2 text-lg font-medium text-zinc-900">Active / pool assets</h2>
-        {/* <p className="mb-3 text-sm text-zinc-500">Available, assigned, and pending-return assets for this type.</p> */}
-        {activeRows.length === 0 ? (
-          <p className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-500">No active/pool assets in this type.</p>
-        ) : (
-          <DataTable
-            keyField="id"
-            data={activeRows}
-            hrefPrefix="/assets/"
-            filterKeys={["status"]}
-            searchPlaceholder="Search by name, serial…"
-            columns={[
-              { key: "name", label: "Name" },
-              { key: "model", label: "Model" },
-              { key: "serial", label: "Serial" },
-              ...(showImei ? [{ key: "imei_1", label: "IMEI 1" }, { key: "imei_2", label: "IMEI 2" }] : []),
-              { key: "software_connectivity", label: "Software" },
-              { key: "assigned_name", label: "Assigned to" },
-              { key: "status", label: "Status" },
-            ]}
-          />
-        )}
-      </section>
-
-      <section className="rounded-xl border border-orange-200 bg-orange-50/30 p-5 shadow-sm">
-        <h2 className="mb-2 text-lg font-medium text-zinc-900">Under maintenance</h2>
-        {maintenanceRows.length === 0 ? (
-          <p className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">No under-maintenance assets in this type.</p>
-        ) : (
-          <DataTable
-            keyField="id"
-            data={maintenanceRows}
-            hrefPrefix="/assets/"
-            searchPlaceholder="Search by name, serial…"
-            columns={[
-              { key: "serial", label: "Serial" },
-              { key: "model", label: "Model" },
-              ...(showImei ? [{ key: "imei_1", label: "IMEI 1" }, { key: "imei_2", label: "IMEI 2" }] : []),
-              { key: "name", label: "Name" },
-              { key: "software_connectivity", label: "Software" },
-              { key: "status", label: "Status" },
-            ]}
-          />
-        )}
-      </section>
-
-      <section className="rounded-xl border border-red-200 bg-red-50/30 p-5 shadow-sm">
-        <h2 className="mb-2 text-lg font-medium text-zinc-900">Damaged</h2>
-        {damagedRows.length === 0 ? (
-          <p className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">No damaged assets in this type.</p>
-        ) : (
-          <DataTable
-            keyField="id"
-            data={damagedRows}
-            hrefPrefix="/assets/"
-            searchPlaceholder="Search by name, serial…"
-            columns={[
-              { key: "serial", label: "Serial" },
-              { key: "model", label: "Model" },
-              ...(showImei ? [{ key: "imei_1", label: "IMEI 1" }, { key: "imei_2", label: "IMEI 2" }] : []),
-              { key: "name", label: "Name" },
-              { key: "software_connectivity", label: "Software" },
-              { key: "status", label: "Status" },
-            ]}
-          />
-        )}
-      </section>
-
-      {/* <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-2 text-lg font-medium text-zinc-900">All assets in this type</h2>
-        <p className="mb-3 text-sm text-zinc-500">Complete list including maintenance and damaged.</p>
-        {rows.length === 0 ? (
-          <p className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-500">No assets found for this type.</p>
-        ) : (
-          <DataTable
-            keyField="id"
-            data={rows}
-            hrefPrefix="/assets/"
-            filterKeys={["status"]}
-            searchPlaceholder="Search by name, serial…"
-            columns={[
-              { key: "serial", label: "Serial" },
-              { key: "model", label: "Model" },
-              { key: "imei_1", label: "IMEI 1" },
-              { key: "imei_2", label: "IMEI 2" },
-              { key: "name", label: "Name" },
-              { key: "software_connectivity", label: "Software" },
-              { key: "status", label: "Status" },
-              { key: "assigned_name", label: "Assigned to" },
-            ]}
-          />
-        )}
-      </section> */}
+      <AssetCategoryTables
+        showImei={showImei}
+        activeRows={activeRows as AssetCategoryRow[]}
+        maintenanceRows={maintenanceRows as AssetCategoryRow[]}
+        damagedRows={damagedRows as AssetCategoryRow[]}
+      />
     </div>
   );
 }

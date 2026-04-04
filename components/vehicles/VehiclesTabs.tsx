@@ -119,8 +119,8 @@ export function VehiclesTabs({
           keyField="id"
           data={allRows}
           rowActions={allRowActions}
-          selectable
-          selectionLabelKey="plate_number"
+          multiSelect
+          bulkDelete={{ apiPath: "/api/vehicles/bulk-delete", entityLabel: "vehicles", confirmTitle: "Delete selected vehicles" }}
           filterKeys={["status"]}
           searchPlaceholder="Search by plate, type, make, model…"
           toolbarTrailing={
@@ -141,8 +141,8 @@ export function VehiclesTabs({
           keyField="id"
           data={assignedRows}
           rowActions={assignedRowActions}
-          selectable
-          selectionLabelKey="plate_number"
+          multiSelect
+          bulkDelete={{ apiPath: "/api/vehicles/bulk-delete", entityLabel: "vehicles", confirmTitle: "Delete selected vehicles" }}
           filterKeys={["project_name", "region_name"]}
           searchPlaceholder="Search by name, plate, project, region…"
           toolbarTrailing={

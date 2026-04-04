@@ -60,3 +60,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   await auditLog({ actionType: "update", entityType: "asset", entityId: id, oldValue: old, newValue: { ...old, ...updates }, description: "Asset updated" });
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await can("assets.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  const { id } = await params;
+  const supabase = await getDataClient();
+  const { data: old } = await supabase.from("assets").select("*").eq("id", id).single();
+  if (!old) return NextResponse.json({ message: "Not found" }, { status: 404 });
+
+  const { error } = await supabase.from("assets").delete().eq("id", id);
+  if (error) return NextResponse.json({ message: error.message }, { status: 400 });
+
+  await auditLog({ actionType: "delete", entityType: "asset", entityId: id, oldValue: old, description: "Asset deleted" });
+  return NextResponse.json({ ok: true });
+}

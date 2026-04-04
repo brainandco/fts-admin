@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 type ColumnFormat = "text" | "date" | "datetime" | "boolean";
 
@@ -116,6 +118,14 @@ interface DataTableProps<T extends Record<string, unknown>> {
   pageSizeOptions?: number[];
   /** Default page size. Default 10. */
   defaultPageSize?: number;
+  /** Multi-select checkboxes + optional bulk delete (POST JSON `{ ids: string[] }` to apiPath). */
+  multiSelect?: boolean;
+  bulkDelete?: {
+    apiPath: string;
+    /** e.g. "vehicles" for confirm copy */
+    entityLabel: string;
+    confirmTitle?: string;
+  };
 }
 
 export function DataTable<T extends Record<string, unknown>>({
@@ -133,14 +143,22 @@ export function DataTable<T extends Record<string, unknown>>({
   toolbarTrailing,
   pageSizeOptions = [10, 25, 50, 100],
   defaultPageSize = 10,
+  multiSelect = false,
+  bulkDelete,
 }: DataTableProps<T>) {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [openActionsKey, setOpenActionsKey] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<T | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectableEffective = selectable && !multiSelect;
 
   const effectiveRowActions = useMemo((): ((row: T) => RowAction<T>[]) => {
     if (rowActionsProp) return rowActionsProp;
@@ -157,6 +175,11 @@ export function DataTable<T extends Record<string, unknown>>({
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openActionsKey]);
+
+  const dataIdSet = useMemo(() => new Set(data.map((r) => String(r[keyField]))), [data, keyField]);
+  useEffect(() => {
+    setSelectedIds((prev) => new Set([...prev].filter((id) => dataIdSet.has(id))));
+  }, [dataIdSet]);
 
   const filteredData = useMemo(() => {
     let result = data;
@@ -198,6 +221,60 @@ export function DataTable<T extends Record<string, unknown>>({
   const endItem = Math.min(currentPage * pageSize, totalFiltered);
   const showActionsColumn = hrefPrefix != null || rowActionsProp != null;
   const labelKey = selectionLabelKey ?? columns[0]?.key;
+  const colSpan =
+    columns.length + (showActionsColumn ? 1 : 0) + (multiSelect ? 1 : 0);
+
+  const paginatedIds = paginatedData.map((r) => String(r[keyField]));
+  const allPageSelected =
+    paginatedIds.length > 0 && paginatedIds.every((id) => selectedIds.has(id));
+  const togglePageSelection = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) paginatedIds.forEach((id) => next.delete(id));
+      else paginatedIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+  const toggleOneId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  async function runBulkDelete() {
+    if (!bulkDelete || selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    const ids = [...selectedIds];
+    try {
+      const res = await fetch(bulkDelete.apiPath, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const dataJson = await res.json().catch(() => ({}));
+      setBulkDeleting(false);
+      setBulkConfirmOpen(false);
+      if (!res.ok) {
+        alert(typeof dataJson.message === "string" ? dataJson.message : "Bulk delete failed");
+        return;
+      }
+      const failed = (dataJson.failed ?? []) as { id: string; message: string }[];
+      const deletedCount = typeof dataJson.deletedCount === "number" ? dataJson.deletedCount : ids.length;
+      if (failed.length > 0) {
+        alert(
+          `Deleted ${deletedCount}. Failed ${failed.length}: ${failed.slice(0, 5).map((f) => f.message).join("; ")}${failed.length > 5 ? "…" : ""}`
+        );
+      }
+      setSelectedIds(new Set());
+      router.refresh();
+    } catch {
+      setBulkDeleting(false);
+      alert("Bulk delete failed");
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -229,7 +306,22 @@ export function DataTable<T extends Record<string, unknown>>({
           </div>
         ))}
         {toolbarTrailing != null ? <div className="ml-auto flex flex-wrap items-center gap-2">{toolbarTrailing}</div> : null}
-        {selectable && selectedRow && effectiveRowActions(selectedRow).length > 0 && (
+        {multiSelect && selectedIds.size > 0 && bulkDelete && (
+          <div className="flex w-full flex-wrap items-center gap-2 border-t border-zinc-200 pt-3 sm:w-auto sm:border-0 sm:pt-0">
+            <span className="text-sm font-medium text-zinc-700">{selectedIds.size} selected</span>
+            <button
+              type="button"
+              onClick={() => setBulkConfirmOpen(true)}
+              className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+            >
+              Delete selected
+            </button>
+            <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm text-zinc-500 hover:text-zinc-800">
+              Clear selection
+            </button>
+          </div>
+        )}
+        {selectableEffective && selectedRow && effectiveRowActions(selectedRow).length > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-zinc-700">
               Selected: {String(selectedRow[labelKey as keyof T] ?? selectedRow[keyField])}
@@ -256,6 +348,17 @@ export function DataTable<T extends Record<string, unknown>>({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
+              {multiSelect && (
+                <th className="w-10 px-2 py-3">
+                  <input
+                    type="checkbox"
+                    className="rounded border-zinc-300"
+                    checked={allPageSelected}
+                    onChange={togglePageSelection}
+                    aria-label="Select all on this page"
+                  />
+                </th>
+              )}
               {columns.map((col) => (
                 <th key={col.key as string} className="px-4 py-3 text-left font-medium text-zinc-700">
                   {col.label}
@@ -267,7 +370,7 @@ export function DataTable<T extends Record<string, unknown>>({
           <tbody>
             {paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (showActionsColumn ? 1 : 0)} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={colSpan} className="px-4 py-8 text-center text-zinc-500">
                   {emptyMessage}
                 </td>
               </tr>
@@ -275,13 +378,25 @@ export function DataTable<T extends Record<string, unknown>>({
               paginatedData.map((row) => {
                 const key = String(row[keyField]);
                 const actions = effectiveRowActions(row);
-                const isSelected = selectable && selectedRow && String(selectedRow[keyField]) === key;
+                const isSelected = selectableEffective && selectedRow && String(selectedRow[keyField]) === key;
+                const checked = selectedIds.has(key);
                 return (
                   <tr
                     key={key}
-                    className={`border-b border-zinc-100 hover:bg-zinc-50 ${isSelected ? "bg-zinc-100" : ""} ${selectable ? "cursor-pointer" : ""}`}
-                    onClick={selectable ? () => setSelectedRow(isSelected ? null : row) : undefined}
+                    className={`border-b border-zinc-100 hover:bg-zinc-50 ${isSelected ? "bg-zinc-100" : ""} ${selectableEffective ? "cursor-pointer" : ""}`}
+                    onClick={selectableEffective ? () => setSelectedRow(isSelected ? null : row) : undefined}
                   >
+                    {multiSelect && (
+                      <td className="w-10 px-2 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="rounded border-zinc-300"
+                          checked={checked}
+                          onChange={() => toggleOneId(key)}
+                          aria-label="Select row"
+                        />
+                      </td>
+                    )}
                     {columns.map((col) => {
                       const val = row[col.key as keyof T];
                       const formatted = formatCellValue(val, col.format);
@@ -363,6 +478,20 @@ export function DataTable<T extends Record<string, unknown>>({
           </button>
         </div>
       </div>
+
+      {bulkDelete && (
+        <ConfirmModal
+          open={bulkConfirmOpen}
+          title={bulkDelete.confirmTitle ?? `Delete ${bulkDelete.entityLabel}`}
+          message={`Delete ${selectedIds.size} selected ${bulkDelete.entityLabel}? This cannot be undone.`}
+          confirmLabel="Yes, delete"
+          cancelLabel="Cancel"
+          variant="danger"
+          loading={bulkDeleting}
+          onConfirm={() => void runBulkDelete()}
+          onCancel={() => !bulkDeleting && setBulkConfirmOpen(false)}
+        />
+      )}
     </div>
   );
 }

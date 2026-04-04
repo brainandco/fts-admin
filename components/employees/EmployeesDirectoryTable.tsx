@@ -107,6 +107,12 @@ export function EmployeesDirectoryTable({
         filterKeys={["status", "region_name"]}
         searchPlaceholder="Search employees…"
         columns={columns}
+        multiSelect={canDelete}
+        bulkDelete={
+          canDelete
+            ? { apiPath: "/api/employees/bulk-delete", entityLabel: "employees", confirmTitle: "Delete selected employees" }
+            : undefined
+        }
       />
 
       <ConfirmModal
