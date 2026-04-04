@@ -5,12 +5,15 @@ import { AssetForm } from "@/components/assets/AssetForm";
 import { ClearMaintenanceButton } from "@/components/assets/ClearMaintenanceButton";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { can } from "@/lib/rbac/permissions";
+import { AdminRegionTeamAssignCard } from "@/components/admin-assignment/AdminRegionTeamAssignCard";
 
 export default async function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerSupabaseClient();
   const { data: asset } = await supabase.from("assets").select("*").eq("id", id).single();
   if (!asset) notFound();
+  const { data: regions } = await supabase.from("regions").select("id, name").order("name");
+  const canAssignAsset = (await can("assets.manage")) || (await can("assets.assign"));
   const { data: history } = await supabase
     .from("asset_assignment_history")
     .select("id, to_employee_id, assigned_by_user_id, assigned_at, notes")
@@ -45,6 +48,14 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           <ClearMaintenanceButton assetId={id} canClear={canClearMaintenance} />
         </div>
       ) : null}
+      <AdminRegionTeamAssignCard
+        variant="asset"
+        resourceId={id}
+        regions={regions ?? []}
+        initialRegionId={(asset as { assigned_region_id?: string | null }).assigned_region_id ?? null}
+        statusLabel={asset.status}
+        canAssign={canAssignAsset}
+      />
       <section>
         <h2 className="mb-3 text-lg font-medium text-zinc-900">Edit asset</h2>
         <AssetForm existing={asset} />

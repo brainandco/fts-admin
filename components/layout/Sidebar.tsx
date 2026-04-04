@@ -72,6 +72,11 @@ const navStructure: NavEntry[] = [
           label: "Asset returns",
           permissionAnyOf: ["assets.manage", "assets.return"],
         },
+        {
+          href: "/receipt-confirmations",
+          label: "Receipt confirmations",
+          permissionAnyOf: ["assets.manage", "assets.assign", "vehicles.manage"],
+        },
         { href: "/vehicles", label: "Vehicles", permission: "vehicles.manage" },
       ],
     },
@@ -217,7 +222,7 @@ export function Sidebar({
           }
           const { key, group } = entry;
           const isOpen = openKeys.has(key);
-          const childrenVisible = group.children.filter((c) => !c.superOnly || isSuper);
+          const childrenVisible = group.children.filter((c) => canSeeLink(c, isSuper, permissionSet));
           const hasActiveChild = childrenVisible.some(
             (c) => pathname === c.href || pathname.startsWith(c.href + "/")
           );

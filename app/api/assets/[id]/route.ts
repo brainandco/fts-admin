@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
+import { assertAssigneeAllowedForRegionTeam } from "@/lib/admin-assignment/validate-assignee";
 
 /** PM assigns assets to employees; admin updates details only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,11 +16,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!old) return NextResponse.json({ message: "Not found" }, { status: 404 });
 
   /* Status is controlled by assignment, returns workflow, and create — not free-form edits here. */
-  const keys = ["asset_id", "name", "category", "serial", "purchase_date", "warranty_end", "condition", "assigned_to_employee_id", "specs"];
+  const keys = ["asset_id", "name", "category", "serial", "purchase_date", "warranty_end", "condition", "specs"];
   const updates: Record<string, unknown> = {};
   keys.forEach((k) => {
     if (body[k] !== undefined) updates[k] = body[k];
   });
+  if (body.assigned_region_id !== undefined) {
+    updates.assigned_region_id =
+      typeof body.assigned_region_id === "string" && body.assigned_region_id.trim()
+        ? body.assigned_region_id.trim()
+        : null;
+  }
   if (body.software_connectivity !== undefined) {
     updates.software_connectivity = typeof body.software_connectivity === "string" ? body.software_connectivity.trim() || null : null;
   }
@@ -33,6 +40,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const userClient = await createServerSupabaseClient();
     const { data: { user } } = await userClient.auth.getUser();
     if (newEmployeeId) {
+      const regionForValidation =
+        (typeof body.assignment_region_id === "string" && body.assignment_region_id.trim()) ||
+        (old as { assigned_region_id?: string | null }).assigned_region_id ||
+        null;
+      if (!regionForValidation) {
+        return NextResponse.json(
+          { message: "Set a regional pool on the asset or send assignment_region_id when assigning." },
+          { status: 400 }
+        );
+      }
+      const targetTeamId =
+        typeof body.target_team_id === "string" && body.target_team_id.trim() ? body.target_team_id.trim() : null;
+      const check = await assertAssigneeAllowedForRegionTeam(
+        supabase,
+        regionForValidation,
+        "asset",
+        newEmployeeId,
+        targetTeamId
+      );
+      if (!check.ok) return NextResponse.json({ message: check.message }, { status: 400 });
+      updates.assigned_region_id = regionForValidation;
       updates.assigned_to_employee_id = newEmployeeId;
       updates.status = "Assigned";
       updates.assigned_by = user?.id ?? null;

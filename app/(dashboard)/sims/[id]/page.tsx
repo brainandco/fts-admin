@@ -3,17 +3,22 @@ import { notFound, redirect } from "next/navigation";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { SimForm } from "@/components/sims/SimForm";
+import { AdminRegionTeamAssignCard } from "@/components/admin-assignment/AdminRegionTeamAssignCard";
 
 export default async function SimDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  if (!(await can("assets.manage"))) redirect("/dashboard");
+  if (!(await can("assets.manage")) && !(await can("assets.assign"))) redirect("/dashboard");
   const { id } = await params;
   const supabase = await getDataClient();
   const { data: sim } = await supabase.from("sim_cards").select("*").eq("id", id).single();
   if (!sim) notFound();
 
+  const { data: regions } = await supabase.from("regions").select("id, name").order("name");
+
   const assignedEmployee = sim.assigned_to_employee_id
     ? await supabase.from("employees").select("full_name").eq("id", sim.assigned_to_employee_id).maybeSingle()
     : { data: null };
+
+  const canAssign = (await can("assets.manage")) || (await can("assets.assign"));
 
   return (
     <div className="space-y-6">
@@ -28,6 +33,15 @@ export default async function SimDetailPage({ params }: { params: Promise<{ id: 
           <p><span className="font-medium">Assigned to:</span> {assignedEmployee.data?.full_name ?? "—"}</p>
         </div>
       ) : null}
+
+      <AdminRegionTeamAssignCard
+        variant="sim"
+        resourceId={id}
+        regions={regions ?? []}
+        initialRegionId={null}
+        statusLabel={sim.status}
+        canAssign={canAssign}
+      />
 
       <section>
         <h2 className="mb-3 text-lg font-medium text-zinc-900">Edit SIM card</h2>

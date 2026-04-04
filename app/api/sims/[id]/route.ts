@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
-import { getDataClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
+import { assertAssigneeAllowedForRegionTeam } from "@/lib/admin-assignment/validate-assignee";
+import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await can("assets.manage")) && !(await can("assets.assign"))) {
@@ -10,32 +12,111 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const supabase = await getDataClient();
+  const userClient = await createServerSupabaseClient();
+  const { data: { user } } = await userClient.auth.getUser();
   const { data: old } = await supabase.from("sim_cards").select("*").eq("id", id).single();
   if (!old) return NextResponse.json({ message: "Not found" }, { status: 404 });
 
-  const updates: Record<string, unknown> = {};
+  const meta: Record<string, unknown> = {};
   for (const k of ["operator", "service_type", "sim_number", "phone_number", "notes"] as const) {
     if (body[k] !== undefined) {
-      updates[k] = typeof body[k] === "string" ? body[k].trim() || null : body[k];
+      meta[k] = typeof body[k] === "string" ? body[k].trim() || null : body[k];
     }
   }
-  if (updates.service_type) {
+  if (meta.service_type) {
     const allowed = new Set(["Data", "Voice", "Data+Voice"]);
-    if (!allowed.has(String(updates.service_type))) {
+    if (!allowed.has(String(meta.service_type))) {
       return NextResponse.json({ message: "service_type must be Data, Voice, or Data+Voice" }, { status: 400 });
     }
   }
 
-  if (body.unassign === true) {
-    return NextResponse.json(
-      { message: "Direct employee SIM assignment management is PM-only. Use Project Manager workflow." },
-      { status: 403 }
-    );
+  const assignInBody = body.assigned_to_employee_id !== undefined;
+  const newAssignee = typeof body.assigned_to_employee_id === "string" ? body.assigned_to_employee_id.trim() : "";
+  const doUnassign = body.unassign === true || (assignInBody && !newAssignee);
+
+  if (doUnassign) {
+    const { error } = await supabase
+      .from("sim_cards")
+      .update({
+        status: "Available",
+        assigned_to_employee_id: null,
+        assigned_by_user_id: null,
+        assigned_at: null,
+        ...meta,
+      })
+      .eq("id", id);
+    if (error) return NextResponse.json({ message: error.message }, { status: 400 });
+    await deleteReceiptForResource(supabase, "sim_card", id);
+    await auditLog({
+      actionType: "update",
+      entityType: "sim_card",
+      entityId: id,
+      oldValue: old,
+      newValue: { ...old, status: "Available", assigned_to_employee_id: null, ...meta },
+      description: "SIM card unassigned",
+    });
+    return NextResponse.json({ ok: true });
   }
 
-  const { error } = await supabase.from("sim_cards").update(updates).eq("id", id);
+  if (assignInBody && newAssignee) {
+    const regionForValidation =
+      (typeof body.assignment_region_id === "string" && body.assignment_region_id.trim()) || null;
+    if (!regionForValidation) {
+      return NextResponse.json({ message: "assignment_region_id is required when assigning a SIM." }, { status: 400 });
+    }
+    if ((old as { status: string }).status !== "Available") {
+      return NextResponse.json({ message: "SIM must be Available to assign." }, { status: 400 });
+    }
+    const targetTeamId =
+      typeof body.target_team_id === "string" && body.target_team_id.trim() ? body.target_team_id.trim() : null;
+    const check = await assertAssigneeAllowedForRegionTeam(supabase, regionForValidation, "sim", newAssignee, targetTeamId);
+    if (!check.ok) return NextResponse.json({ message: check.message }, { status: 400 });
+    const now = new Date().toISOString();
+    const row = {
+      status: "Assigned",
+      assigned_to_employee_id: newAssignee,
+      assigned_by_user_id: user?.id ?? null,
+      assigned_at: now,
+      ...meta,
+    };
+    const { error } = await supabase.from("sim_cards").update(row).eq("id", id);
+    if (error) return NextResponse.json({ message: error.message }, { status: 400 });
+    await supabase.from("sim_assignment_history").insert({
+      sim_card_id: id,
+      to_employee_id: newAssignee,
+      assigned_by_user_id: user?.id ?? null,
+      notes: typeof body.assignment_notes === "string" ? body.assignment_notes.trim() || null : null,
+    });
+    await upsertPendingReceipt(supabase, {
+      employeeId: newAssignee,
+      assignedByUserId: user?.id ?? null,
+      resourceType: "sim_card",
+      resourceId: id,
+    });
+    await auditLog({
+      actionType: "update",
+      entityType: "sim_card",
+      entityId: id,
+      oldValue: old,
+      newValue: { ...old, ...row },
+      description: "SIM card assigned",
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (Object.keys(meta).length === 0) {
+    return NextResponse.json({ ok: true });
+  }
+  const { error } = await supabase.from("sim_cards").update(meta).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
-  await auditLog({ actionType: "update", entityType: "sim_card", entityId: id, oldValue: old, newValue: { ...old, ...updates }, description: "SIM card updated" });
+  await auditLog({
+    actionType: "update",
+    entityType: "sim_card",
+    entityId: id,
+    oldValue: old,
+    newValue: { ...old, ...meta },
+    description: "SIM card updated",
+  });
   return NextResponse.json({ ok: true });
 }
 

@@ -5,6 +5,8 @@ import { VehicleForm } from "@/components/vehicles/VehicleForm";
 import { VehicleDeleteButton } from "@/components/vehicles/VehicleDeleteButton";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { VehicleMaintenance } from "@/components/vehicles/VehicleMaintenance";
+import { AdminRegionTeamAssignCard } from "@/components/admin-assignment/AdminRegionTeamAssignCard";
+import { can } from "@/lib/rbac/permissions";
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +22,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const { data: maintenance } = await supabase.from("vehicle_maintenance").select("*").eq("vehicle_id", id).order("service_date", { ascending: false });
 
   const label = assignee?.full_name?.trim() || vehicle.plate_number || "Vehicle";
+  const canAssignVehicle = await can("vehicles.manage");
 
   return (
     <div className="space-y-8">
@@ -31,6 +34,14 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
         </span>
         <VehicleDeleteButton vehicleId={id} label={label} />
       </div>
+      <AdminRegionTeamAssignCard
+        variant="vehicle"
+        resourceId={id}
+        regions={regions ?? []}
+        initialRegionId={(vehicle as { assigned_region_id?: string | null }).assigned_region_id ?? null}
+        statusLabel={vehicle.status}
+        canAssign={canAssignVehicle}
+      />
       <section>
         <h2 className="mb-3 text-lg font-medium text-zinc-900">Vehicle details</h2>
         <VehicleForm existing={vehicle} regions={regions ?? []} projects={projects ?? []} />

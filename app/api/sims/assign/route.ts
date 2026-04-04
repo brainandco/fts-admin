@@ -7,12 +7,6 @@ export async function POST(req: Request) {
   if (!(await can("assets.manage")) && !(await can("assets.assign"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
-  if (await can("assets.manage")) {
-    return NextResponse.json(
-      { message: "Direct employee SIM assignment is PM-only. Use Project Manager workflow." },
-      { status: 403 }
-    );
-  }
   const body = await req.json().catch(() => ({}));
   const simIds = Array.isArray(body.sim_ids) ? body.sim_ids.filter((v: unknown) => typeof v === "string") : [];
   const employeeId = typeof body.employee_id === "string" ? body.employee_id.trim() : "";
