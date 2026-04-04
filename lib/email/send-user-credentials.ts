@@ -44,7 +44,7 @@ export async function sendUserCredentials(
   const html = `
     <p>Hello${fullName ? ` ${fullName}` : ""},</p>
     <p>Your admin portal account has been created.</p>
-    ${portalLine}
+    <!-- ${portalLine} -->
     ${acceptSection}
     <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
     <p><strong>Password:</strong> ${password}</p>
