@@ -156,7 +156,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
         code: "EMPLOYEE_HAS_SUPER_ROLE",
       });
     }
-    const deps = await getUserDependencies(supabase, portalProfile.id);
+    const deps = await getUserDependencies(supabase, portalProfile.id, { skipApprovals: true });
     if (!deps.canDeleteOrDisable) {
       return NextResponse.json(
         { message: deps.message, code: "PORTAL_USER_HAS_DEPENDENCIES", blocks: deps.blocks },

@@ -13,13 +13,19 @@ export type UserDependenciesResult = {
   message: string;
 };
 
+export type GetUserDependenciesOptions = {
+  /** When deleting an employee, do not block on approvals (any status) tied to their portal user. User management still checks approvals by default. */
+  skipApprovals?: boolean;
+};
+
 /**
  * Check if a user has any assignments or related data that must be unassigned
  * before the user can be deleted or disabled. Use before DELETE or setting status to DISABLED.
  */
 export async function getUserDependencies(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  options?: GetUserDependenciesOptions
 ): Promise<UserDependenciesResult> {
   const blocks: UserDependencyBlock[] = [];
 
@@ -96,18 +102,20 @@ export async function getUserDependencies(
     // Table may not exist
   }
 
-  // Approvals requested by this user
-  const { count: approvalsCount } = await supabase
-    .from("approvals")
-    .select("id", { count: "exact", head: true })
-    .eq("requester_id", userId);
-  if ((approvalsCount ?? 0) > 0) {
-    blocks.push({
-      key: "approvals",
-      label: "Approvals",
-      count: approvalsCount ?? 0,
-      action: "Resolve or reassign approval requests created by this user (Approvals).",
-    });
+  // Approvals requested by this user (optional skip when removing employee + linked portal account)
+  if (!options?.skipApprovals) {
+    const { count: approvalsCount } = await supabase
+      .from("approvals")
+      .select("id", { count: "exact", head: true })
+      .eq("requester_id", userId);
+    if ((approvalsCount ?? 0) > 0) {
+      blocks.push({
+        key: "approvals",
+        label: "Approvals",
+        count: approvalsCount ?? 0,
+        action: "Resolve or reassign approval requests created by this user (Approvals).",
+      });
+    }
   }
 
   // Team members
