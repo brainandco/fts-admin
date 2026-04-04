@@ -32,7 +32,7 @@ function AcceptInvitationInner() {
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          window.location.replace("/dashboard");
+          window.location.replace("/login");
           return true;
         }
         setMessage(typeof data.message === "string" ? data.message : "Could not accept invitation");

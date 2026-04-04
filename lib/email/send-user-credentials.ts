@@ -28,14 +28,14 @@ export async function sendUserCredentials(
   }
 
   const acceptUrl = options?.acceptInvitationUrl?.trim() ?? "";
-  const portalLine = `<p><strong>Portal:</strong> <a href="${adminPortalUrl}">${adminPortalUrl}</a></p>`;
 
   const acceptSection = acceptUrl
-    ? `<p><strong>Accept invitation (required — link expires in 24 hours):</strong><br/>
-      <a href="${acceptUrl}" style="display:inline-block;margin:10px 0;padding:10px 16px;background:#0f766e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Accept invitation</a><br/>
-      <span style="font-size:12px;color:#52525b;">Or open this link: <a href="${acceptUrl}">${acceptUrl}</a></span></p>
-      <p>Sign in at the portal above with the email and password below, then click <strong>Accept invitation</strong> (or open the link while signed in).</p>`
-    : `<p>Sign in at the portal URL above with the credentials below.</p>`;
+    ? `<p><strong>Accept your invitation</strong> (required; link expires in 24 hours):</p>
+      <p style="margin:16px 0;">
+        <a href="${acceptUrl}" style="display:inline-block;padding:12px 20px;background:#0f766e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Accept invitation</a>
+      </p>
+      <p style="font-size:13px;color:#52525b;">Open the link, sign in with the email and password below, then your access will be confirmed. You will be taken to the portal sign-in page.</p>`
+    : `<p>Sign in at <a href="${adminPortalUrl}">${adminPortalUrl}</a> with the credentials below.</p>`;
 
   const footerNote = acceptUrl
     ? `<p>You can use the dashboard only after you accept the invitation. You can change your password after first sign-in from the portal settings if available.</p>`
@@ -44,7 +44,6 @@ export async function sendUserCredentials(
   const html = `
     <p>Hello${fullName ? ` ${fullName}` : ""},</p>
     <p>Your admin portal account has been created.</p>
-    <!-- ${portalLine} -->
     ${acceptSection}
     <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
     <p><strong>Password:</strong> ${password}</p>
