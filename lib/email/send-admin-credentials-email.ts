@@ -3,7 +3,7 @@
  */
 
 import { Resend } from "resend";
-import { getAdminPortalLoginPageUrl } from "@/lib/email/admin-portal-login-url";
+import { getAdminPortalBaseUrl } from "@/lib/email/admin-portal-base-url";
 
 export type SendEmailResult = { sent: boolean; error?: string };
 
@@ -14,7 +14,7 @@ export async function sendAdminPortalCredentialsEmail(
 ): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-  const portalUrl = getAdminPortalLoginPageUrl();
+  const portalUrl = getAdminPortalBaseUrl();
   const loginUrl = `${portalUrl}/login`;
 
   if (!apiKey?.trim()) {

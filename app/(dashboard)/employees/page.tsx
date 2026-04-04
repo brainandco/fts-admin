@@ -1,9 +1,9 @@
 import { getDataClient } from "@/lib/supabase/server";
-import { can } from "@/lib/rbac/permissions";
+import { can, getCurrentUserRolesAndPermissions } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { DataTable } from "@/components/ui/DataTable";
 import { EmployeeImport } from "@/components/employees/EmployeeImport";
+import { EmployeesDirectoryTable } from "@/components/employees/EmployeesDirectoryTable";
 
 function StatCard({
   label,
@@ -34,6 +34,7 @@ function StatCard({
 export default async function EmployeesPage() {
   if (!(await can("users.view"))) redirect("/dashboard");
 
+  const { isSuper } = await getCurrentUserRolesAndPermissions();
   const supabase = await getDataClient();
   const { data: employees } = await supabase
     .from("employees")
@@ -107,27 +108,7 @@ export default async function EmployeesPage() {
             {totalEmployees} records
           </span>
         </div>
-        <DataTable
-          keyField="id"
-          data={rows}
-          hrefPrefix="/employees/"
-          filterKeys={["status", "region_name"]}
-          searchPlaceholder="Search employees…"
-          columns={[
-          { key: "full_name", label: "Full name" },
-          { key: "passport_number", label: "Passport", format: "text" },
-          { key: "country", label: "Country" },
-          { key: "email", label: "Email", format: "text" },
-          { key: "phone", label: "Phone", format: "text" },
-          { key: "iqama_number", label: "Iqama", format: "text" },
-          { key: "roles_display", label: "Roles" },
-          { key: "region_name", label: "Region" },
-          { key: "project_name", label: "Project" },
-          { key: "assigned_vehicles_display", label: "Assigned vehicles" },
-          { key: "onboarding_date", label: "Onboarding" },
-          { key: "status", label: "Status" },
-        ]}
-        />
+        <EmployeesDirectoryTable data={rows} canDelete={isSuper === true} />
       </div>
     </div>
   );
