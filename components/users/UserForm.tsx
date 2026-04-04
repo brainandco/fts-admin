@@ -100,7 +100,11 @@ export function UserForm({
             </p>
           </div>
         ) : (
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm">
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as "ACTIVE" | "DISABLED")}
+            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          >
             <option value="ACTIVE">Active</option>
             <option value="DISABLED">Disabled</option>
           </select>
