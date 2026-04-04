@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { SimForm } from "@/components/sims/SimForm";
-import { AdminRegionTeamAssignCard } from "@/components/admin-assignment/AdminRegionTeamAssignCard";
+import { AdminRegionEmployeeAssignCard } from "@/components/admin-assignment/AdminRegionEmployeeAssignCard";
 
 export default async function SimDetailPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await can("assets.manage")) && !(await can("assets.assign"))) redirect("/dashboard");
@@ -34,7 +34,7 @@ export default async function SimDetailPage({ params }: { params: Promise<{ id: 
         </div>
       ) : null}
 
-      <AdminRegionTeamAssignCard
+      <AdminRegionEmployeeAssignCard
         variant="sim"
         resourceId={id}
         regions={regions ?? []}

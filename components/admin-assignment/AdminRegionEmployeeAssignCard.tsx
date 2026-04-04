@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AdminTeamRegionEmployeePicker } from "./AdminTeamRegionEmployeePicker";
-import type { TeamMemberPick } from "@/lib/admin-assignment/team-region-lists";
 
 type Variant = "asset" | "vehicle" | "sim";
 
-export function AdminRegionTeamAssignCard({
+type EmpOpt = { id: string; full_name: string };
+
+export function AdminRegionEmployeeAssignCard({
   variant,
   resourceId,
   regions,
@@ -19,7 +19,6 @@ export function AdminRegionTeamAssignCard({
   resourceId: string;
   regions: { id: string; name: string }[];
   initialRegionId: string | null;
-  /** e.g. asset status — must be Available for assign */
   statusLabel: string;
   canAssign: boolean;
 }) {
@@ -28,41 +27,37 @@ export function AdminRegionTeamAssignCard({
   useEffect(() => {
     setRegionId(initialRegionId ?? "");
   }, [initialRegionId]);
-  const [teams, setTeams] = useState<TeamMemberPick[]>([]);
-  const [pick, setPick] = useState({ teamId: "", employeeId: "" });
-  const [loadingTeams, setLoadingTeams] = useState(false);
+
+  const [employees, setEmployees] = useState<EmpOpt[]>([]);
+  const [employeeId, setEmployeeId] = useState("");
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!regionId) {
-      setTeams([]);
-      setPick({ teamId: "", employeeId: "" });
+      setEmployees([]);
+      setEmployeeId("");
       return;
     }
     let cancelled = false;
     (async () => {
-      setLoadingTeams(true);
+      setLoadingEmployees(true);
       setError("");
       const res = await fetch(
         `/api/admin/region-assignees?region_id=${encodeURIComponent(regionId)}&variant=${encodeURIComponent(variant)}`
       );
       const data = await res.json().catch(() => ({}));
       if (cancelled) return;
-      setLoadingTeams(false);
+      setLoadingEmployees(false);
       if (!res.ok) {
-        setError(data.message || "Could not load team list");
-        setTeams([]);
+        setError(data.message || "Could not load employees");
+        setEmployees([]);
         return;
       }
-      const t = (data.teams ?? []) as TeamMemberPick[];
-      setTeams(t);
-      const first = t[0];
-      if (first?.members[0]) {
-        setPick({ teamId: first.teamId, employeeId: first.members[0].id });
-      } else {
-        setPick({ teamId: first?.teamId ?? "", employeeId: "" });
-      }
+      const list = (data.employees ?? []) as EmpOpt[];
+      setEmployees(list);
+      setEmployeeId(list[0]?.id ?? "");
     })();
     return () => {
       cancelled = true;
@@ -73,8 +68,8 @@ export function AdminRegionTeamAssignCard({
     canAssign &&
     (variant === "sim" ? statusLabel === "Available" : statusLabel === "Available") &&
     !!regionId &&
-    teams.length > 0 &&
-    !!pick.employeeId;
+    employees.length > 0 &&
+    !!employeeId;
 
   async function onAssign() {
     if (!available || !regionId) return;
@@ -86,9 +81,8 @@ export function AdminRegionTeamAssignCard({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            assigned_to_employee_id: pick.employeeId,
+            assigned_to_employee_id: employeeId,
             assignment_region_id: regionId,
-            target_team_id: pick.teamId,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -98,9 +92,8 @@ export function AdminRegionTeamAssignCard({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            assigned_to_employee_id: pick.employeeId,
+            assigned_to_employee_id: employeeId,
             assignment_region_id: regionId,
-            target_team_id: pick.teamId,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -110,9 +103,8 @@ export function AdminRegionTeamAssignCard({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            employee_id: pick.employeeId,
+            employee_id: employeeId,
             assignment_region_id: regionId,
-            target_team_id: pick.teamId,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -165,10 +157,10 @@ export function AdminRegionTeamAssignCard({
 
   const title =
     variant === "asset"
-      ? "Assign by team or region"
+      ? "Assign to employee (by region)"
       : variant === "vehicle"
-        ? "Assign driver / rigger (by team or region)"
-        : "Assign SIM (by team or region)";
+        ? "Assign to driver / rigger (by region)"
+        : "Assign SIM (by region)";
 
   const assigned =
     variant === "asset"
@@ -177,12 +169,14 @@ export function AdminRegionTeamAssignCard({
         ? statusLabel === "Assigned"
         : statusLabel === "Assigned";
 
+  const selectClass = "w-full max-w-md rounded border border-zinc-300 px-3 py-2 text-sm bg-white";
+
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-6">
       <h2 className="mb-1 text-lg font-medium text-zinc-900">{title}</h2>
       <p className="mb-4 text-sm text-zinc-600">
-        Choose a region, then a team (or &quot;other in region&quot;), then the employee. The list matches who can receive this
-        resource type in the employee portal.
+        Choose a region to filter eligible employees, then pick the person. Teams are still used elsewhere for visibility;
+        assignment is always to an individual.
       </p>
       {!canAssign ? (
         <p className="text-sm text-zinc-500">You do not have permission to assign this resource.</p>
@@ -190,11 +184,7 @@ export function AdminRegionTeamAssignCard({
         <>
           <div className="mb-4 max-w-md">
             <label className="mb-1 block text-sm font-medium text-zinc-700">Region</label>
-            <select
-              className="w-full rounded border border-zinc-300 px-3 py-2 text-sm bg-white"
-              value={regionId}
-              onChange={(e) => setRegionId(e.target.value)}
-            >
+            <select className={selectClass} value={regionId} onChange={(e) => setRegionId(e.target.value)}>
               <option value="">Select region…</option>
               {regions.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -203,16 +193,25 @@ export function AdminRegionTeamAssignCard({
               ))}
             </select>
           </div>
-          {loadingTeams ? (
-            <p className="text-sm text-zinc-500">Loading teams…</p>
+          {loadingEmployees ? (
+            <p className="text-sm text-zinc-500">Loading employees…</p>
+          ) : !regionId ? (
+            <p className="text-sm text-zinc-500">Select a region to load eligible employees.</p>
+          ) : employees.length === 0 ? (
+            <p className="text-sm text-amber-800">
+              No eligible employees in this region for this assignment type.
+            </p>
           ) : (
-            <AdminTeamRegionEmployeePicker
-              teams={teams}
-              disabled={!regionId}
-              disabledReason="Select a region to load teams and employees."
-              value={pick}
-              onChange={setPick}
-            />
+            <div className="max-w-md">
+              <label className="mb-1 block text-sm font-medium text-zinc-700">Employee</label>
+              <select className={selectClass} value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
           {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
           <div className="mt-4 flex flex-wrap gap-3">

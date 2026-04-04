@@ -28,18 +28,21 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
   const { data: projects } = await supabase.from("projects").select("id, name, region_id").order("name");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <nav className="flex items-center gap-2 text-sm text-zinc-500">
-        <Link href="/employees" className="hover:text-zinc-900">
+        <Link href="/employees" className="transition hover:text-zinc-900">
           Employees
         </Link>
         <span aria-hidden>/</span>
-        <span className="text-zinc-900">Region &amp; project assignments</span>
+        <span className="font-medium text-zinc-800">Region &amp; project assignments</span>
       </nav>
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">Employee region &amp; project assignments</h1>
-        <p className="mt-1 text-sm text-zinc-500">Super User only. Assign after the employee profile is created.</p>
-      </div>
+      <header className="border-b border-zinc-200/80 pb-6">
+        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Super User</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Region &amp; project assignments</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
+          Assign primary region and formal project per employee. Use filters and search to work through the list; rows that need attention are sorted first. For Project Managers, extra regions beyond the primary are set on the employee profile under <span className="font-medium text-zinc-800">PM scope</span>.
+        </p>
+      </header>
       <EmployeeRegionProjectAssignmentsClient employees={employees} regions={regions ?? []} projects={projects ?? []} />
     </div>
   );

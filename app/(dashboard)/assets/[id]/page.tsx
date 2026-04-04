@@ -5,7 +5,7 @@ import { AssetForm } from "@/components/assets/AssetForm";
 import { ClearMaintenanceButton } from "@/components/assets/ClearMaintenanceButton";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { can } from "@/lib/rbac/permissions";
-import { AdminRegionTeamAssignCard } from "@/components/admin-assignment/AdminRegionTeamAssignCard";
+import { AdminRegionEmployeeAssignCard } from "@/components/admin-assignment/AdminRegionEmployeeAssignCard";
 
 export default async function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,7 +48,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
           <ClearMaintenanceButton assetId={id} canClear={canClearMaintenance} />
         </div>
       ) : null}
-      <AdminRegionTeamAssignCard
+      <AdminRegionEmployeeAssignCard
         variant="asset"
         resourceId={id}
         regions={regions ?? []}

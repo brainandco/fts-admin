@@ -5,7 +5,7 @@ import { VehicleForm } from "@/components/vehicles/VehicleForm";
 import { VehicleDeleteButton } from "@/components/vehicles/VehicleDeleteButton";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { VehicleMaintenance } from "@/components/vehicles/VehicleMaintenance";
-import { AdminRegionTeamAssignCard } from "@/components/admin-assignment/AdminRegionTeamAssignCard";
+import { AdminRegionEmployeeAssignCard } from "@/components/admin-assignment/AdminRegionEmployeeAssignCard";
 import { can } from "@/lib/rbac/permissions";
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,7 +34,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
         </span>
         <VehicleDeleteButton vehicleId={id} label={label} />
       </div>
-      <AdminRegionTeamAssignCard
+      <AdminRegionEmployeeAssignCard
         variant="vehicle"
         resourceId={id}
         regions={regions ?? []}

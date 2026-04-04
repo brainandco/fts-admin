@@ -175,3 +175,21 @@ export async function buildTeamRegionAssigneeLists(
 
   return { teams: teamsOut, teamLabels };
 }
+
+/** All eligible assignees in the region as a single sorted list (deduped). Use for direct employee assignment. */
+export async function buildRegionFlatAssignees(
+  supabase: SupabaseClient,
+  regionId: string,
+  variant: "asset" | "vehicle" | "sim"
+): Promise<{ id: string; full_name: string }[]> {
+  const { teams } = await buildTeamRegionAssigneeLists(supabase, regionId, variant);
+  const seen = new Map<string, string>();
+  for (const t of teams) {
+    for (const m of t.members) {
+      if (!seen.has(m.id)) seen.set(m.id, m.full_name);
+    }
+  }
+  return [...seen.entries()]
+    .map(([id, full_name]) => ({ id, full_name }))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+}

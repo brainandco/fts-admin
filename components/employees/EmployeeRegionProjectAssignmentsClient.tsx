@@ -15,6 +15,33 @@ type Row = {
 type Region = { id: string; name: string };
 type Project = { id: string; name: string; region_id: string };
 
+type AssignmentFilter = "all" | "no_region" | "no_project" | "complete";
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function rowAttention(row: Row): "ok" | "no_region" | "no_project" {
+  if (!row.region_id) return "no_region";
+  if (EMPLOYEE_RECORD_PROJECT_ROLES.has(row.role) && !row.project_id) return "no_project";
+  return "ok";
+}
+
+function roleBadgeClass(role: string): string {
+  const r = role.toLowerCase();
+  if (r.includes("project manager")) return "bg-violet-100 text-violet-800 ring-violet-200";
+  if (r.includes("coordinator")) return "bg-sky-100 text-sky-800 ring-sky-200";
+  if (r === "qa" || r.includes("qc")) return "bg-amber-100 text-amber-900 ring-amber-200";
+  if (r.includes("self dt")) return "bg-indigo-100 text-indigo-800 ring-indigo-200";
+  if (r.includes("driver") || r.includes("rigger")) return "bg-teal-100 text-teal-800 ring-teal-200";
+  if (r.includes("dt")) return "bg-blue-100 text-blue-800 ring-blue-200";
+  if (r.includes("pp")) return "bg-rose-100 text-rose-800 ring-rose-200";
+  return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+}
+
 export function EmployeeRegionProjectAssignmentsClient({
   employees,
   regions,
@@ -31,10 +58,58 @@ export function EmployeeRegionProjectAssignmentsClient({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("");
+  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
+
   const projectsForRegion = useMemo(() => {
     if (!regionId) return [];
     return projects.filter((p) => p.region_id === regionId);
   }, [projects, regionId]);
+
+  const distinctRoles = useMemo(() => {
+    const s = new Set<string>();
+    for (const e of employees) {
+      if (e.role) s.add(e.role);
+    }
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [employees]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return employees.filter((row) => {
+      if (q && !row.full_name.toLowerCase().includes(q)) return false;
+      if (roleFilter && row.role !== roleFilter) return false;
+      const att = rowAttention(row);
+      if (assignmentFilter === "no_region" && att !== "no_region") return false;
+      if (assignmentFilter === "no_project" && att !== "no_project") return false;
+      if (assignmentFilter === "complete" && att !== "ok") return false;
+      return true;
+    });
+  }, [employees, query, roleFilter, assignmentFilter]);
+
+  const sortedRows = useMemo(() => {
+    const order = { no_region: 0, no_project: 1, ok: 2 };
+    return [...filtered].sort((a, b) => {
+      const da = rowAttention(a);
+      const db = rowAttention(b);
+      if (order[da] !== order[db]) return order[da] - order[db];
+      return a.full_name.localeCompare(b.full_name);
+    });
+  }, [filtered]);
+
+  const stats = useMemo(() => {
+    let needRegion = 0;
+    let needProject = 0;
+    let complete = 0;
+    for (const e of employees) {
+      const a = rowAttention(e);
+      if (a === "no_region") needRegion++;
+      else if (a === "no_project") needProject++;
+      else complete++;
+    }
+    return { total: employees.length, needRegion, needProject, complete };
+  }, [employees]);
 
   function startEdit(row: Row) {
     setEditingId(row.id);
@@ -76,108 +151,280 @@ export function EmployeeRegionProjectAssignmentsClient({
     router.refresh();
   }
 
-  const regionName = (id: string | null) => regions.find((r) => r.id === id)?.name ?? "—";
-  const projectName = (id: string | null) => projects.find((p) => p.id === id)?.name ?? "—";
+  const regionName = (id: string | null) => regions.find((r) => r.id === id)?.name ?? null;
+  const projectName = (id: string | null) => projects.find((p) => p.id === id)?.name ?? null;
+
+  const inputClass =
+    "w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
+  const selectClass = inputClass;
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-zinc-600">
-        Set region for any employee. For <strong>Project Manager</strong>, <strong>QA</strong>, <strong>PP</strong>, and <strong>Project Coordinator</strong>, choose a project in that region. Other roles only use region (no project).
-      </p>
-      {message && (
-        <p className={`text-sm ${message.type === "ok" ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>
-      )}
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50">
-              <th className="px-4 py-3 text-left font-medium text-zinc-700">Employee</th>
-              <th className="px-4 py-3 text-left font-medium text-zinc-700">Role</th>
-              <th className="px-4 py-3 text-left font-medium text-zinc-700">Region</th>
-              <th className="px-4 py-3 text-left font-medium text-zinc-700">Project</th>
-              <th className="px-4 py-3 text-left font-medium text-zinc-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {employees.map((row) => (
-              <tr key={row.id} className="border-b border-zinc-100 last:border-0">
-                <td className="px-4 py-3 font-medium text-zinc-900">{row.full_name}</td>
-                <td className="px-4 py-3 text-zinc-600">{row.role || "—"}</td>
-                {editingId === row.id ? (
-                  <>
-                    <td className="px-4 py-3">
-                      <select
-                        value={regionId}
-                        onChange={(e) => {
-                          setRegionId(e.target.value);
-                          setProjectId("");
-                        }}
-                        className="w-full max-w-[200px] rounded border border-zinc-300 px-2 py-1.5 text-sm"
-                      >
-                        <option value="">— None —</option>
-                        {regions.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      {EMPLOYEE_RECORD_PROJECT_ROLES.has(row.role) ? (
-                        <select
-                          value={projectId}
-                          onChange={(e) => setProjectId(e.target.value)}
-                          disabled={!regionId}
-                          className="w-full max-w-[220px] rounded border border-zinc-300 px-2 py-1.5 text-sm disabled:opacity-50"
-                        >
-                          <option value="">— None —</option>
-                          {projectsForRegion.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-zinc-400">N/A</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => save(row.id, row.role)}
-                          className="rounded bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
-                        >
-                          Save
-                        </button>
-                        <button type="button" onClick={cancelEdit} className="rounded border border-zinc-300 px-3 py-1.5 text-xs text-zinc-700">
-                          Cancel
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-4 py-3 text-zinc-700">{regionName(row.region_id)}</td>
-                    <td className="px-4 py-3 text-zinc-700">
-                      {EMPLOYEE_RECORD_PROJECT_ROLES.has(row.role) ? projectName(row.project_id) : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(row)}
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </>
-                )}
-              </tr>
+    <div className="space-y-6">
+      {/* Stats */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-zinc-100 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Employees</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-900">{stats.total}</p>
+        </div>
+        <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-800/80">No region</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-900">{stats.needRegion}</p>
+        </div>
+        <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-orange-900/80">Needs project</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-orange-900">{stats.needProject}</p>
+          <p className="mt-1 text-[11px] text-orange-800/80">PM-type roles with region but no project</p>
+        </div>
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/80">Complete</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-900">{stats.complete}</p>
+        </div>
+      </div>
+
+      {message ? (
+        <div
+          role="status"
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            message.type === "ok"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          {message.text}
+        </div>
+      ) : null}
+
+      {/* Toolbar */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0 flex-1 sm:max-w-md">
+          <label htmlFor="emp-search" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Search
+          </label>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" aria-hidden>
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              id="emp-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter by name…"
+              className={`${inputClass} pl-9`}
+            />
+          </div>
+        </div>
+        <div className="grid w-full gap-3 sm:w-auto sm:min-w-[160px]">
+          <label className="block text-xs font-medium uppercase tracking-wide text-zinc-500">Role</label>
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass}>
+            <option value="">All roles</option>
+            {distinctRoles.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
-          </tbody>
-        </table>
+          </select>
+        </div>
+        <div className="grid w-full gap-3 sm:w-auto sm:min-w-[200px]">
+          <label className="block text-xs font-medium uppercase tracking-wide text-zinc-500">Assignment</label>
+          <select
+            value={assignmentFilter}
+            onChange={(e) => setAssignmentFilter(e.target.value as AssignmentFilter)}
+            className={selectClass}
+          >
+            <option value="all">All</option>
+            <option value="no_region">Missing region</option>
+            <option value="no_project">Missing project (PM-type)</option>
+            <option value="complete">Fully assigned</option>
+          </select>
+        </div>
+      </div>
+
+      <p className="text-sm text-zinc-500">
+        Showing <span className="font-medium text-zinc-800">{sortedRows.length}</span> of {employees.length} — need attention sorted first
+      </p>
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-md shadow-zinc-900/5">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b border-zinc-200 bg-gradient-to-r from-zinc-50 to-slate-50/80">
+                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">Employee</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">Role</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">Region</th>
+                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">Project</th>
+                <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {sortedRows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-16 text-center">
+                    <p className="text-zinc-500">No employees match your filters.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery("");
+                        setRoleFilter("");
+                        setAssignmentFilter("all");
+                      }}
+                      className="mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                    >
+                      Clear filters
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                sortedRows.map((row, i) => {
+                  const att = rowAttention(row);
+                  const isEditing = editingId === row.id;
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`transition-colors ${isEditing ? "bg-indigo-50/60" : i % 2 === 0 ? "bg-white" : "bg-zinc-50/40"} hover:bg-indigo-50/30`}
+                    >
+                      <td className="px-4 py-3.5 align-middle">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-semibold text-white shadow-sm"
+                            aria-hidden
+                          >
+                            {initials(row.full_name)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-zinc-900">{row.full_name || "—"}</p>
+                            {att !== "ok" && !isEditing ? (
+                              <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-900">
+                                {att === "no_region" ? "Needs region" : "Needs project"}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 align-middle">
+                        {row.role ? (
+                          <span className={`inline-flex max-w-[200px] truncate rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${roleBadgeClass(row.role)}`}>
+                            {row.role}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-400">—</span>
+                        )}
+                      </td>
+                      {isEditing ? (
+                        <>
+                          <td className="px-4 py-3 align-middle">
+                            <select
+                              value={regionId}
+                              onChange={(e) => {
+                                setRegionId(e.target.value);
+                                setProjectId("");
+                              }}
+                              className={selectClass}
+                            >
+                              <option value="">— No region —</option>
+                              {regions.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            {EMPLOYEE_RECORD_PROJECT_ROLES.has(row.role) ? (
+                              <select
+                                value={projectId}
+                                onChange={(e) => setProjectId(e.target.value)}
+                                disabled={!regionId}
+                                className={`${selectClass} disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:opacity-60`}
+                              >
+                                <option value="">— No project —</option>
+                                {projectsForRegion.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-xs text-zinc-400">Region only</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => save(row.id, row.role)}
+                                className="inline-flex items-center rounded-lg bg-zinc-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-zinc-800 disabled:opacity-50"
+                              >
+                                {saving ? "Saving…" : "Save"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEdit}
+                                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-3.5 align-middle">
+                            {regionName(row.region_id) ? (
+                              <span className="inline-flex rounded-lg border border-emerald-100 bg-emerald-50/80 px-2.5 py-1 text-xs font-medium text-emerald-900">
+                                {regionName(row.region_id)}
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-lg border border-dashed border-amber-200 bg-amber-50/50 px-2.5 py-1 text-xs font-medium text-amber-900">
+                                Unassigned
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 align-middle">
+                            {EMPLOYEE_RECORD_PROJECT_ROLES.has(row.role) ? (
+                              projectName(row.project_id) ? (
+                                <span className="inline-flex max-w-[220px] truncate rounded-lg border border-sky-100 bg-sky-50/90 px-2.5 py-1 text-xs font-medium text-sky-900">
+                                  {projectName(row.project_id)}
+                                </span>
+                              ) : (
+                                <span className="inline-flex rounded-lg border border-dashed border-orange-200 bg-orange-50/50 px-2.5 py-1 text-xs font-medium text-orange-900">
+                                  Unassigned
+                                </span>
+                              )
+                            ) : (
+                              <span className="text-zinc-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-right align-middle">
+                            <button
+                              type="button"
+                              onClick={() => startEdit(row)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                />
+                              </svg>
+                              Edit
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

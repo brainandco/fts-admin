@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
-import { buildTeamRegionAssigneeLists } from "@/lib/admin-assignment/team-region-lists";
+import { buildRegionFlatAssignees } from "@/lib/admin-assignment/team-region-lists";
 
 const VARIANTS = new Set(["asset", "vehicle", "sim"]);
 
@@ -22,6 +22,6 @@ export async function GET(req: Request) {
   }
 
   const supabase = await getDataClient();
-  const { teams, teamLabels } = await buildTeamRegionAssigneeLists(supabase, regionId, variant);
-  return NextResponse.json({ teams, teamLabels });
+  const employees = await buildRegionFlatAssignees(supabase, regionId, variant);
+  return NextResponse.json({ employees });
 }

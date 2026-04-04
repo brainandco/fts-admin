@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
-import { assertAssigneeAllowedForRegionTeam } from "@/lib/admin-assignment/validate-assignee";
+import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
 
 /** PM assigns assets to employees; admin updates details only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -50,15 +50,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           { status: 400 }
         );
       }
-      const targetTeamId =
-        typeof body.target_team_id === "string" && body.target_team_id.trim() ? body.target_team_id.trim() : null;
-      const check = await assertAssigneeAllowedForRegionTeam(
-        supabase,
-        regionForValidation,
-        "asset",
-        newEmployeeId,
-        targetTeamId
-      );
+      const check = await assertAssigneeAllowedInRegion(supabase, regionForValidation, "asset", newEmployeeId);
       if (!check.ok) return NextResponse.json({ message: check.message }, { status: 400 });
       updates.assigned_region_id = regionForValidation;
       updates.assigned_to_employee_id = newEmployeeId;
