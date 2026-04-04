@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-
-const PROJECT_ROLES = new Set(["Project Manager", "QA", "PP", "Project Coordinator"]);
+import { EMPLOYEE_RECORD_PROJECT_ROLES } from "@/lib/employees/employee-record-project-roles";
 
 type Row = {
   id: string;
@@ -54,10 +53,10 @@ export function EmployeeRegionProjectAssignmentsClient({
     setMessage(null);
     const body: { region_id: string | null; project_id: string | null } = {
       region_id: regionId || null,
-      project_id: PROJECT_ROLES.has(role) ? (projectId || null) : null,
+      project_id: EMPLOYEE_RECORD_PROJECT_ROLES.has(role) ? (projectId || null) : null,
     };
-    if (!PROJECT_ROLES.has(role) && projectId) {
-      setMessage({ type: "err", text: "Only Project Manager, QA, PP, and Project Coordinator can have a project on their record." });
+    if (!EMPLOYEE_RECORD_PROJECT_ROLES.has(role) && projectId) {
+      setMessage({ type: "err", text: "Only Project Manager, QA, PP, Project Coordinator, and Self DT can have a project on their record." });
       setSaving(false);
       return;
     }
@@ -124,7 +123,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      {PROJECT_ROLES.has(row.role) ? (
+                      {EMPLOYEE_RECORD_PROJECT_ROLES.has(row.role) ? (
                         <select
                           value={projectId}
                           onChange={(e) => setProjectId(e.target.value)}
@@ -162,7 +161,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                   <>
                     <td className="px-4 py-3 text-zinc-700">{regionName(row.region_id)}</td>
                     <td className="px-4 py-3 text-zinc-700">
-                      {PROJECT_ROLES.has(row.role) ? projectName(row.project_id) : "—"}
+                      {EMPLOYEE_RECORD_PROJECT_ROLES.has(row.role) ? projectName(row.project_id) : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <button
