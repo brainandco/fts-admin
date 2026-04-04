@@ -17,7 +17,7 @@ export default async function InviteUserPage() {
       <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-cyan-50 p-5 sm:p-6">
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">Add user</h1>
         <p className="mt-2 text-sm text-zinc-600">
-          Create an admin portal user. Credentials and an invitation link are sent by email. The account stays pending until they accept the invitation; then their status becomes Active and you can assign roles on their user page. Employees cannot be users; add them under Employees.
+          Invite an admin user by email: they get an invitation link first (no password). After they accept, they receive a second email with the portal link and login password. The account stays pending until they accept; then their status becomes Active and you can assign roles on their user page. Employees cannot be users; add them under Employees.
         </p>
         <div className="mt-4 inline-flex rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-medium text-indigo-700">
           Super-user action

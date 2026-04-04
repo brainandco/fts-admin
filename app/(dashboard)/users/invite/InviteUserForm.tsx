@@ -7,7 +7,6 @@ import Link from "next/link";
 export function InviteUserForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,16 +20,12 @@ export function InviteUserForm() {
       setError("Email is required.");
       return;
     }
-    if (!password || password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
     setLoading(true);
     try {
       const res = await fetch("/api/users/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, full_name: fullName.trim() || undefined }),
+        body: JSON.stringify({ email: email.trim(), full_name: fullName.trim() || undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -38,9 +33,8 @@ export function InviteUserForm() {
         setLoading(false);
         return;
       }
-      setMessage(data.message || "User created. Credentials sent by email.");
+      setMessage(data.message || "Invitation sent by email.");
       setEmail("");
-      setPassword("");
       setFullName("");
       if (data.id) router.refresh();
     } catch {
@@ -58,11 +52,11 @@ export function InviteUserForm() {
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Delivery</p>
-          <p className="mt-1 text-sm font-semibold text-zinc-900">Credentials by email</p>
+          <p className="mt-1 text-sm font-semibold text-zinc-900">Invitation, then login details</p>
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Minimum password</p>
-          <p className="mt-1 text-sm font-semibold text-zinc-900">6 characters</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">After accept</p>
+          <p className="mt-1 text-sm font-semibold text-zinc-900">Second email with password</p>
         </div>
       </div>
 
@@ -90,20 +84,6 @@ export function InviteUserForm() {
             placeholder="name@company.com"
           />
         </div>
-        <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-zinc-700">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            placeholder="Enter temporary password"
-          />
-          <p className="mt-1 text-xs text-zinc-500">Temporary password sent by email; user can change it after sign in.</p>
-        </div>
         {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {message && <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
         <div className="flex flex-wrap gap-2 pt-1">
@@ -112,7 +92,7 @@ export function InviteUserForm() {
             disabled={loading}
             className="rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50"
           >
-            {loading ? "Creating…" : "Create user & send credentials"}
+            {loading ? "Sending…" : "Send invitation"}
           </button>
           <Link href="/users" className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
             Cancel

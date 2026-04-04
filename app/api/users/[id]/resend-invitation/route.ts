@@ -4,8 +4,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
-import { sendUserCredentials } from "@/lib/email/send-user-credentials";
-import { randomPassword } from "@/lib/email/send-employee-credentials";
+import { sendAdminInvitationEmail } from "@/lib/email/send-admin-invitation-email";
 import { getAdminPortalBaseUrl } from "@/lib/email/admin-portal-base-url";
 
 const SUPER_ROLE_ID = "a0000000-0000-0000-0000-000000000000";
@@ -47,12 +46,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ message: "User has no email" }, { status: 400 });
   }
 
-  const password = randomPassword(14);
-  const { error: authErr } = await admin.auth.admin.updateUserById(id, { password });
-  if (authErr) {
-    return NextResponse.json({ message: authErr.message }, { status: 400 });
-  }
-
   const token = randomUUID();
   const sentAt = new Date();
   const expiresAt = new Date(sentAt.getTime() + 24 * 60 * 60 * 1000);
@@ -75,13 +68,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const base = getAdminPortalBaseUrl();
   const acceptInvitationUrl = `${base}/invite/accept?token=${encodeURIComponent(token)}`;
 
-  const sendResult = await sendUserCredentials(email, profile.full_name ?? "", password, { acceptInvitationUrl });
+  const sendResult = await sendAdminInvitationEmail(email, profile.full_name ?? "", acceptInvitationUrl);
 
   await auditLog({
     actionType: "update",
     entityType: "user",
     entityId: id,
-    description: "Invitation resent (new 24h window, new password emailed)",
+    description: "Invitation resent (new 24h window; invitation-only email)",
   });
 
   return NextResponse.json({

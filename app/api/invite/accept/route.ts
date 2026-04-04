@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
+import { auditLog } from "@/lib/audit/log";
+import { randomPassword } from "@/lib/email/send-employee-credentials";
+import { sendAdminPortalCredentialsEmail } from "@/lib/email/send-admin-credentials-email";
 
 /**
- * POST /api/invite/accept — Mark invitation as accepted (authenticated user must match token).
+ * POST /api/invite/accept — Accept invitation with token only (no sign-in required).
+ * Sets profile Active, assigns a new password, emails portal link + credentials.
  */
 export async function POST(req: Request) {
   let body: { token?: string };
@@ -14,39 +17,37 @@ export async function POST(req: Request) {
   }
 
   const token = typeof body.token === "string" ? body.token.trim() : "";
-
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ message: "Not signed in" }, { status: 401 });
+  if (!token) {
+    return NextResponse.json({ message: "Invitation token is required" }, { status: 400 });
+  }
 
   const admin = createServerSupabaseAdmin();
   const { data: profile, error: selErr } = await admin
     .from("users_profile")
-    .select("id, invitation_token, invitation_expires_at, invitation_accepted_at")
-    .eq("id", user.id)
-    .single();
+    .select("id, email, full_name, invitation_token, invitation_expires_at, invitation_accepted_at")
+    .eq("invitation_token", token)
+    .maybeSingle();
 
   if (selErr || !profile) {
-    return NextResponse.json({ message: "Profile not found" }, { status: 404 });
+    return NextResponse.json({ message: "Invalid or expired invitation link." }, { status: 400 });
   }
 
   if (profile.invitation_accepted_at) {
     return NextResponse.json({ ok: true, message: "Already accepted" });
   }
 
-  if (!profile.invitation_token) {
-    return NextResponse.json({ message: "No pending invitation for this account" }, { status: 400 });
-  }
-
-  if (token && profile.invitation_token !== token) {
-    return NextResponse.json({ message: "Invalid invitation token" }, { status: 400 });
-  }
-
   const exp = profile.invitation_expires_at ? new Date(profile.invitation_expires_at).getTime() : NaN;
   if (!Number.isNaN(exp) && Date.now() > exp) {
-    return NextResponse.json({ message: "This invitation has expired. Ask a Super User to resend the invitation." }, { status: 400 });
+    return NextResponse.json(
+      { message: "This invitation has expired. Ask a Super User to resend the invitation." },
+      { status: 400 }
+    );
+  }
+
+  const newPassword = randomPassword(16);
+  const { error: pwErr } = await admin.auth.admin.updateUserById(profile.id, { password: newPassword });
+  if (pwErr) {
+    return NextResponse.json({ message: pwErr.message }, { status: 400 });
   }
 
   const now = new Date().toISOString();
@@ -57,10 +58,28 @@ export async function POST(req: Request) {
       invitation_token: null,
       status: "ACTIVE",
     })
-    .eq("id", user.id);
+    .eq("id", profile.id);
 
   if (updErr) {
     return NextResponse.json({ message: updErr.message }, { status: 400 });
+  }
+
+  const emailAddr = (profile.email ?? "").trim();
+  const sendResult = await sendAdminPortalCredentialsEmail(emailAddr, profile.full_name ?? "", newPassword);
+
+  await auditLog({
+    actionType: "update",
+    entityType: "user",
+    entityId: profile.id,
+    newValue: { status: "ACTIVE", invitation_accepted_at: now },
+    description: "Admin invitation accepted (token); credentials emailed",
+  });
+
+  if (!sendResult.sent) {
+    return NextResponse.json({
+      ok: true,
+      warning: sendResult.error ?? "Invitation accepted, but the credentials email could not be sent.",
+    });
   }
 
   return NextResponse.json({ ok: true });

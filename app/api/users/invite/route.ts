@@ -4,8 +4,9 @@ import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
-import { sendUserCredentials } from "@/lib/email/send-user-credentials";
+import { sendAdminInvitationEmail } from "@/lib/email/send-admin-invitation-email";
 import { getAdminPortalBaseUrl } from "@/lib/email/admin-portal-base-url";
+import { randomPassword } from "@/lib/email/send-employee-credentials";
 
 /**
  * POST /api/users/invite — Super user creates a new admin user and sends credentials by email.
@@ -17,11 +18,11 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const email = typeof body.email === "string" ? body.email.trim() : "";
-  const password = typeof body.password === "string" ? body.password : "";
   const full_name = typeof body.full_name === "string" ? body.full_name.trim() : "";
+  /** Initial auth password is random; the invited user receives credentials only after accepting (second email). */
+  const password = randomPassword(18);
 
   if (!email) return NextResponse.json({ message: "Email is required" }, { status: 400 });
-  if (!password || password.length < 6) return NextResponse.json({ message: "Password must be at least 6 characters" }, { status: 400 });
 
   const supabase = await getDataClient();
   const { data: existingEmployee } = await supabase
@@ -76,21 +77,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: profileError.message }, { status: 400 });
   }
 
-  const sendResult = await sendUserCredentials(email, full_name, password, { acceptInvitationUrl });
+  const sendResult = await sendAdminInvitationEmail(email, full_name, acceptInvitationUrl);
   await auditLog({
     actionType: "create",
     entityType: "user",
     entityId: user.id,
     newValue: { email, full_name, status: "PENDING_ACCESS", invitation_expires_at: expiresAt.toISOString() },
-    description: "User invited; credentials and invitation link sent by email",
+    description: "User invited; invitation email sent (credentials after accept)",
   });
 
   return NextResponse.json({
     ok: true,
     id: user.id,
     message: sendResult.sent
-      ? "User created. They must accept the invitation within 24 hours using the link in the email."
-      : "User created. Sending email failed: " + (sendResult.error ?? "unknown"),
+      ? "Invitation sent. They must accept within 24 hours; login details will be emailed after they accept."
+      : "User created. Sending invitation email failed: " + (sendResult.error ?? "unknown"),
     emailSent: sendResult.sent,
   });
 }
