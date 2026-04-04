@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ClearMaintenanceButton } from "@/components/assets/ClearMaintenanceButton";
 
 type Row = {
   id: string;
@@ -12,11 +13,20 @@ type Row = {
   pm_decision?: string | null;
   pm_comment?: string | null;
   processed_at?: string | null;
-  asset: { id: string; name: string; model: string | null; serial: string | null; imei_1: string | null; imei_2: string | null; category: string } | null;
+  asset: {
+    id: string;
+    name: string;
+    model: string | null;
+    serial: string | null;
+    imei_1: string | null;
+    imei_2: string | null;
+    category: string;
+    status?: string;
+  } | null;
   from_employee_name: string | null;
 };
 
-export function AssetReturnsQueue() {
+export function AssetReturnsQueue({ canClearMaintenance = false }: { canClearMaintenance?: boolean }) {
   const [pending, setPending] = useState<Row[]>([]);
   const [maintenance, setMaintenance] = useState<Row[]>([]);
   const [damaged, setDamaged] = useState<Row[]>([]);
@@ -122,7 +132,17 @@ export function AssetReturnsQueue() {
                     Processed: {row.processed_at ? new Date(row.processed_at).toLocaleString() : "—"}
                   </p>
                 </div>
-                <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">Under_Maintenance</span>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                    Under_Maintenance
+                  </span>
+                  <ClearMaintenanceButton
+                    assetId={row.asset_id}
+                    canClear={canClearMaintenance}
+                    onCleared={load}
+                    className="text-right"
+                  />
+                </div>
               </div>
             </div>
           ))

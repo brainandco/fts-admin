@@ -18,9 +18,11 @@ export default async function AssetReturnsPage() {
       </div>
       <p className="max-w-3xl text-sm text-zinc-600">
         Employees submit returns with a comment. Admin can review which assets were returned and the employee notes.
-        Final status is set only by Project Manager in the PM return queue (Available, Under maintenance, or Damaged).
+        Final status when a return is first processed is set by the Project Manager in the PM return queue (Available,
+        Under maintenance, or Damaged). When an asset was sent to maintenance and is fixed, an admin with asset
+        management permission can mark it back in pool from the list below or from the asset detail page.
       </p>
-      <AssetReturnsQueue />
+      <AssetReturnsQueue canClearMaintenance={await can("assets.manage")} />
     </div>
   );
 }

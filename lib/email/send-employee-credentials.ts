@@ -1,6 +1,7 @@
 /**
  * Send employee portal login credentials by email (Resend SDK).
  * Requires RESEND_API_KEY and EMPLOYEE_PORTAL_URL in env.
+ * RESEND_FROM_EMAIL must use your verified Resend domain (e.g. noreply@admin.fts-ksa.com if admin.fts-ksa.com is verified).
  */
 
 import { Resend } from "resend";
@@ -63,7 +64,7 @@ export async function sendEmployeeCredentials(
     const raw = error.message || String(error);
     const hint =
       /verify a domain|testing emails|only send testing/i.test(raw)
-        ? " Add your domain at https://resend.com/domains (DNS), then set RESEND_FROM_EMAIL to an address on that domain in env (e.g. noreply@fts-ksa.com)."
+        ? " Add your domain at https://resend.com/domains (DNS), then set RESEND_FROM_EMAIL to an address on that verified domain (subdomain and root are different, e.g. noreply@admin.fts-ksa.com)."
         : "";
     return { sent: false, error: raw + hint };
   }

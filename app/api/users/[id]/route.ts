@@ -94,6 +94,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ message: "Super users can only be Active or Disabled." }, { status: 400 });
   }
 
+  /** Invited users must accept before profile is Active; cannot be activated manually while invitation is pending. */
+  if (body.status === "ACTIVE" && old.invitation_token && !old.invitation_accepted_at) {
+    return NextResponse.json(
+      { message: "This user must accept their invitation before they can be Active. Status updates automatically when they accept." },
+      { status: 400 }
+    );
+  }
+
+  if (Array.isArray(body.role_ids) && old.status === "PENDING_ACCESS") {
+    return NextResponse.json(
+      { message: "Assign roles after the user has accepted their invitation (status will be Active)." },
+      { status: 400 }
+    );
+  }
+
   if (targetIsSuper && Array.isArray(body.role_ids) && !currentUserCanDemoteThisSuper) {
     return NextResponse.json(
       { message: "Only the super user who assigned this user's super role can demote them or change their roles." },

@@ -67,6 +67,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       invitation_sent_at: sentAt.toISOString(),
       invitation_expires_at: expiresAt.toISOString(),
       invitation_accepted_at: null,
+      status: "PENDING_ACCESS",
     })
     .eq("id", id);
 

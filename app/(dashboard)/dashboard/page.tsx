@@ -1,4 +1,5 @@
 import { getDataClient } from "@/lib/supabase/server";
+import { countActiveAdminPortalUsers } from "@/lib/admin-portal-user-counts";
 import { getCurrentUserProfile } from "@/lib/rbac/permissions";
 import Link from "next/link";
 
@@ -35,10 +36,7 @@ export default async function DashboardPage() {
     return q.then((r) => ({ count: r.count }));
   });
 
-  const adminUsersCount = await safeCount(async () => {
-    const q = supabase.from("users_profile").select("id", { count: "exact", head: true }).eq("status", "ACTIVE");
-    return q.then((r) => ({ count: r.count }));
-  });
+  const adminUsersCount = await countActiveAdminPortalUsers(supabase);
 
   const tasksInProgress = await safeCount(async () => {
     let q = supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["In_Progress", "Assigned_to_PM", "Assigned_to_User"]);

@@ -101,10 +101,15 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
         <div className="border-b border-zinc-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-zinc-900">Profile & roles</h2>
-          <p className="mt-0.5 text-sm text-zinc-500">Edit name, status, and assign roles. Roles determine access.</p>
+          <p className="mt-0.5 text-sm text-zinc-500">
+            {user.status === "PENDING_ACCESS"
+              ? "They must accept their invitation first; status becomes Active automatically. Then assign roles."
+              : "Edit name, status, and assign roles. Roles determine access."}
+          </p>
         </div>
         <div className="p-6">
           <UserForm
+            key={user.status}
             user={user}
             currentRoleIds={roleIds}
             allRoles={allRoles}

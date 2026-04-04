@@ -1,7 +1,24 @@
 import { getDataClient } from "@/lib/supabase/server";
+import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
+import { getUserDependencies } from "@/lib/user-dependencies";
+
+const SUPER_ROLE_ID = "a0000000-0000-0000-0000-000000000000";
+
+/** Match users_profile row for this employee email (case-insensitive). */
+async function findPortalProfileByEmployeeEmail(
+  supabase: Awaited<ReturnType<typeof getDataClient>>,
+  emailRaw: string | null
+): Promise<{ id: string; is_super_user: boolean | null } | null> {
+  const em = (emailRaw ?? "").trim();
+  if (!em) return null;
+  const { data: exact } = await supabase.from("users_profile").select("id, is_super_user").eq("email", em).maybeSingle();
+  if (exact) return exact;
+  const { data: ci } = await supabase.from("users_profile").select("id, is_super_user").ilike("email", em).maybeSingle();
+  return ci;
+}
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const superResult = await requireSuper();
   if (!superResult.allowed) return NextResponse.json({ message: "Only Super User can edit employees." }, { status: 403 });
@@ -111,9 +128,67 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     );
   }
 
+  /**
+   * Employee credentials create auth.users + users_profile. The Users list hides profiles whose email
+   * exists on employees; deleting only the employee row leaves the portal account, so it appears under Users.
+   * Remove the auth user (and cascaded profile) when deleting the employee.
+   */
+  const portalProfile = await findPortalProfileByEmployeeEmail(supabase, old.email);
+  if (portalProfile) {
+    if (portalProfile.is_super_user) {
+      return NextResponse.json(
+        {
+          message:
+            "This email is linked to the seeded Super User account. Remove or change that account separately; do not delete this employee record tied to Super.",
+        },
+        { status: 400 }
+      );
+    }
+    const { data: superRoleRow } = await supabase
+      .from("user_roles")
+      .select("role_id")
+      .eq("user_id", portalProfile.id)
+      .eq("role_id", SUPER_ROLE_ID)
+      .maybeSingle();
+    if (superRoleRow) {
+      return NextResponse.json({
+        message: "This person has the Super role in the admin portal. Remove that role from Users before deleting the employee.",
+        code: "EMPLOYEE_HAS_SUPER_ROLE",
+      });
+    }
+    const deps = await getUserDependencies(supabase, portalProfile.id);
+    if (!deps.canDeleteOrDisable) {
+      return NextResponse.json(
+        { message: deps.message, code: "PORTAL_USER_HAS_DEPENDENCIES", blocks: deps.blocks },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (portalProfile) {
+    const admin = createServerSupabaseAdmin();
+    const { error: authDelErr } = await admin.auth.admin.deleteUser(portalProfile.id);
+    if (authDelErr) {
+      return NextResponse.json(
+        {
+          message:
+            authDelErr.message ||
+            "Could not remove this person’s portal login. Resolve the error above, then try deleting the employee again.",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   const { error } = await supabase.from("employees").delete().eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
-  await auditLog({ actionType: "delete", entityType: "employee", entityId: id, oldValue: old, description: "Employee deleted" });
+  await auditLog({
+    actionType: "delete",
+    entityType: "employee",
+    entityId: id,
+    oldValue: old,
+    description: portalProfile ? "Employee and linked portal account deleted" : "Employee deleted",
+  });
   return NextResponse.json({ ok: true });
 }

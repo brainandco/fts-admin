@@ -127,7 +127,7 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
         <div className="mt-4 flex flex-wrap items-end gap-6">
           <UserAvatar name={displayName} email={email} avatarUrl={avatarUrl} size="lg" />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50">
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-50">
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
@@ -168,7 +168,7 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               autoComplete="name"
             />
           </div>
@@ -180,7 +180,7 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
           <button
             type="submit"
             disabled={busy}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700 disabled:opacity-50"
           >
             Save profile
           </button>
@@ -200,7 +200,7 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
               type="password"
               value={curPw}
               onChange={(e) => setCurPw(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               autoComplete="current-password"
             />
           </div>
@@ -213,7 +213,7 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
               type="password"
               value={newPw}
               onChange={(e) => setNewPw(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               autoComplete="new-password"
               minLength={8}
             />
@@ -227,7 +227,7 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
               type="password"
               value={confirmPw}
               onChange={(e) => setConfirmPw(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               autoComplete="new-password"
               minLength={8}
             />

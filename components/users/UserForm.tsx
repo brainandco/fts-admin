@@ -38,14 +38,15 @@ export function UserForm({
 }) {
   const router = useRouter();
   const [fullName, setFullName] = useState(user.full_name ?? "");
-  const [status, setStatus] = useState(user.status === "PENDING_ACCESS" ? "ACTIVE" : user.status);
+  const [status, setStatus] = useState<"ACTIVE" | "DISABLED">(user.status === "DISABLED" ? "DISABLED" : "ACTIVE");
   const [roleIds, setRoleIds] = useState<string[]>(currentRoleIds.filter((id) => !preservedRoleIds.includes(id)));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const isSuperTarget = Boolean(user.is_super_user) || hasSuperRole;
-  const statusLocked = false;
-  const rolesLocked = status !== "ACTIVE";
+  /** Invited users stay Pending until they accept; Super assigns roles after status becomes Active. */
+  const statusLocked = user.status === "PENDING_ACCESS";
+  const rolesLocked = statusLocked || status !== "ACTIVE";
   const superCheckboxDisabled = superRoleId ? isSuperTarget && !canDemoteThisSuper : isSuperTarget;
 
   async function submit(e: React.FormEvent) {
@@ -57,10 +58,10 @@ export function UserForm({
       return;
     }
     setSaving(true);
-    const payload: { full_name: string | null; status: string; role_ids?: string[] } = {
+    const payload: { full_name: string | null; status?: string; role_ids?: string[] } = {
       full_name: fullName || null,
-      status,
     };
+    if (!statusLocked) payload.status = status;
     const mayChangeRoles = !rolesLocked && (!isSuperTarget || canDemoteThisSuper);
     if (mayChangeRoles) payload.role_ids = finalRoleIds;
     const res = await fetch(`/api/users/${user.id}`, {
@@ -91,11 +92,11 @@ export function UserForm({
         <label className="mb-1 block text-sm font-medium text-zinc-700">Status</label>
         {statusLocked ? (
           <div className="space-y-1">
-            <div className="rounded border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
-              Pending (user must confirm email before status can be changed)
+            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Pending — waiting for invitation acceptance
             </div>
             <p className="text-xs text-zinc-500">
-              Use &quot;Resend confirmation email&quot; to send the user a link. Only after they open that link can you set Active/Disabled or assign roles.
+              Status becomes Active automatically when they accept the invitation from their email. Then you can assign roles here.
             </p>
           </div>
         ) : (
@@ -111,7 +112,9 @@ export function UserForm({
         </label>
         {rolesLocked ? (
           <div className="rounded border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
-            Roles can only be assigned after the user has confirmed their email and status is set to Active.
+            {statusLocked
+              ? "Roles can be assigned after the user accepts their invitation (status becomes Active)."
+              : "Roles can only be assigned when status is Active."}
           </div>
         ) : (
           <>

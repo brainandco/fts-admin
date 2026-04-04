@@ -184,9 +184,10 @@ export function Sidebar({
         >
           <span className="relative h-8 w-32 shrink-0">
             <Image
-              src="/images/black.png"
-              alt="FTS"
+              src="/New%20Folder/black.png"
+              alt="Fast Technology Solutions"
               fill
+              sizes="128px"
               className="object-contain object-left brightness-0 invert"
               priority
             />
@@ -206,7 +207,7 @@ export function Sidebar({
                 onClick={handleNav}
                 className={`mb-0.5 block rounded-lg px-3 py-2.5 text-sm transition-all duration-200 ${
                   active
-                    ? "bg-indigo-600 font-medium text-white shadow-md shadow-indigo-900/25"
+                    ? "bg-teal-600 font-medium text-white shadow-md shadow-teal-900/25"
                     : "text-slate-300 hover:bg-white/10 hover:text-white"
                 }`}
               >

@@ -23,7 +23,7 @@ export async function GET() {
   const empIds = [...new Set((queue ?? []).map((r) => r.from_employee_id))];
 
   const { data: assets } = ids.length
-    ? await supabase.from("assets").select("id, name, model, serial, imei_1, imei_2, category").in("id", ids)
+    ? await supabase.from("assets").select("id, name, model, serial, imei_1, imei_2, category, status").in("id", ids)
     : { data: [] };
   const { data: emps } = empIds.length
     ? await supabase.from("employees").select("id, full_name").in("id", empIds)
@@ -38,9 +38,18 @@ export async function GET() {
     from_employee_name: empMap.get(r.from_employee_id) ?? null,
   }));
 
+  /** PM decision is historical; list sections reflect current asset.status so cleared maintenance disappears from the queue. */
+  const isStillUnderMaintenance = (r: (typeof rows)[0]) =>
+    r.status === "processed" &&
+    r.pm_decision === "Under_Maintenance" &&
+    r.asset?.status === "Under_Maintenance";
+
+  const isStillDamaged = (r: (typeof rows)[0]) =>
+    r.status === "processed" && r.pm_decision === "Damaged" && r.asset?.status === "Damaged";
+
   return NextResponse.json({
     pending: rows.filter((r) => r.status === "pending"),
-    under_maintenance: rows.filter((r) => r.status === "processed" && r.pm_decision === "Under_Maintenance"),
-    damaged: rows.filter((r) => r.status === "processed" && r.pm_decision === "Damaged"),
+    under_maintenance: rows.filter(isStillUnderMaintenance),
+    damaged: rows.filter(isStillDamaged),
   });
 }

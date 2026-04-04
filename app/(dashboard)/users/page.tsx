@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getDataClient } from "@/lib/supabase/server";
-import { getCurrentUserRolesAndPermissions } from "@/lib/rbac/permissions";
+import { getCurrentUserRolesAndPermissions, SUPER_ROLE_ID } from "@/lib/rbac/permissions";
 import { UsersList, type UserListRow } from "@/components/users/UsersList";
 
 type ProfileRow = {
@@ -64,13 +64,17 @@ export default async function UsersPage() {
   const ids = profiles.map((p) => p.id);
 
   const roleNamesByUser = new Map<string, string[]>();
+  const superRoleUserIds = new Set<string>();
   if (ids.length > 0) {
     const { data: urData, error: urError } = await supabase
       .from("user_roles")
-      .select("user_id, roles(name)")
+      .select("user_id, role_id, roles(name)")
       .in("user_id", ids);
     if (!urError && urData) {
-      for (const row of urData as { user_id: string; roles: unknown }[]) {
+      for (const row of urData as { user_id: string; role_id: string; roles: unknown }[]) {
+        if (row.role_id === SUPER_ROLE_ID) {
+          superRoleUserIds.add(row.user_id);
+        }
         for (const name of roleNamesFromJoinedRow(row)) {
           const list = roleNamesByUser.get(row.user_id) ?? [];
           list.push(name);
@@ -84,18 +88,24 @@ export default async function UsersPage() {
     (employeesRes.data ?? []).map((e) => (e.email ?? "").toLowerCase().trim()).filter(Boolean)
   );
 
-  /** Admin portal users only: exclude anyone whose email exists on the Employees table. */
+  /** Admin-only list: hide emails that belong to a current employee (employee portal). Deleting an employee removes their auth user so they do not appear here; see DELETE /api/employees/[id]. */
   const adminOnly = profiles.filter((u) => !employeeEmails.has((u.email ?? "").toLowerCase().trim()));
 
-  const rows: UserListRow[] = adminOnly.map((u) => ({
-    id: u.id,
-    email: u.email ?? "",
-    full_name: u.full_name,
-    status: u.status ?? "PENDING_ACCESS",
-    is_super_user: Boolean(u.is_super_user),
-    created_at: u.created_at,
-    roles_display: buildRolesDisplay(u.id, roleNamesByUser),
-  }));
+  const rows: UserListRow[] = adminOnly.map((u) => {
+    const isSuperFlag = Boolean(u.is_super_user);
+    const hasSuperRole = superRoleUserIds.has(u.id);
+    const has_super_access = isSuperFlag || hasSuperRole;
+    return {
+      id: u.id,
+      email: u.email ?? "",
+      full_name: u.full_name,
+      status: u.status ?? "PENDING_ACCESS",
+      is_super_user: isSuperFlag,
+      has_super_access,
+      created_at: u.created_at,
+      roles_display: buildRolesDisplay(u.id, roleNamesByUser),
+    };
+  });
 
   return <UsersList rows={rows} />;
 }

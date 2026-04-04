@@ -102,7 +102,7 @@ export function DashboardHeader({
       <button
         type="button"
         onClick={onOpenMenu}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 lg:hidden"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800 lg:hidden"
         aria-label="Open navigation menu"
       >
         <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
@@ -113,12 +113,12 @@ export function DashboardHeader({
       <div className="min-w-0 flex-1">
         {secondary && secondary !== primary ? (
           <p className="truncate text-xs font-medium text-slate-500">
-            <span className="text-indigo-600">Admin</span>
+            <span className="text-teal-700">Admin</span>
             <span className="mx-1.5 text-slate-300">/</span>
             <span>{secondary}</span>
           </p>
         ) : (
-          <p className="truncate text-xs font-medium uppercase tracking-wider text-indigo-600">Admin portal</p>
+          <p className="truncate text-xs font-medium uppercase tracking-wider text-teal-700">Admin portal</p>
         )}
         <div className="truncate text-lg font-semibold leading-tight tracking-tight text-slate-900 sm:text-xl">
           {primary}

@@ -9,6 +9,8 @@ export type UserListRow = {
   full_name: string | null;
   status: string;
   is_super_user: boolean;
+  /** Super User flag on profile or assignment to the Super role in the database. */
+  has_super_access: boolean;
   created_at: string | null;
   roles_display: string;
 };
@@ -44,7 +46,7 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  tone?: "zinc" | "emerald" | "amber" | "teal";
+  tone?: "zinc" | "emerald" | "amber" | "teal" | "violet";
 }) {
   const toneClass =
     tone === "emerald"
@@ -53,7 +55,9 @@ function StatCard({
         ? "border-amber-200 bg-amber-50/80 text-amber-900"
         : tone === "teal"
           ? "border-teal-200 bg-teal-50/80 text-teal-900"
-          : "border-zinc-200 bg-zinc-50/80 text-zinc-800";
+          : tone === "violet"
+            ? "border-violet-200 bg-violet-50/80 text-violet-900"
+            : "border-zinc-200 bg-zinc-50/80 text-zinc-800";
 
   return (
     <div className={`rounded-xl border px-4 py-3 shadow-sm ${toneClass}`}>
@@ -79,10 +83,11 @@ export function UsersList({ rows }: { rows: UserListRow[] }) {
 
   const stats = useMemo(() => {
     const total = rows.length;
+    const superAccess = rows.filter((r) => r.has_super_access).length;
     const active = rows.filter((r) => r.status === "ACTIVE").length;
     const pending = rows.filter((r) => r.status === "PENDING_ACCESS").length;
     const disabled = rows.filter((r) => r.status === "DISABLED").length;
-    return { total, active, pending, disabled };
+    return { total, superAccess, active, pending, disabled };
   }, [rows]);
 
   const statusOptions = useMemo(() => {
@@ -97,11 +102,12 @@ export function UsersList({ rows }: { rows: UserListRow[] }) {
           <div className="space-y-1">
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Users</h1>
             <p className="max-w-xl text-sm leading-relaxed text-zinc-600">
-              Admin portal accounts only. People listed here can sign in to this dashboard. Workforce records live under{" "}
+              <strong className="font-semibold text-zinc-800">Admin users</strong> (active) matches the dashboard: active portal accounts whose email is not on{" "}
               <Link href="/employees" className="font-medium text-teal-800 underline decoration-teal-300/80 underline-offset-2 hover:text-teal-950">
                 Employees
               </Link>
-              — those emails are excluded here.
+              . <strong className="font-semibold text-zinc-800">All portal accounts</strong> includes pending and disabled.{" "}
+              <strong className="font-semibold text-zinc-800">Super access</strong> is the Super User flag or Super role.
             </p>
           </div>
           <Link
@@ -112,9 +118,10 @@ export function UsersList({ rows }: { rows: UserListRow[] }) {
           </Link>
         </div>
 
-        <div className="grid gap-3 px-6 pb-6 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total users" value={stats.total} tone="teal" />
-          <StatCard label="Active" value={stats.active} tone="emerald" />
+        <div className="grid gap-3 px-6 pb-6 sm:grid-cols-2 lg:grid-cols-5">
+          <StatCard label="Admin users (active)" value={stats.active} tone="teal" />
+          <StatCard label="All portal accounts" value={stats.total} tone="emerald" />
+          <StatCard label="Super access" value={stats.superAccess} tone="violet" />
           <StatCard label="Pending access" value={stats.pending} tone="amber" />
           <StatCard label="Disabled" value={stats.disabled} tone="zinc" />
         </div>
@@ -210,7 +217,7 @@ export function UsersList({ rows }: { rows: UserListRow[] }) {
                       </td>
                       <td className="max-w-[220px] px-4 py-4 align-middle">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {r.is_super_user && (
+                          {r.has_super_access && (
                             <span className="inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-900 ring-1 ring-violet-200">
                               Super
                             </span>
@@ -248,7 +255,7 @@ export function UsersList({ rows }: { rows: UserListRow[] }) {
 
         <p className="mt-4 text-center text-xs text-zinc-500">
           Showing <span className="font-medium text-zinc-700">{filtered.length}</span> of{" "}
-          <span className="font-medium text-zinc-700">{rows.length}</span> admin users
+          <span className="font-medium text-zinc-700">{rows.length}</span> portal accounts
         </p>
       </div>
     </div>

@@ -3,7 +3,7 @@ import type { UsersProfile } from "@/lib/types/database";
 import { getInvitationGate } from "@/lib/invitation";
 
 /** Super role id (must match supabase/seed_super_role.sql). */
-const SUPER_ROLE_ID = "a0000000-0000-0000-0000-000000000000";
+export const SUPER_ROLE_ID = "a0000000-0000-0000-0000-000000000000";
 
 /** Role id for "Regional Project Manager" – not assignable to users; PM is an employee role only (region/project on employee). */
 export const REGIONAL_PM_ROLE_ID = "a0000000-0000-0000-0000-000000000002";

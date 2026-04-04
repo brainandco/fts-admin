@@ -26,7 +26,8 @@ export type AssetStatus =
   | "Assigned"
   | "Under_Maintenance"
   | "Damaged"
-  | "Pending_Return";
+  | "Pending_Return"
+  | "With_QC";
 export type ProjectType = "MS" | "Rollout" | "Huawei Minor";
 
 export interface Region {

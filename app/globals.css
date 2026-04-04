@@ -3,14 +3,17 @@
 :root {
   --background: #f1f5f9;
   --foreground: #0f172a;
+  /* Brand: black wordmark + teal accent (aligned with FTS branding) */
+  --fts-brand: #0f172a;
   --fts-violet: #6366f1;
   --fts-indigo: #4f46e5;
   --fts-cyan: #06b6d4;
   --fts-teal: #14b8a6;
   --fts-amber: #f59e0b;
   --fts-rose: #f43f5e;
-  --fts-primary: #4f46e5;
-  --fts-primary-hover: #4338ca;
+  --fts-primary: #0d9488;
+  --fts-primary-hover: #0f766e;
+  --fts-accent-ring: #14b8a6;
   --fts-auth-bg: #e2e8f0;
 }
 
@@ -61,7 +64,7 @@ body {
 .fts-app-shell {
   min-height: 100vh;
   min-height: 100dvh;
-  background-color: #eef2ff;
+  background: linear-gradient(180deg, #f0fdfa 0%, #f1f5f9 45%, #eef2ff 100%);
 }
 
 /*
@@ -147,7 +150,7 @@ body {
 
 .fts-btn-primary:hover:not(:disabled) {
   background-color: var(--fts-primary-hover);
-  box-shadow: 0 8px 20px -4px rgba(79, 70, 229, 0.45);
+  box-shadow: 0 8px 20px -4px rgba(13, 148, 136, 0.4);
   transform: translateY(-1px);
 }
 
@@ -160,8 +163,8 @@ body {
 }
 
 .fts-input:focus {
-  border-color: var(--fts-violet);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  border-color: var(--fts-accent-ring);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.22);
   outline: none;
 }
 

@@ -55,6 +55,7 @@ export async function POST(req: Request) {
     .update({
       invitation_accepted_at: now,
       invitation_token: null,
+      status: "ACTIVE",
     })
     .eq("id", user.id);
 

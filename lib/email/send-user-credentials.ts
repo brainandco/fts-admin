@@ -1,6 +1,7 @@
 /**
  * Send admin portal login credentials by email (Resend SDK).
- * Requires RESEND_API_KEY. From address must use a verified domain (e.g. fts-ksa.com).
+ * Requires RESEND_API_KEY. RESEND_FROM_EMAIL must sit on whatever domain you verified in Resend
+ * (e.g. noreply@admin.fts-ksa.com if you verified admin.fts-ksa.com — not @fts-ksa.com unless that root domain is verified).
  */
 
 import { Resend } from "resend";

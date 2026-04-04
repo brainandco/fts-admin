@@ -2,7 +2,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AssetForm } from "@/components/assets/AssetForm";
+import { ClearMaintenanceButton } from "@/components/assets/ClearMaintenanceButton";
 import { EntityHistory } from "@/components/audit/EntityHistory";
+import { can } from "@/lib/rbac/permissions";
 
 export default async function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,6 +23,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   const { data: userRows } = await supabase.from("users_profile").select("id, full_name, email").in("id", userIds);
   const empMap = new Map((empRows ?? []).map((e) => [e.id, e.full_name]));
   const userMap = new Map((userRows ?? []).map((u) => [u.id, u.full_name || u.email]));
+  const canClearMaintenance = await can("assets.manage");
 
   return (
     <div className="space-y-8">
@@ -33,6 +36,15 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
         {asset.imei_1 && <span className="text-sm font-mono text-zinc-500">IMEI 1: {asset.imei_1}</span>}
         {asset.imei_2 && <span className="text-sm font-mono text-zinc-500">IMEI 2: {asset.imei_2}</span>}
       </div>
+      {asset.status === "Under_Maintenance" ? (
+        <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4">
+          <p className="mb-3 text-sm text-zinc-700">
+            This asset is under maintenance. When repair is complete, mark it back in pool so it shows as Available for
+            assignment.
+          </p>
+          <ClearMaintenanceButton assetId={id} canClear={canClearMaintenance} />
+        </div>
+      ) : null}
       <section>
         <h2 className="mb-3 text-lg font-medium text-zinc-900">Edit asset</h2>
         <AssetForm existing={asset} />

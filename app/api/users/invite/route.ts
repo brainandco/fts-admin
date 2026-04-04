@@ -12,7 +12,7 @@ function adminPortalBaseUrl(): string {
 
 /**
  * POST /api/users/invite — Super user creates a new admin user and sends credentials by email.
- * User must accept the invitation (24h) before accessing the dashboard.
+ * Profile is PENDING_ACCESS until they accept; then status becomes ACTIVE. Super assigns roles after acceptance.
  */
 export async function POST(req: Request) {
   const access = await requireSuper();
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       id: user.id,
       email: user.email ?? email,
       full_name: full_name || null,
-      status: "ACTIVE",
+      status: "PENDING_ACCESS",
       invitation_token: token,
       invitation_sent_at: sentAt.toISOString(),
       invitation_expires_at: expiresAt.toISOString(),
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     actionType: "create",
     entityType: "user",
     entityId: user.id,
-    newValue: { email, full_name, status: "ACTIVE", invitation_expires_at: expiresAt.toISOString() },
+    newValue: { email, full_name, status: "PENDING_ACCESS", invitation_expires_at: expiresAt.toISOString() },
     description: "User invited; credentials and invitation link sent by email",
   });
 
