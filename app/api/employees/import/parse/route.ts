@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
 
 const ALLOWED_ROLES = [
   "Driver/Rigger",
@@ -117,12 +118,19 @@ export async function POST(req: Request) {
     const phone = col(row, "phone");
     const iqama_number = col(row, "iqama_number");
     const rolesRaw = col(row, "roles");
-    const onboarding_date = col(row, "onboarding_date") || null;
+    const onboardingRaw = col(row, "onboarding_date");
     const status = (col(row, "status") || "ACTIVE").toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 
     const roles = rolesRaw ? rolesRaw.split(/[;,|]/).map((r) => r.trim()).filter((r) => ALLOWED_ROLES.includes(r)) : [];
 
     const errors: string[] = [];
+    let onboarding_date: string | null = null;
+    if (onboardingRaw) {
+      const normalized = normalizeOnboardingDate(onboardingRaw);
+      if (!normalized.ok) errors.push(normalized.message);
+      else onboarding_date = normalized.value;
+    }
+
     if (!full_name) errors.push("Full name required");
     if (!passport_number) errors.push("Passport required");
     if (!country) errors.push("Country required");
@@ -145,7 +153,7 @@ export async function POST(req: Request) {
       region_id: null as null,
       project_id: null as null,
       project_name_other: null as null,
-      onboarding_date: onboarding_date || null,
+      onboarding_date,
       status,
     };
 
@@ -157,7 +165,7 @@ export async function POST(req: Request) {
       phone: phone || "—",
       iqama_number: iqama_number || "—",
       roles_display: roles.length ? roles.join(", ") : "—",
-      onboarding_date: onboarding_date || null,
+      onboarding_date,
       status,
       _payload,
       ...(errors.length ? { _error: errors.join(". ") } : {}),

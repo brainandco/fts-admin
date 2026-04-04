@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
+import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
 
 const ALLOWED_ROLES = [
   "Driver/Rigger",
@@ -34,8 +35,18 @@ export async function POST(req: Request) {
     const phone = typeof r.phone === "string" ? r.phone.trim() : "";
     const iqama_number = typeof r.iqama_number === "string" ? r.iqama_number.trim() : "";
     const roles = Array.isArray(r.roles) ? r.roles.filter((x: string) => ALLOWED_ROLES.includes(x)) : [];
-    const onboarding_date = r.onboarding_date || null;
     const status = r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+
+    let onboarding_date: string | null = null;
+    const rawOd = r.onboarding_date;
+    if (rawOd != null && String(rawOd).trim() !== "") {
+      const n = normalizeOnboardingDate(String(rawOd));
+      if (!n.ok) {
+        errors.push({ row: i + 1, message: n.message });
+        continue;
+      }
+      onboarding_date = n.value;
+    }
 
     if (!full_name || !passport_number || !country || !email || !phone || !iqama_number || roles.length === 0) {
       errors.push({ row: i + 1, message: "Missing required fields or invalid roles" });
