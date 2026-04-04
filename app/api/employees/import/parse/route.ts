@@ -1,17 +1,7 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
-
-const ALLOWED_ROLES = [
-  "Driver/Rigger",
-  "QC",
-  "QA",
-  "PP",
-  "DT",
-  "Project Manager",
-  "Self DT",
-  "Project Coordinator",
-];
+import { formatEmployeeRoleDisplay, parseImportRoleToken } from "@/lib/employees/employee-role-options";
 
 function parseCSVLine(line: string): string[] {
   const out: string[] = [];
@@ -35,9 +25,14 @@ function parseCSVLine(line: string): string[] {
 }
 
 function parseCSV(text: string): { headers: string[]; rows: string[][] } {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   if (lines.length === 0) return { headers: [], rows: [] };
-  const headers = parseCSVLine(lines[0]).map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase().replace(/\s+/g, "_"));
+  const headers = parseCSVLine(lines[0]).map((h) =>
+    h.replace(/^"|"$/g, "").trim().toLowerCase().replace(/\s+/g, "_")
+  );
   const rows = lines.slice(1).map((l) => parseCSVLine(l).map((c) => c.replace(/^"|"$/g, "").trim()));
   return { headers, rows };
 }
@@ -79,6 +74,7 @@ export async function POST(req: Request) {
       phone: string;
       iqama_number: string;
       roles: string[];
+      role_custom: string | null;
       region_id: null;
       project_id: null;
       project_name_other: null;
@@ -102,7 +98,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         message:
-          "CSV must have headers: full_name, passport_number, country, email, phone, iqama_number, roles (and optionally onboarding_date, status). Assign region and project after import on Employees → Region & project assignments. Use semicolons in roles e.g. DT;Driver/Rigger.",
+          "CSV must have headers: full_name, passport_number, country, email, phone, iqama_number, roles (and optionally onboarding_date, status). Assign region and project after import on Employees → Region & project assignments. One role per row: a fixed role (e.g. DT), Other:Label, or any custom text (stored as a custom role).",
         previewRows: [],
       },
       { status: 400 }
@@ -121,7 +117,7 @@ export async function POST(req: Request) {
     const onboardingRaw = col(row, "onboarding_date");
     const status = (col(row, "status") || "ACTIVE").toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 
-    const roles = rolesRaw ? rolesRaw.split(/[;,|]/).map((r) => r.trim()).filter((r) => ALLOWED_ROLES.includes(r)) : [];
+    const tokens = rolesRaw ? rolesRaw.split(/[;,|]/).map((r) => r.trim()).filter(Boolean) : [];
 
     const errors: string[] = [];
     let onboarding_date: string | null = null;
@@ -131,16 +127,31 @@ export async function POST(req: Request) {
       else onboarding_date = normalized.value;
     }
 
+    let roles: string[] = [];
+    let role_custom: string | null = null;
+
+    if (tokens.length === 0) {
+      errors.push("Role is required");
+    } else if (tokens.length > 1) {
+      errors.push("Use exactly one role per row (no multiple roles in one cell)");
+    } else {
+      const parsed = parseImportRoleToken(tokens[0]);
+      if (!parsed.ok) errors.push(parsed.message);
+      else {
+        roles = [parsed.role];
+        role_custom = parsed.role_custom;
+      }
+    }
+
     if (!full_name) errors.push("Full name required");
     if (!passport_number) errors.push("Passport required");
     if (!country) errors.push("Country required");
     if (!email) errors.push("Email required");
     if (!phone) errors.push("Phone required");
     if (!iqama_number) errors.push("Iqama number required");
-    if (roles.length === 0)
-      errors.push(
-        "At least one role required (DT, Driver/Rigger, Self DT, QC, QA, PP, Project Manager, Project Coordinator)"
-      );
+
+    const roles_display =
+      roles.length > 0 ? formatEmployeeRoleDisplay(roles[0], role_custom) : "—";
 
     const _payload = {
       full_name,
@@ -150,6 +161,7 @@ export async function POST(req: Request) {
       phone,
       iqama_number,
       roles,
+      role_custom: role_custom ?? null,
       region_id: null as null,
       project_id: null as null,
       project_name_other: null as null,
@@ -164,7 +176,7 @@ export async function POST(req: Request) {
       email: email || "—",
       phone: phone || "—",
       iqama_number: iqama_number || "—",
-      roles_display: roles.length ? roles.join(", ") : "—",
+      roles_display,
       onboarding_date,
       status,
       _payload,

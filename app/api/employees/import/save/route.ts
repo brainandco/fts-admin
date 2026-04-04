@@ -3,17 +3,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
-
-const ALLOWED_ROLES = [
-  "Driver/Rigger",
-  "QC",
-  "QA",
-  "PP",
-  "DT",
-  "Project Manager",
-  "Self DT",
-  "Project Coordinator",
-];
+import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
 
 export async function POST(req: Request) {
   if (!(await can("users.create"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
@@ -34,7 +24,14 @@ export async function POST(req: Request) {
     const email = typeof r.email === "string" ? r.email.trim() : "";
     const phone = typeof r.phone === "string" ? r.phone.trim() : "";
     const iqama_number = typeof r.iqama_number === "string" ? r.iqama_number.trim() : "";
-    const roles = Array.isArray(r.roles) ? r.roles.filter((x: string) => ALLOWED_ROLES.includes(x)) : [];
+    const roleNorm = normalizeEmployeeRolePayload({
+      roles: r.roles,
+      role_custom: r.role_custom,
+    });
+    if (!roleNorm.ok) {
+      errors.push({ row: i + 1, message: roleNorm.message });
+      continue;
+    }
     const status = r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 
     let onboarding_date: string | null = null;
@@ -48,8 +45,8 @@ export async function POST(req: Request) {
       onboarding_date = n.value;
     }
 
-    if (!full_name || !passport_number || !country || !email || !phone || !iqama_number || roles.length === 0) {
-      errors.push({ row: i + 1, message: "Missing required fields or invalid roles" });
+    if (!full_name || !passport_number || !country || !email || !phone || !iqama_number) {
+      errors.push({ row: i + 1, message: "Missing required fields" });
       continue;
     }
 
@@ -72,9 +69,11 @@ export async function POST(req: Request) {
       errors.push({ row: i + 1, message: error.message });
       continue;
     }
-    for (const role of roles) {
-      await supabase.from("employee_roles").insert({ employee_id: data.id, role });
-    }
+    await supabase.from("employee_roles").insert({
+      employee_id: data.id,
+      role: roleNorm.role,
+      role_custom: roleNorm.role_custom,
+    });
     await auditLog({
       actionType: "create",
       entityType: "employee",

@@ -1,8 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
 
-const ROLES_NOT_ALLOWED_ON_TEAM = new Set(["QC", "QA", "PP", "Project Manager", "Project Coordinator"]);
-
-/** QC, QA, PP, and PM are not eligible for DT / Driver-Rigger / Self-DT team slots. */
+/** QC, QA, PP, PM, PC, and support roles are not eligible for DT / Driver-Rigger / Self-DT team slots. */
 export async function assertEmployeesAllowedOnTeam(
   supabase: SupabaseClient,
   employeeIds: (string | null | undefined)[]
@@ -29,7 +28,8 @@ export async function assertEmployeesAllowedOnTeam(
     if (roles.some((role) => ROLES_NOT_ALLOWED_ON_TEAM.has(role))) {
       return {
         ok: false,
-        message: "QC, QA, PP, Project Manager, and Project Coordinator cannot be members of a team.",
+        message:
+          "This role cannot be on a team (QC, QA, PP, PM, PC, or any custom / Other role).",
       };
     }
   }

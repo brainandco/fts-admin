@@ -9,6 +9,7 @@ import {
 } from "@/lib/teams/teamTermination";
 import { assertEmployeesAllowedOnTeam } from "@/lib/teams/teamMemberEligibility";
 import { assertEmployeeHasNoAssignmentsForTeamChange } from "@/lib/teams/employeeAssignments";
+import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const superResult = await requireSuper();
@@ -85,7 +86,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const { error } = await supabase.from("teams").update(updates).eq("id", id);
-  if (error) return NextResponse.json({ message: error.message }, { status: 400 });
+  if (error) {
+    if (error.code === "23505" || /duplicate|unique/i.test(error.message ?? "")) {
+      return NextResponse.json({ message: "This team code is already in use. Choose another." }, { status: 400 });
+    }
+    return NextResponse.json({ message: error.message }, { status: 400 });
+  }
   await auditLog({ actionType: "update", entityType: "team", entityId: id, oldValue: old, newValue: { ...old, ...updates }, description: "Team updated" });
   return NextResponse.json({ ok: true });
 }

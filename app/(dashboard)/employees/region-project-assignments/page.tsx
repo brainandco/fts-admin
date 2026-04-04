@@ -3,6 +3,7 @@ import { getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EmployeeRegionProjectAssignmentsClient } from "@/components/employees/EmployeeRegionProjectAssignmentsClient";
+import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 
 export default async function EmployeeRegionProjectAssignmentsPage() {
   const { profile } = await getCurrentUserProfile();
@@ -11,10 +12,15 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
   const supabase = await getDataClient();
   const { data: employeesRaw } = await supabase.from("employees").select("id, full_name, region_id, project_id").order("full_name");
   const empIds = (employeesRaw ?? []).map((e) => e.id);
-  const { data: roleRows } = await supabase.from("employee_roles").select("employee_id, role").in("employee_id", empIds);
+  const { data: roleRows } = await supabase
+    .from("employee_roles")
+    .select("employee_id, role, role_custom")
+    .in("employee_id", empIds);
   const roleByEmp = new Map<string, string>();
   for (const r of roleRows ?? []) {
-    if (!roleByEmp.has(r.employee_id)) roleByEmp.set(r.employee_id, r.role);
+    if (!roleByEmp.has(r.employee_id)) {
+      roleByEmp.set(r.employee_id, formatEmployeeRoleDisplay(r.role, r.role_custom));
+    }
   }
   const employees = (employeesRaw ?? []).map((e) => ({
     id: e.id,

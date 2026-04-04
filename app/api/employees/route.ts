@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { randomPassword, sendEmployeeCredentials } from "@/lib/email/send-employee-credentials";
+import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
 export async function POST(req: Request) {
   if (!(await can("users.create"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
@@ -20,18 +21,11 @@ export async function POST(req: Request) {
   if (!email) return NextResponse.json({ message: "Email is required" }, { status: 400 });
   if (!phone) return NextResponse.json({ message: "Phone number is required" }, { status: 400 });
   if (!iqama_number) return NextResponse.json({ message: "Iqama number is required" }, { status: 400 });
-  const allowedRoles = [
-    "Driver/Rigger",
-    "QC",
-    "QA",
-    "PP",
-    "DT",
-    "Project Manager",
-    "Self DT",
-    "Project Coordinator",
-  ];
-  const roles = Array.isArray(input.roles) ? input.roles.filter((r: string) => allowedRoles.includes(r)) : [];
-  if (roles.length !== 1) return NextResponse.json({ message: "Exactly one role is required." }, { status: 400 });
+  const roleNorm = normalizeEmployeeRolePayload({
+    roles: input.roles,
+    role_custom: input.role_custom,
+  });
+  if (!roleNorm.ok) return NextResponse.json({ message: roleNorm.message }, { status: 400 });
 
   const onboarding_date = typeof input.onboarding_date === "string" ? input.onboarding_date.trim() || null : null;
   if (!onboarding_date) return NextResponse.json({ message: "Onboarding date is required" }, { status: 400 });
@@ -58,9 +52,11 @@ export async function POST(req: Request) {
   const { data, error } = await supabase.from("employees").insert(payload).select("id").single();
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
-  for (const role of roles) {
-    await supabase.from("employee_roles").insert({ employee_id: data.id, role });
-  }
+  await supabase.from("employee_roles").insert({
+    employee_id: data.id,
+    role: roleNorm.role,
+    role_custom: roleNorm.role_custom,
+  });
 
   let credentialsSent = false;
   let credentialsError: string | undefined;

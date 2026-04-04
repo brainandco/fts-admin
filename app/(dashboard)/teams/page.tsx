@@ -7,7 +7,10 @@ import Link from "next/link";
 export default async function TeamsPage() {
   if (!(await can("teams.manage"))) redirect("/dashboard");
   const supabase = await getDataClient();
-  const { data: teams } = await supabase.from("teams").select("id, name, project_id, region_id, dt_employee_id, driver_rigger_employee_id, max_size, onboarding_date, created_at").order("name");
+  const { data: teams } = await supabase
+    .from("teams")
+    .select("id, name, team_code, project_id, region_id, dt_employee_id, driver_rigger_employee_id, max_size, onboarding_date, created_at")
+    .order("name");
   const projectIds = [...new Set((teams ?? []).map((t) => t.project_id))];
   const regionIds = [...new Set((teams ?? []).map((t) => t.region_id))];
   const empIds = [...new Set((teams ?? []).flatMap((t) => [t.dt_employee_id, t.driver_rigger_employee_id].filter(Boolean) as string[]))];
@@ -20,6 +23,7 @@ export default async function TeamsPage() {
 
   const rows = (teams ?? []).map((t) => ({
     ...t,
+    team_code_display: (t as { team_code?: string | null }).team_code?.trim() || "—",
     project_name: projectMap.get(t.project_id) ?? t.project_id,
     region_name: t.region_id ? regionMap.get(t.region_id) ?? "" : "",
     dt_name: t.dt_employee_id ? employeeMap.get(t.dt_employee_id) ?? "" : "—",
@@ -41,6 +45,7 @@ export default async function TeamsPage() {
           </Link>
         }
         columns={[
+          { key: "team_code_display", label: "Code" },
           { key: "name", label: "Name" },
           { key: "project_name", label: "Project" },
           { key: "region_name", label: "Region" },

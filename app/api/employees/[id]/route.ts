@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { deleteEmployeeById } from "@/lib/employees/delete-employee-internal";
+import { normalizeEmployeeRolePayload, ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const superResult = await requireSuper();
   if (!superResult.allowed) return NextResponse.json({ message: "Only Super User can edit employees." }, { status: 403 });
@@ -44,28 +45,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
   if (Array.isArray(body.roles)) {
-    const allowed = [
-      "Driver/Rigger",
-      "QC",
-      "QA",
-      "PP",
-      "DT",
-      "Project Manager",
-      "Self DT",
-      "Project Coordinator",
-    ];
-    const newRoles = body.roles.filter((r: string) => allowed.includes(r));
-    if (newRoles.length !== 1) {
-      return NextResponse.json({ message: "Exactly one role is required." }, { status: 400 });
+    const roleNorm = normalizeEmployeeRolePayload({
+      roles: body.roles,
+      role_custom: body.role_custom,
+    });
+    if (!roleNorm.ok) {
+      return NextResponse.json({ message: roleNorm.message }, { status: 400 });
     }
-    const nextRole = newRoles[0];
-    if (
-      nextRole === "QC" ||
-      nextRole === "QA" ||
-      nextRole === "PP" ||
-      nextRole === "Project Manager" ||
-      nextRole === "Project Coordinator"
-    ) {
+    const nextRole = roleNorm.role;
+    if (ROLES_NOT_ALLOWED_ON_TEAM.has(nextRole)) {
       const { data: teamRows } = await supabase
         .from("teams")
         .select("id")
@@ -75,14 +63,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json(
           {
             message:
-              "QC, QA, PP, Project Manager, and Project Coordinator cannot be on a team. Remove this employee from their team first, then change this role.",
+              "This role cannot be on a team. Remove this employee from their team first, then change the role.",
           },
           { status: 400 }
         );
       }
     }
     await supabase.from("employee_roles").delete().eq("employee_id", id);
-    await supabase.from("employee_roles").insert({ employee_id: id, role: nextRole });
+    await supabase.from("employee_roles").insert({
+      employee_id: id,
+      role: roleNorm.role,
+      role_custom: roleNorm.role_custom,
+    });
   }
 
   await auditLog({ actionType: "update", entityType: "employee", entityId: id, oldValue: old, newValue: { ...old, ...updates }, description: "Employee updated" });

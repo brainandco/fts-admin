@@ -3,6 +3,7 @@ import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EmployeeImport } from "@/components/employees/EmployeeImport";
+import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 import { EmployeesDirectoryTable } from "@/components/employees/EmployeesDirectoryTable";
 
 function StatCard({
@@ -42,11 +43,14 @@ export default async function EmployeesPage() {
     .order("created_at", { ascending: false });
 
   const empIds = (employees ?? []).map((e) => e.id);
-  const { data: roleRows } = await supabase.from("employee_roles").select("employee_id, role").in("employee_id", empIds);
+  const { data: roleRows } = await supabase
+    .from("employee_roles")
+    .select("employee_id, role, role_custom")
+    .in("employee_id", empIds);
   const rolesByEmpId = new Map<string, string[]>();
   for (const r of roleRows ?? []) {
     const arr = rolesByEmpId.get(r.employee_id) ?? [];
-    arr.push(r.role);
+    arr.push(formatEmployeeRoleDisplay(r.role, r.role_custom));
     rolesByEmpId.set(r.employee_id, arr);
   }
 

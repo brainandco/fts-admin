@@ -4,17 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-
-const EMPLOYEE_ROLE_OPTIONS = [
-  { value: "DT", label: "DT" },
-  { value: "Driver/Rigger", label: "Driver/Rigger" },
-  { value: "Self DT", label: "Self DT" },
-  { value: "QC", label: "QC" },
-  { value: "QA", label: "QA" },
-  { value: "PP", label: "PP" },
-  { value: "Project Manager", label: "Project Manager" },
-  { value: "Project Coordinator", label: "Project Coordinator" },
-] as const;
+import {
+  EMPLOYEE_ROLE_GROUPS,
+  EMPLOYEE_ROLE_OTHER,
+} from "@/lib/employees/employee-role-options";
 
 type Employee = {
   id: string;
@@ -30,6 +23,7 @@ type Employee = {
   accommodations?: string | null;
   status: string;
   roles?: string[];
+  role_custom?: string | null;
 } | null;
 
 /** Profile only — region and project are set on Employees → Region & project assignments. */
@@ -49,6 +43,13 @@ export function EmployeeForm({
   const [phone, setPhone] = useState(existing?.phone ?? "");
   const [iqamaNumber, setIqamaNumber] = useState(existing?.iqama_number ?? "");
   const [roles, setRoles] = useState<string[]>(existing?.roles ?? []);
+  const [otherRoleText, setOtherRoleText] = useState(() => {
+    const r0 = existing?.roles?.[0];
+    if (r0 === EMPLOYEE_ROLE_OTHER && existing?.role_custom?.trim()) {
+      return existing.role_custom.trim();
+    }
+    return "";
+  });
   const [onboardingDate, setOnboardingDate] = useState(
     (existing as { onboarding_date?: string } | null)?.onboarding_date?.toString().slice(0, 10) ?? ""
   );
@@ -93,6 +94,7 @@ export function EmployeeForm({
         phone: phone.trim(),
         iqama_number: iqamaNumber.trim(),
         roles,
+        role_custom: roles[0] === EMPLOYEE_ROLE_OTHER ? otherRoleText.trim() : undefined,
         onboarding_date: onboardingDate.trim() || null,
         status,
         accommodations: accommodations.trim() || null,
@@ -168,24 +170,61 @@ export function EmployeeForm({
             <input value={iqamaNumber} onChange={(e) => setIqamaNumber(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-zinc-700">
+            <label className="mb-1 block text-sm font-medium text-zinc-700" htmlFor="employee_role_select">
               Role <span className="text-red-600">*</span>
             </label>
-            <div className="flex flex-wrap gap-3">
-              {EMPLOYEE_ROLE_OPTIONS.map((o) => (
-                <label key={o.value} className="flex items-center gap-1.5 text-sm">
-                  <input
-                    type="radio"
-                    name="employee_role"
-                    checked={roles.includes(o.value)}
-                    onChange={() => setRoles([o.value])}
-                    className="rounded border-zinc-300"
-                  />
-                  {o.label}
-                </label>
+            <select
+              id="employee_role_select"
+              value={roles[0] ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                setRoles(v ? [v] : []);
+                if (v !== EMPLOYEE_ROLE_OTHER) setOtherRoleText("");
+              }}
+              required
+              className="w-full max-w-xl rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="">— Select a role —</option>
+              {EMPLOYEE_ROLE_GROUPS.map((group) => (
+                <optgroup key={group.heading} label={group.heading}>
+                  {group.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
+              <option value={EMPLOYEE_ROLE_OTHER}>Other (describe below)</option>
+            </select>
+            {roles[0] === EMPLOYEE_ROLE_OTHER ? (
+              <div className="mt-3 max-w-xl">
+                <label className="mb-1 block text-sm font-medium text-zinc-700" htmlFor="employee_role_custom">
+                  Custom role <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="employee_role_custom"
+                  value={otherRoleText}
+                  onChange={(e) => setOtherRoleText(e.target.value)}
+                  maxLength={120}
+                  required
+                  placeholder="e.g. Senior rigger, HSE officer, warehouse lead"
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-xs text-zinc-500">1–120 characters. Shown everywhere the role appears.</p>
+              </div>
+            ) : null}
+            <div className="mt-2 space-y-1 text-xs text-zinc-500">
+              {EMPLOYEE_ROLE_GROUPS.map((g) => (
+                <p key={g.heading}>
+                  <span className="font-medium text-zinc-600">{g.heading}:</span> {g.description ?? ""}
+                </p>
+              ))}
+              <p>
+                <span className="font-medium text-zinc-600">Other:</span> any title not listed above — not assigned to DT/Driver
+                team rows.
+              </p>
+              <p className="text-zinc-600">One role per employee. Self DT covers both DT and Driver/Rigger on a team.</p>
             </div>
-            <p className="mt-1 text-xs text-zinc-500">Select one role only. Self DT = one person as full team (DT + Driver/Rigger).</p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">

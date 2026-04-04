@@ -31,7 +31,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   const { data: employees } = await supabase.from("employees").select("id, full_name").eq("status", "ACTIVE");
   const { data: teams } = await supabase.from("teams").select("id, dt_employee_id, driver_rigger_employee_id");
   const empIds = (employees ?? []).map((e) => e.id);
-  const { data: roleRows } = await supabase.from("employee_roles").select("employee_id, role").in("employee_id", empIds);
+  const { data: roleRows } = await supabase.from("employee_roles").select("employee_id, role, role_custom").in("employee_id", empIds);
   const rolesByEmpId = new Map<string, string[]>();
   for (const r of roleRows ?? []) {
     const arr = rolesByEmpId.get(r.employee_id) ?? [];
@@ -94,7 +94,14 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/teams" className="text-sm text-zinc-500 hover:text-zinc-900">← Teams</Link>
-          <h1 className="text-2xl font-semibold text-zinc-900">{team.name}</h1>
+          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold text-zinc-900">
+            {team.name}
+            {(team as { team_code?: string | null }).team_code?.trim() ? (
+              <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-mono text-sm font-semibold tracking-wide text-indigo-900">
+                {(team as { team_code?: string | null }).team_code!.trim()}
+              </span>
+            ) : null}
+          </h1>
           {project?.name && <span className="text-sm font-normal text-zinc-500">({project.name})</span>}
         </div>
         {isSuper && (

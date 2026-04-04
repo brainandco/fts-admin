@@ -13,7 +13,7 @@ export default async function NewTeamPage() {
   const { data: employees } = await supabase.from("employees").select("id, full_name").eq("status", "ACTIVE");
   const { data: teams } = await supabase.from("teams").select("dt_employee_id, driver_rigger_employee_id");
   const empIds = (employees ?? []).map((e) => e.id);
-  const { data: roleRows } = await supabase.from("employee_roles").select("employee_id, role").in("employee_id", empIds);
+  const { data: roleRows } = await supabase.from("employee_roles").select("employee_id, role, role_custom").in("employee_id", empIds);
   const rolesByEmpId = new Map<string, string[]>();
   for (const r of roleRows ?? []) {
     const arr = rolesByEmpId.get(r.employee_id) ?? [];

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 type TeamRow = {
   id: string;
   name: string;
+  team_code?: string | null;
   region_id: string | null;
   project_id: string | null;
 };
@@ -83,6 +84,7 @@ export function TeamRegionProjectAssignmentsClient({
         <table className="w-full min-w-[560px] text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
+              <th className="px-4 py-3 text-left font-medium text-zinc-700">Code</th>
               <th className="px-4 py-3 text-left font-medium text-zinc-700">Team</th>
               <th className="px-4 py-3 text-left font-medium text-zinc-700">Region</th>
               <th className="px-4 py-3 text-left font-medium text-zinc-700">Project</th>
@@ -92,6 +94,9 @@ export function TeamRegionProjectAssignmentsClient({
           <tbody>
             {teams.map((row) => (
               <tr key={row.id} className="border-b border-zinc-100 last:border-0">
+                <td className="px-4 py-3 font-mono text-xs font-semibold text-indigo-800">
+                  {row.team_code?.trim() || "—"}
+                </td>
                 <td className="px-4 py-3 font-medium text-zinc-900">{row.name}</td>
                 {editingId === row.id ? (
                   <>

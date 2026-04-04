@@ -2,6 +2,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import { VehiclesTabs } from "@/components/vehicles/VehiclesTabs";
+import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 
 export default async function VehiclesPage() {
   if (!(await can("vehicles.manage"))) redirect("/dashboard");
@@ -22,12 +23,12 @@ export default async function VehiclesPage() {
     ? await supabase.from("employees").select("id, full_name, phone, email, project_id, region_id").in("id", employeeIds)
     : { data: [] };
   const { data: roleRows } = employeeIds.length
-    ? await supabase.from("employee_roles").select("employee_id, role").in("employee_id", employeeIds)
+    ? await supabase.from("employee_roles").select("employee_id, role, role_custom").in("employee_id", employeeIds)
     : { data: [] };
   const rolesByEmp = new Map<string, string[]>();
   for (const r of roleRows ?? []) {
     const arr = rolesByEmp.get(r.employee_id) ?? [];
-    arr.push(r.role);
+    arr.push(formatEmployeeRoleDisplay(r.role, r.role_custom));
     rolesByEmp.set(r.employee_id, arr);
   }
 

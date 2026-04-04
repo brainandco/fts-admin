@@ -9,7 +9,7 @@ export default async function TeamRegionProjectAssignmentsPage() {
   if (!profile?.is_super_user) redirect("/teams");
 
   const supabase = await getDataClient();
-  const { data: teams } = await supabase.from("teams").select("id, name, region_id, project_id").order("name");
+  const { data: teams } = await supabase.from("teams").select("id, name, team_code, region_id, project_id").order("name");
   const { data: regions } = await supabase.from("regions").select("id, name").order("name");
   const { data: projects } = await supabase.from("projects").select("id, name, region_id").order("name");
 

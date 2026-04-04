@@ -6,6 +6,7 @@ import Link from "next/link";
 import { EmployeeForm } from "@/components/employees/EmployeeForm";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { ResendCredentialsButton } from "@/components/employees/ResendCredentialsButton";
+import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 
 export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await can("users.edit"))) redirect("/employees");
@@ -15,9 +16,10 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
   const { data: employee } = await supabase.from("employees").select("*").eq("id", id).single();
   if (!employee) notFound();
 
-  const { data: roleRows } = await supabase.from("employee_roles").select("role").eq("employee_id", id);
+  const { data: roleRows } = await supabase.from("employee_roles").select("role, role_custom").eq("employee_id", id);
   const roles = (roleRows ?? []).map((r) => r.role);
-  const employeeWithRoles = { ...employee, roles };
+  const role_custom = (roleRows ?? [])[0]?.role_custom ?? null;
+  const employeeWithRoles = { ...employee, roles, role_custom };
 
   const { profile } = await getCurrentUserProfile();
   const isSuper = profile?.is_super_user ?? false;
@@ -102,12 +104,12 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
             </div>
             {roles.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {roles.map((r) => (
+                {(roleRows ?? []).map((r) => (
                   <span
-                    key={r}
+                    key={`${r.role}-${r.role_custom ?? ""}`}
                     className="inline-flex items-center rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600"
                   >
-                    {r}
+                    {formatEmployeeRoleDisplay(r.role, r.role_custom)}
                   </span>
                 ))}
               </div>

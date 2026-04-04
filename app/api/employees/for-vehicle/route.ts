@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 
 /** Returns all employees for vehicle assignee (Name) dropdown. */
 export async function GET() {
@@ -13,12 +14,12 @@ export async function GET() {
 
   const ids = (employees ?? []).map((e) => e.id);
   const { data: roles } = ids.length
-    ? await supabase.from("employee_roles").select("employee_id, role").in("employee_id", ids)
+    ? await supabase.from("employee_roles").select("employee_id, role, role_custom").in("employee_id", ids)
     : { data: [] };
   const rolesByEmp = new Map<string, string[]>();
   for (const r of roles ?? []) {
     const arr = rolesByEmp.get(r.employee_id) ?? [];
-    arr.push(r.role);
+    arr.push(formatEmployeeRoleDisplay(r.role, r.role_custom));
     rolesByEmp.set(r.employee_id, arr);
   }
 

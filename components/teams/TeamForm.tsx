@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
+import { ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
 
 type Employee = { id: string; full_name: string; roles: string[] };
 type Team = {
   id: string;
   name: string;
+  team_code?: string | null;
   project_id: string | null;
   region_id: string | null;
   dt_employee_id: string | null;
@@ -27,6 +30,9 @@ export function TeamForm({
 }) {
   const router = useRouter();
   const [name, setName] = useState(existing?.name ?? "");
+  const [teamCode, setTeamCode] = useState(
+    existing?.team_code ? String(existing.team_code) : ""
+  );
   const [dtEmployeeId, setDtEmployeeId] = useState(existing?.dt_employee_id ?? "");
   const [driverRiggerEmployeeId, setDriverRiggerEmployeeId] = useState(existing?.driver_rigger_employee_id ?? "");
   const isExistingSelfDt = Boolean(
@@ -41,13 +47,8 @@ export function TeamForm({
   const [error, setError] = useState("");
 
   const unavailableSet = new Set(unavailableEmployeeIds);
-  /** QC, QA, PP, PM, and Project Coordinator cannot be on a team (DT / Driver-Rigger / Self-DT slots). */
-  const canBeOnTeam = (e: Employee) =>
-    !e.roles.includes("QC") &&
-    !e.roles.includes("QA") &&
-    !e.roles.includes("PP") &&
-    !e.roles.includes("Project Manager") &&
-    !e.roles.includes("Project Coordinator");
+  /** Field roles only: not QC/QA/PP/PM/PC or Other/custom roles. */
+  const canBeOnTeam = (e: Employee) => !e.roles.some((r) => ROLES_NOT_ALLOWED_ON_TEAM.has(r));
   const selectable = employees.filter((e) => {
     if (!canBeOnTeam(e)) return false;
     if (existing && (e.id === existing.dt_employee_id || e.id === existing.driver_rigger_employee_id)) return true;
@@ -81,6 +82,15 @@ export function TeamForm({
       setError("Team name is required.");
       return;
     }
+    const codeNorm = normalizeTeamCode(teamCode);
+    if (!codeNorm) {
+      setError("Team code is required (unique identifier for segregating teams).");
+      return;
+    }
+    if (!isValidTeamCodeFormat(codeNorm)) {
+      setError("Team code must be 2–32 characters: letters, numbers, underscore, or hyphen (e.g. TEAM-01).");
+      return;
+    }
     if (!onboardingDate.trim()) {
       setError("Onboarding date is required.");
       return;
@@ -92,6 +102,7 @@ export function TeamForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: name.trim(),
+        team_code: codeNorm,
         dt_employee_id: finalDtId,
         driver_rigger_employee_id: finalDrId,
         max_size: isSelfDtTeam ? 1 : 2,
@@ -121,6 +132,23 @@ export function TeamForm({
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">
+          Team code <span className="text-red-600">*</span>
+        </label>
+        <input
+          value={teamCode}
+          onChange={(e) => setTeamCode(e.target.value)}
+          required
+          autoComplete="off"
+          placeholder="e.g. T-R01, TEAM_NORTH_1"
+          className="w-full rounded border border-zinc-300 px-3 py-2 font-mono text-sm uppercase placeholder:normal-case placeholder:font-sans"
+        />
+        <p className="mt-1 text-xs text-zinc-500">
+          Unique code for segregating teams (reports, filters). Letters, numbers, underscore, hyphen; 2–32 characters. Stored
+          uppercase.
+        </p>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-zinc-700">
           Onboarding date <span className="text-red-600">*</span>
         </label>
         <input
@@ -145,7 +173,7 @@ export function TeamForm({
         </div>
       </div>
       <p className="text-xs text-zinc-500">
-        Only DT, Driver/Rigger, or Self DT can be members. QC, QA, PP, Project Manager, and Project Coordinator cannot be on a team.
+        Only DT, Driver/Rigger, or Self DT can be members. QC, QA, PP, PM, PC, and custom (Other) roles cannot be on a team.
       </p>
       {isSelfDtTeam ? (
         <div>
