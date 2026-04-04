@@ -1,22 +1,27 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
-import { getQaProjectId, QA_EMPLOYEE_PROJECT_NAME } from "@/lib/employees/qaProject";
 
-const ALLOWED_ROLES = ["Driver/Rigger", "QC", "QA", "DT", "Project Manager", "Self DT", "Project Coordinator"];
+const ALLOWED_ROLES = [
+  "Driver/Rigger",
+  "QC",
+  "QA",
+  "PP",
+  "DT",
+  "Project Manager",
+  "Self DT",
+  "Project Coordinator",
+];
 
 export async function POST(req: Request) {
   if (!(await can("users.create"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
   const rows = Array.isArray(body.rows) ? body.rows : [];
-  if (rows.length === 0) return NextResponse.json({ message: "No rows to import" }, { status: 400 });
+  if (rows.length === 0) return NextResponse.json({ message: "No rows to save" }, { status: 400 });
 
   const supabase = await createServerSupabaseClient();
-  const dataClient = await getDataClient();
-  const qaProjectIdForImport = await getQaProjectId(dataClient);
   const inserted: string[] = [];
   const errors: { row: number; message: string }[] = [];
 
@@ -29,39 +34,12 @@ export async function POST(req: Request) {
     const phone = typeof r.phone === "string" ? r.phone.trim() : "";
     const iqama_number = typeof r.iqama_number === "string" ? r.iqama_number.trim() : "";
     const roles = Array.isArray(r.roles) ? r.roles.filter((x: string) => ALLOWED_ROLES.includes(x)) : [];
-    const region_id = r.region_id || null;
-    const project_id = r.project_id || null;
-    const project_name_other = typeof r.project_name_other === "string" ? r.project_name_other.trim() || null : null;
     const onboarding_date = r.onboarding_date || null;
     const status = r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 
-    if (!full_name || !passport_number || !country || !email || !phone || !iqama_number || roles.length === 0 || !region_id) {
+    if (!full_name || !passport_number || !country || !email || !phone || !iqama_number || roles.length === 0) {
       errors.push({ row: i + 1, message: "Missing required fields or invalid roles" });
       continue;
-    }
-
-    const isOnlyQa = roles.length === 1 && roles[0] === "QA";
-    let resolvedProjectId = project_id || null;
-    let resolvedProjectNameOther = project_name_other;
-    if (isOnlyQa) {
-      if (!qaProjectIdForImport) {
-        errors.push({
-          row: i + 1,
-          message: `Create project "${QA_EMPLOYEE_PROJECT_NAME}" in Projects before importing QA employees`,
-        });
-        continue;
-      }
-      resolvedProjectId = qaProjectIdForImport;
-      resolvedProjectNameOther = null;
-    } else {
-      if (!resolvedProjectId && !resolvedProjectNameOther) {
-        errors.push({ row: i + 1, message: "Project or project_name_other required" });
-        continue;
-      }
-      if (resolvedProjectId && resolvedProjectNameOther) {
-        errors.push({ row: i + 1, message: "Use either project_id or project_name_other, not both" });
-        continue;
-      }
     }
 
     const payload = {
@@ -71,9 +49,9 @@ export async function POST(req: Request) {
       email,
       phone,
       iqama_number,
-      region_id,
-      project_id: resolvedProjectId,
-      project_name_other: resolvedProjectNameOther,
+      region_id: null as null,
+      project_id: null as null,
+      project_name_other: null as null,
       onboarding_date,
       status,
     };
@@ -86,7 +64,13 @@ export async function POST(req: Request) {
     for (const role of roles) {
       await supabase.from("employee_roles").insert({ employee_id: data.id, role });
     }
-    await auditLog({ actionType: "create", entityType: "employee", entityId: data.id, newValue: payload, description: "Employee imported" });
+    await auditLog({
+      actionType: "create",
+      entityType: "employee",
+      entityId: data.id,
+      newValue: payload,
+      description: "Employee imported",
+    });
     inserted.push(data.id);
   }
 
