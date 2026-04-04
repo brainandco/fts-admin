@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { DataTable, type RowAction } from "@/components/ui/DataTable";
 
 export type EmployeeDirectoryRow = Record<string, unknown> & {
@@ -35,30 +36,29 @@ export function EmployeesDirectoryTable({
   const router = useRouter();
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [teamsBlockingDelete, setTeamsBlockingDelete] = useState<{ id: string; name: string }[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<EmployeeDirectoryRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const handleDelete = useCallback(
-    async (row: EmployeeDirectoryRow) => {
-      const name = (row.full_name as string) || "this employee";
-      const ok = window.confirm(
-        `Delete ${name}? This removes the employee record. If they have a portal login for this email, that account will be removed too.`
-      );
-      if (!ok) return;
-
-      setErrorBanner(null);
-      setTeamsBlockingDelete([]);
-      const res = await fetch(`/api/employees/${row.id}`, { method: "DELETE" });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setErrorBanner(typeof body.message === "string" ? body.message : "Could not delete employee");
-        if (body.code === "EMPLOYEE_IN_USE_IN_TEAMS" && Array.isArray(body.teams)) {
-          setTeamsBlockingDelete(body.teams);
-        }
-        return;
+  const executeDelete = useCallback(async () => {
+    const row = pendingDelete;
+    if (!row) return;
+    setDeleting(true);
+    setErrorBanner(null);
+    setTeamsBlockingDelete([]);
+    const res = await fetch(`/api/employees/${row.id}`, { method: "DELETE" });
+    const body = await res.json().catch(() => ({}));
+    setDeleting(false);
+    if (!res.ok) {
+      setErrorBanner(typeof body.message === "string" ? body.message : "Could not delete employee");
+      if (body.code === "EMPLOYEE_IN_USE_IN_TEAMS" && Array.isArray(body.teams)) {
+        setTeamsBlockingDelete(body.teams);
       }
-      router.refresh();
-    },
-    [router]
-  );
+      setPendingDelete(null);
+      return;
+    }
+    setPendingDelete(null);
+    router.refresh();
+  }, [pendingDelete, router]);
 
   const rowActions = useCallback(
     (row: EmployeeDirectoryRow): RowAction<EmployeeDirectoryRow>[] => {
@@ -69,13 +69,15 @@ export function EmployeesDirectoryTable({
         actions.push({
           label: "Delete",
           icon: "delete",
-          onClick: () => void handleDelete(row),
+          onClick: () => setPendingDelete(row),
         });
       }
       return actions;
     },
-    [canDelete, handleDelete]
+    [canDelete]
   );
+
+  const pendingName = (pendingDelete?.full_name as string | undefined) || "this employee";
 
   return (
     <div className="space-y-3">
@@ -105,6 +107,20 @@ export function EmployeesDirectoryTable({
         filterKeys={["status", "region_name"]}
         searchPlaceholder="Search employees…"
         columns={columns}
+      />
+
+      <ConfirmModal
+        open={pendingDelete !== null}
+        title="Delete employee"
+        message={`Delete ${pendingName}? This removes the employee record. If they have a portal login for this email, that account will be removed too.`}
+        confirmLabel="Yes, delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+        onConfirm={() => void executeDelete()}
+        onCancel={() => {
+          if (!deleting) setPendingDelete(null);
+        }}
       />
     </div>
   );

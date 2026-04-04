@@ -126,7 +126,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
           </p>
         </div>
         <div className="p-6">
-          <EmployeeForm existing={employeeWithRoles} />
+          <EmployeeForm existing={employeeWithRoles} canDeleteEmployee={isSuper} />
         </div>
       </div>
 

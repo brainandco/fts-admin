@@ -1,5 +1,5 @@
 import { getDataClient } from "@/lib/supabase/server";
-import { can, getCurrentUserRolesAndPermissions } from "@/lib/rbac/permissions";
+import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EmployeeImport } from "@/components/employees/EmployeeImport";
@@ -34,7 +34,7 @@ function StatCard({
 export default async function EmployeesPage() {
   if (!(await can("users.view"))) redirect("/dashboard");
 
-  const { isSuper } = await getCurrentUserRolesAndPermissions();
+  const { profile } = await getCurrentUserProfile();
   const supabase = await getDataClient();
   const { data: employees } = await supabase
     .from("employees")
@@ -108,7 +108,7 @@ export default async function EmployeesPage() {
             {totalEmployees} records
           </span>
         </div>
-        <EmployeesDirectoryTable data={rows} canDelete={isSuper === true} />
+        <EmployeesDirectoryTable data={rows} canDelete={profile?.is_super_user === true} />
       </div>
     </div>
   );

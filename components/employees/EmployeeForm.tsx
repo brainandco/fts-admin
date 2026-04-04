@@ -32,7 +32,14 @@ type Employee = {
 } | null;
 
 /** Profile only — region and project are set on Employees → Region & project assignments. */
-export function EmployeeForm({ existing }: { existing: Employee }) {
+export function EmployeeForm({
+  existing,
+  canDeleteEmployee = false,
+}: {
+  existing: Employee;
+  /** Super User only; API also requires Super for DELETE. */
+  canDeleteEmployee?: boolean;
+}) {
   const router = useRouter();
   const [fullName, setFullName] = useState(existing?.full_name ?? "");
   const [passportNumber, setPassportNumber] = useState(existing?.passport_number ?? "");
@@ -229,7 +236,7 @@ export function EmployeeForm({ existing }: { existing: Employee }) {
           <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
             {saving ? "Saving..." : existing ? "Update" : "Create"}
           </button>
-          {existing && (
+          {existing && canDeleteEmployee && (
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
@@ -244,7 +251,7 @@ export function EmployeeForm({ existing }: { existing: Employee }) {
           </button>
         </div>
       </form>
-      {existing && (
+      {existing && canDeleteEmployee && (
         <ConfirmModal
           open={showDeleteConfirm}
           title="Delete employee"
