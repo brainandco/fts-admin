@@ -2,6 +2,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import { AssetImport } from "@/components/assets/AssetImport";
+import { AssetsDeleteAllPanel } from "@/components/assets/AssetsDeleteAllPanel";
 import Link from "next/link";
 
 type CountByType = {
@@ -199,6 +200,8 @@ export default async function AssetsPage() {
           .
         </p>
       ) : null}
+
+      <AssetsDeleteAllPanel />
     </div>
   );
 }
