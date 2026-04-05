@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         message:
-          "CSV must include headers: company, category. Optional: model, serial, imei_1, imei_2, asset_id, purchase_date, warranty_end, condition, software_connectivity, ram. Category is any label you use for grouping (free text).",
+          "CSV must include headers: company, category. Optional: model, serial, imei_1, imei_2, asset_id, condition, software_connectivity, ram. Category is any label you use for grouping (free text).",
         previewRows: [],
       },
       { status: 400 }
@@ -72,8 +72,6 @@ export async function POST(req: Request) {
     serial: string;
     model: string;
     asset_id: string;
-    purchase_date: string;
-    warranty_end: string;
     condition: string;
     software_connectivity: string;
     imei_1: string;
@@ -87,8 +85,6 @@ export async function POST(req: Request) {
       imei_1: string | null;
       imei_2: string | null;
       asset_id: string | null;
-      purchase_date: string | null;
-      warranty_end: string | null;
       condition: string | null;
       software_connectivity: string | null;
       specs: Record<string, unknown>;
@@ -106,8 +102,6 @@ export async function POST(req: Request) {
     const imei_1 = col(row, "imei_1") || col(row, "imei1");
     const imei_2 = col(row, "imei_2") || col(row, "imei2");
     const asset_id = col(row, "asset_id");
-    const purchase_date = col(row, "purchase_date") || null;
-    const warranty_end = col(row, "warranty_end") || null;
     const condition = col(row, "condition");
     const software_connectivity = col(row, "software_connectivity");
     const company = col(row, "company") || col(row, "spec_company");
@@ -129,8 +123,6 @@ export async function POST(req: Request) {
       imei_1: imei_1.trim() || null,
       imei_2: imei_2.trim() || null,
       asset_id: asset_id.trim() || null,
-      purchase_date,
-      warranty_end,
       condition: condition.trim() || null,
       software_connectivity: software_connectivity.trim() || null,
       specs,
@@ -143,8 +135,6 @@ export async function POST(req: Request) {
       imei_1: imei_1 || "—",
       imei_2: imei_2 || "—",
       asset_id: asset_id || "—",
-      purchase_date: purchase_date ?? "—",
-      warranty_end: warranty_end ?? "—",
       condition: condition || "—",
       software_connectivity: software_connectivity || "—",
       company: company || "—",

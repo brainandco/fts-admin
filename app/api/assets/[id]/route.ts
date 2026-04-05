@@ -24,7 +24,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   /* Status is controlled by assignment, returns workflow, and create — not free-form edits here. */
-  const keys = ["asset_id", "name", "category", "serial", "purchase_date", "warranty_end", "condition", "specs"];
+  const keys = ["asset_id", "name", "category", "serial", "condition", "specs"];
   const updates: Record<string, unknown> = {};
   keys.forEach((k) => {
     if (body[k] !== undefined) updates[k] = body[k];

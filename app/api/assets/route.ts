@@ -33,8 +33,6 @@ export async function POST(req: Request) {
     imei_1: typeof body.imei_1 === "string" ? body.imei_1.trim() || null : null,
     imei_2: typeof body.imei_2 === "string" ? body.imei_2.trim() || null : null,
     model: typeof body.model === "string" ? body.model.trim() || null : null,
-    purchase_date: body.purchase_date || null,
-    warranty_end: body.warranty_end || null,
     condition: body.condition || null,
     software_connectivity: typeof body.software_connectivity === "string" ? body.software_connectivity.trim() || null : null,
     status: "Available",

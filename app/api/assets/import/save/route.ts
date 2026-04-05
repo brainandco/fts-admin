@@ -22,8 +22,6 @@ export async function POST(req: Request) {
     const imei_1 = typeof r.imei_1 === "string" ? r.imei_1.trim() || null : r.imei_1 ?? null;
     const imei_2 = typeof r.imei_2 === "string" ? r.imei_2.trim() || null : r.imei_2 ?? null;
     const asset_id = typeof r.asset_id === "string" ? r.asset_id.trim() || null : r.asset_id ?? null;
-    const purchase_date = r.purchase_date || null;
-    const warranty_end = r.warranty_end || null;
     const condition = typeof r.condition === "string" ? r.condition.trim() || null : r.condition ?? null;
     const software_connectivity =
       typeof r.software_connectivity === "string" ? r.software_connectivity.trim() || null : r.software_connectivity ?? null;
@@ -45,8 +43,6 @@ export async function POST(req: Request) {
       model,
       imei_1,
       imei_2,
-      purchase_date,
-      warranty_end,
       condition,
       software_connectivity,
       status: "Available",

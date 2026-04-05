@@ -11,8 +11,6 @@ type Asset = {
   name: string;
   category: string;
   serial: string | null;
-  purchase_date: string | null;
-  warranty_end: string | null;
   condition: string | null;
   status: string;
   assigned_to_employee_id?: string | null;
@@ -56,8 +54,6 @@ export function AssetForm({
   const [model, setModel] = useState(existing?.model ?? "");
   const [specCompany, setSpecCompany] = useState(initialSpecs.company || (existing?.name ?? "").trim() || "");
   const [specRam, setSpecRam] = useState(initialSpecs.ram);
-  const [purchaseDate, setPurchaseDate] = useState(existing?.purchase_date?.slice(0, 10) ?? "");
-  const [warrantyEnd, setWarrantyEnd] = useState(existing?.warranty_end?.slice(0, 10) ?? "");
   const [condition, setCondition] = useState(existing?.condition ?? "");
   const [softwareConnectivity, setSoftwareConnectivity] = useState(existing?.software_connectivity ?? "");
   const [saving, setSaving] = useState(false);
@@ -89,8 +85,6 @@ export function AssetForm({
       imei_2: imei2.trim() || null,
       model: model.trim() || null,
       specs: buildSpecs(specCompany, specRam),
-      purchase_date: purchaseDate || null,
-      warranty_end: warrantyEnd || null,
       condition: condition || null,
       software_connectivity: softwareConnectivity.trim() || null,
       purchase_image_urls: purchaseImageUrls,
@@ -191,16 +185,6 @@ export function AssetForm({
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Asset ID</label>
         <input value={assetId} onChange={(e) => setAssetId(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="Optional internal ID" />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Purchase date</label>
-          <input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Warranty end</label>
-          <input type="date" value={warrantyEnd} onChange={(e) => setWarrantyEnd(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
-        </div>
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Condition</label>

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 
-const CSV = `company,category,model,serial,imei_1,imei_2,asset_id,purchase_date,warranty_end,condition,software_connectivity,ram
-"Dell","Laptop","5520","DL5520-001","","","AST-1001","2024-06-01","2027-06-01","Good","probe, TEMS","16GB"
-"Samsung","Mobile","Galaxy A54","","353123456789012","","MOB-01","2024-01-15","","Good","",""
+const CSV = `company,category,model,serial,imei_1,imei_2,asset_id,condition,software_connectivity,ram
+"Dell","Laptop","5520","DL5520-001","","","AST-1001","Good","probe, TEMS","16GB"
+"Samsung","Mobile","Galaxy A54","","353123456789012","","MOB-01","Good","",""
 `;
 
 export async function GET() {
