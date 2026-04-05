@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ApprovalActions } from "@/components/approvals/ApprovalActions";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { leaveRequestTracking } from "@/lib/employee-requests/leave-metrics";
 
 export default async function ApprovalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,6 +23,14 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
       : (canApprove || canReject);
 
   const { data: requester } = await supabase.from("users_profile").select("full_name, email").eq("id", approval.requester_id).single();
+  const leavePayload =
+    approval.approval_type === "leave_request"
+      ? ((approval.payload_json as { from_date?: string; to_date?: string; reason?: string }) ?? {})
+      : null;
+  const leaveMetrics =
+    leavePayload && leavePayload.from_date && leavePayload.to_date
+      ? leaveRequestTracking(leavePayload.from_date, leavePayload.to_date, approval.status)
+      : null;
   const leaveHistory = approval.approval_type === "leave_request"
     ? await supabase
         .from("approvals")
@@ -42,6 +51,39 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
         <dl className="grid gap-2 text-sm">
           <div><dt className="text-zinc-500">Requester</dt><dd>{requester?.full_name || requester?.email || approval.requester_id}</dd></div>
           <div><dt className="text-zinc-500">Submitted</dt><dd>{new Date(approval.created_at).toLocaleString()}</dd></div>
+          {approval.approval_type === "leave_request" && leavePayload && (
+            <>
+              <div>
+                <dt className="text-zinc-500">Leave period</dt>
+                <dd>
+                  {leavePayload.from_date ?? "—"} → {leavePayload.to_date ?? "—"}
+                  {leaveMetrics ? (
+                    <span className="ml-2 text-zinc-600">
+                      ({leaveMetrics.requestedDays} day{leaveMetrics.requestedDays === 1 ? "" : "s"} requested)
+                    </span>
+                  ) : null}
+                </dd>
+              </div>
+              {leaveMetrics ? (
+                <div>
+                  <dt className="text-zinc-500">Tracking</dt>
+                  <dd>{leaveMetrics.tracking}</dd>
+                </div>
+              ) : null}
+              {leaveMetrics?.daysLeftInLeave != null ? (
+                <div>
+                  <dt className="text-zinc-500">Days left in this leave</dt>
+                  <dd>{leaveMetrics.daysLeftInLeave}</dd>
+                </div>
+              ) : null}
+              {leavePayload.reason ? (
+                <div>
+                  <dt className="text-zinc-500">Reason</dt>
+                  <dd>{leavePayload.reason}</dd>
+                </div>
+              ) : null}
+            </>
+          )}
           {approval.pm_comment && <div><dt className="text-zinc-500">GM comment</dt><dd>{approval.pm_comment}</dd></div>}
           {approval.admin_comment && <div><dt className="text-zinc-500">Admin comment</dt><dd>{approval.admin_comment}</dd></div>}
           {/* {approval.payload_json && Object.keys(approval.payload_json).length > 0 && (

@@ -14,6 +14,7 @@ const SECTION_LABELS: Record<string, string> = {
   users: "Users",
   tasks: "Tasks",
   approvals: "Approvals",
+  "employee-requests": "Employee requests",
   notifications: "Notifications",
   exports: "Exports",
   assets: "Assets",

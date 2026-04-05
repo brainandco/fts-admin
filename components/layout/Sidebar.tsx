@@ -55,6 +55,11 @@ const navStructure: NavEntry[] = [
       children: [
         { href: "/tasks", label: "Tasks", permission: "tasks.view_all" },
         { href: "/approvals", label: "Approvals", permission: "approvals.view" },
+        {
+          href: "/employee-requests",
+          label: "Employee requests",
+          permissionAnyOf: ["approvals.view", "approvals.approve", "approvals.reject"],
+        },
         { href: "/notifications", label: "Notifications", permission: "users.view" },
       ],
     },
