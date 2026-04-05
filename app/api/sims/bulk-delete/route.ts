@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
-import { can } from "@/lib/rbac/permissions";
+import { can, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
 
-const MAX_IDS = 200;
+const MAX_IDS = 500;
+
+const BULK_DELETE_DENIED =
+  'Bulk delete is not enabled for your account. A Super User must grant the "Execute bulk deletes" permission to your role.';
 
 export async function POST(req: Request) {
   if (!(await can("assets.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  if (!(await can(PERMISSION_BULK_DELETE))) {
+    return NextResponse.json({ message: BULK_DELETE_DENIED }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const raw = body.ids;

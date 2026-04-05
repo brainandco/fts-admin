@@ -1,12 +1,19 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { can } from "@/lib/rbac/permissions";
+import { can, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
+import { getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
+import { deleteReceiptForResource } from "@/lib/resource-receipts";
 
-const MAX_IDS = 200;
+const MAX_IDS = 500;
+
+const BULK_DELETE_DENIED =
+  'Bulk delete is not enabled for your account. A Super User must grant the "Execute bulk deletes" permission to your role.';
 
 export async function POST(req: Request) {
   if (!(await can("vehicles.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  if (!(await can(PERMISSION_BULK_DELETE))) {
+    return NextResponse.json({ message: BULK_DELETE_DENIED }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const raw = body.ids;
@@ -17,7 +24,7 @@ export async function POST(req: Request) {
   const ids = [...new Set(raw.map((id: unknown) => String(id).trim()).filter(Boolean))].slice(0, MAX_IDS);
   if (ids.length === 0) return NextResponse.json({ message: "No valid ids." }, { status: 400 });
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await getDataClient();
   const deleted: string[] = [];
   const failed: { id: string; message: string }[] = [];
 
@@ -27,6 +34,7 @@ export async function POST(req: Request) {
       failed.push({ id, message: "Not found" });
       continue;
     }
+    await deleteReceiptForResource(supabase, "vehicle", id);
     const { error } = await supabase.from("vehicles").delete().eq("id", id);
     if (error) {
       failed.push({ id, message: error.message });

@@ -11,9 +11,11 @@ const bulk = {
 } as const;
 
 export function SimsInventoryTables({
+  canBulkDelete,
   availableRows,
   assignedRows,
 }: {
+  canBulkDelete: boolean;
   availableRows: SimInventoryRow[];
   assignedRows: SimInventoryRow[];
 }) {
@@ -27,8 +29,8 @@ export function SimsInventoryTables({
           hrefPrefix="/sims/"
           filterKeys={["operator", "service_type"]}
           searchPlaceholder="Search by sim number, operator..."
-          multiSelect
-          bulkDelete={bulk}
+          multiSelect={canBulkDelete}
+          bulkDelete={canBulkDelete ? bulk : undefined}
           columns={[
             { key: "sim_number", label: "SIM number" },
             { key: "phone_number", label: "Phone number" },
@@ -47,8 +49,8 @@ export function SimsInventoryTables({
           hrefPrefix="/sims/"
           filterKeys={["operator", "service_type"]}
           searchPlaceholder="Search by sim number, imei..."
-          multiSelect
-          bulkDelete={bulk}
+          multiSelect={canBulkDelete}
+          bulkDelete={canBulkDelete ? bulk : undefined}
           columns={[
             { key: "sim_number", label: "SIM number" },
             { key: "operator", label: "Operator" },

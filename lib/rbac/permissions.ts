@@ -5,6 +5,9 @@ import { getInvitationGate } from "@/lib/invitation";
 /** Super role id (must match supabase/seed_super_role.sql). */
 export const SUPER_ROLE_ID = "a0000000-0000-0000-0000-000000000000";
 
+/** Assigned to roles by Super User only; required for bulk delete in admin (besides resource permissions). */
+export const PERMISSION_BULK_DELETE = "bulk_delete.execute";
+
 /** Role id for "Regional Project Manager" – not assignable to users; PM is an employee role only (region/project on employee). */
 export const REGIONAL_PM_ROLE_ID = "a0000000-0000-0000-0000-000000000002";
 

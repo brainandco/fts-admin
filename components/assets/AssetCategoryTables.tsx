@@ -12,11 +12,14 @@ const bulk = {
 
 export function AssetCategoryTables({
   showImei,
+  canBulkDelete,
   activeRows,
   maintenanceRows,
   damagedRows,
 }: {
   showImei: boolean;
+  /** Super User grants "Execute bulk deletes" on a role; without it, row selection delete is hidden. */
+  canBulkDelete: boolean;
   activeRows: AssetCategoryRow[];
   maintenanceRows: AssetCategoryRow[];
   damagedRows: AssetCategoryRow[];
@@ -38,8 +41,8 @@ export function AssetCategoryTables({
             hrefPrefix="/assets/"
             filterKeys={["status"]}
             searchPlaceholder="Search by name, serial…"
-            multiSelect
-            bulkDelete={bulk}
+            multiSelect={canBulkDelete}
+            bulkDelete={canBulkDelete ? bulk : undefined}
             columns={[
               { key: "name", label: "Name" },
               { key: "model", label: "Model" },
@@ -63,8 +66,8 @@ export function AssetCategoryTables({
             data={maintenanceRows}
             hrefPrefix="/assets/"
             searchPlaceholder="Search by name, serial…"
-            multiSelect
-            bulkDelete={bulk}
+            multiSelect={canBulkDelete}
+            bulkDelete={canBulkDelete ? bulk : undefined}
             columns={[
               { key: "serial", label: "Serial" },
               { key: "model", label: "Model" },
@@ -87,8 +90,8 @@ export function AssetCategoryTables({
             data={damagedRows}
             hrefPrefix="/assets/"
             searchPlaceholder="Search by name, serial…"
-            multiSelect
-            bulkDelete={bulk}
+            multiSelect={canBulkDelete}
+            bulkDelete={canBulkDelete ? bulk : undefined}
             columns={[
               { key: "serial", label: "Serial" },
               { key: "model", label: "Model" },

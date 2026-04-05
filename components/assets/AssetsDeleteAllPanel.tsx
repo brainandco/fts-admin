@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 const CONFIRM_PHRASE = "DELETE_ALL_ASSETS";
 
 /**
  * Destructive: removes every row in `assets` (including items assigned to employees).
  * Server also clears `resource_receipt_confirmations` for assets; FK CASCADE handles history/returns.
+ * Render only when user has `bulk_delete.execute` (see parent page).
  */
 export function AssetsDeleteAllPanel() {
   const router = useRouter();
@@ -15,6 +17,9 @@ export function AssetsDeleteAllPanel() {
   const [phrase, setPhrase] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [resultModal, setResultModal] = useState<{ title: string; message: string; variant: "success" | "danger" } | null>(
+    null
+  );
 
   async function runDelete() {
     if (phrase.trim() !== CONFIRM_PHRASE) {
@@ -32,13 +37,24 @@ export function AssetsDeleteAllPanel() {
       const data = await res.json().catch(() => ({}));
       setBusy(false);
       if (!res.ok) {
-        setError(typeof data.message === "string" ? data.message : "Delete failed");
+        setOpen(false);
+        setPhrase("");
+        setResultModal({
+          title: "Could not delete",
+          message: typeof data.message === "string" ? data.message : "Delete failed.",
+          variant: "danger",
+        });
         return;
       }
+      const n = typeof data.deletedCount === "number" ? data.deletedCount : 0;
       setOpen(false);
       setPhrase("");
+      setResultModal({
+        title: "All assets removed",
+        message: `Deleted ${n} asset record(s). You can import a new catalog from the Import button.`,
+        variant: "success",
+      });
       router.refresh();
-      alert(`Deleted ${data.deletedCount ?? 0} asset(s). You can import again from the Import button.`);
     } catch {
       setBusy(false);
       setError("Request failed");
@@ -50,7 +66,8 @@ export function AssetsDeleteAllPanel() {
       <h2 className="text-lg font-medium text-rose-950">Delete all assets</h2>
       <p className="mt-2 text-sm text-rose-900/90">
         Removes <strong>every</strong> asset record, including those currently assigned to employees. You do not need to
-        unassign or return them first. Afterward, use <strong>Import</strong> to load the new catalog.
+        unassign or return them first. Requires the <strong>Execute bulk deletes</strong> permission (assigned by a Super
+        User). Afterward, use <strong>Import</strong> to load the new catalog.
       </p>
       <p className="mt-2 text-sm text-rose-800/80">
         To delete only some items, open a category under <strong>Quantity by type</strong> and use the table checkboxes
@@ -105,6 +122,14 @@ export function AssetsDeleteAllPanel() {
           </div>
         </div>
       )}
+
+      <InfoModal
+        open={resultModal !== null}
+        title={resultModal?.title ?? ""}
+        message={resultModal?.message ?? ""}
+        variant={resultModal?.variant === "danger" ? "danger" : "success"}
+        onClose={() => setResultModal(null)}
+      />
     </div>
   );
 }

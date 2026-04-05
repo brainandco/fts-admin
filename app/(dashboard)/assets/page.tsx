@@ -1,5 +1,5 @@
 import { getDataClient } from "@/lib/supabase/server";
-import { can } from "@/lib/rbac/permissions";
+import { can, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import { AssetImport } from "@/components/assets/AssetImport";
 import { AssetsDeleteAllPanel } from "@/components/assets/AssetsDeleteAllPanel";
@@ -63,6 +63,7 @@ function StatCard({
 
 export default async function AssetsPage() {
   if (!(await can("assets.manage"))) redirect("/dashboard");
+  const canBulkDelete = await can(PERMISSION_BULK_DELETE);
   const supabase = await getDataClient();
   const { data: assets } = await supabase
     .from("assets")
@@ -201,7 +202,7 @@ export default async function AssetsPage() {
         </p>
       ) : null}
 
-      <AssetsDeleteAllPanel />
+      {canBulkDelete ? <AssetsDeleteAllPanel /> : null}
     </div>
   );
 }

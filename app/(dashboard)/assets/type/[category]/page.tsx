@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { can } from "@/lib/rbac/permissions";
+import { can, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { AssetCategoryTables, type AssetCategoryRow } from "@/components/assets/AssetCategoryTables";
 
@@ -35,6 +35,7 @@ function StatCard({
 
 export default async function AssetTypePage({ params }: { params: Promise<{ category: string }> }) {
   if (!(await can("assets.manage"))) redirect("/dashboard");
+  const canBulkDelete = await can(PERMISSION_BULK_DELETE);
 
   const { category: rawCategory } = await params;
   const category = decodeURIComponent(rawCategory);
@@ -87,6 +88,7 @@ export default async function AssetTypePage({ params }: { params: Promise<{ cate
 
       <AssetCategoryTables
         showImei={showImei}
+        canBulkDelete={canBulkDelete}
         activeRows={activeRows as AssetCategoryRow[]}
         maintenanceRows={maintenanceRows as AssetCategoryRow[]}
         damagedRows={damagedRows as AssetCategoryRow[]}

@@ -81,9 +81,9 @@ const navStructure: NavEntry[] = [
         {
           href: "/receipt-confirmations",
           label: "Receipt confirmations",
-          permissionAnyOf: ["assets.manage", "assets.assign", "vehicles.manage"],
+          permissionAnyOf: ["assets.manage", "assets.assign", "vehicles.manage", "vehicles.assign"],
         },
-        { href: "/vehicles", label: "Vehicles", permission: "vehicles.manage" },
+        { href: "/vehicles", label: "Vehicles", permissionAnyOf: ["vehicles.manage", "vehicles.assign"] },
       ],
     },
   },

@@ -1,11 +1,14 @@
 import { getDataClient } from "@/lib/supabase/server";
-import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { can, getCurrentUserProfile, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import { VehiclesTabs } from "@/components/vehicles/VehiclesTabs";
 import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 
 export default async function VehiclesPage() {
-  if (!(await can("vehicles.manage"))) redirect("/dashboard");
+  const canManage = await can("vehicles.manage");
+  const canAssign = await can("vehicles.assign");
+  if (!canManage && !canAssign) redirect("/dashboard");
+  const canBulkDelete = await can(PERMISSION_BULK_DELETE);
   const supabase = await getDataClient();
   const { profile } = await getCurrentUserProfile();
   let query = supabase
@@ -75,5 +78,12 @@ export default async function VehiclesPage() {
       };
     });
 
-  return <VehiclesTabs allRows={allRows} assignedRows={assignedRows} />;
+  return (
+    <VehiclesTabs
+      allRows={allRows}
+      assignedRows={assignedRows}
+      canManageVehicles={canManage}
+      canBulkDelete={canBulkDelete}
+    />
+  );
 }

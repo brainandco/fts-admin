@@ -12,7 +12,8 @@ const VEHICLE_KEYS = [
 ];
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await can("vehicles.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  const canManage = await can("vehicles.manage");
+  const canAssignOps = canManage || (await can("vehicles.assign"));
   const { id } = await params;
   const body = await req.json();
   const supabase = await getDataClient();
@@ -22,6 +23,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!old) return NextResponse.json({ message: "Not found" }, { status: 404 });
 
   if (body.unassign === true) {
+    if (!canAssignOps) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     await supabase.from("vehicle_assignments").delete().eq("vehicle_id", id);
     const { error } = await supabase
       .from("vehicles")
@@ -47,6 +49,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const employeeIdRaw = body.employee_id;
   if (employeeIdRaw != null && String(employeeIdRaw).trim() !== "") {
+    if (!canAssignOps) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     const employeeId = String(employeeIdRaw).trim();
     if ((old as { status: string }).status !== "Available") {
       return NextResponse.json({ message: "Vehicle must be Available to assign." }, { status: 400 });
@@ -109,6 +112,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     });
     return NextResponse.json({ ok: true });
   }
+
+  if (!canManage) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
   const updates: Record<string, unknown> = {};
   VEHICLE_KEYS.forEach((k) => {

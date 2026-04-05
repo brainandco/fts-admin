@@ -16,7 +16,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ message: "variant must be asset, vehicle, or sim" }, { status: 400 });
   }
   if (variant === "vehicle") {
-    if (!(await can("vehicles.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    if (!(await can("vehicles.manage")) && !(await can("vehicles.assign"))) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
   } else if (!(await can("assets.manage")) && !(await can("assets.assign"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }

@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { VehicleForm } from "@/components/vehicles/VehicleForm";
 import { VehicleDeleteButton } from "@/components/vehicles/VehicleDeleteButton";
@@ -11,6 +11,10 @@ import { ConditionPhotosGallery } from "@/components/assets/ConditionPhotosGalle
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const canManage = await can("vehicles.manage");
+  const canAssign = await can("vehicles.assign");
+  if (!canManage && !canAssign) redirect("/dashboard");
+
   const { id } = await params;
   const supabase = await createServerSupabaseClient();
   const { data: vehicle } = await supabase.from("vehicles").select("*").eq("id", id).single();
@@ -34,7 +38,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const retEmpMap = new Map((retEmps ?? []).map((e) => [e.id, e.full_name ?? ""]));
 
   const label = assignee?.full_name?.trim() || vehicle.plate_number || "Vehicle";
-  const canAssignVehicle = await can("vehicles.manage");
+  const canAssignVehicle = canManage || canAssign;
 
   return (
     <div className="space-y-8">
@@ -44,7 +48,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
         <span className={`rounded px-2 py-0.5 text-sm font-medium ${vehicle.status === "Assigned" ? "bg-green-100 text-green-800" : "bg-zinc-200 text-zinc-700"}`}>
           {vehicle.status}
         </span>
-        <VehicleDeleteButton vehicleId={id} label={label} />
+        {canManage ? <VehicleDeleteButton vehicleId={id} label={label} /> : null}
       </div>
       <AdminRegionEmployeeAssignCard
         variant="vehicle"
@@ -88,9 +92,17 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
       ) : null}
       <section>
         <h2 className="mb-3 text-lg font-medium text-zinc-900">Vehicle details</h2>
-        <VehicleForm existing={vehicle} regions={regions ?? []} projects={projects ?? []} />
+        {canManage ? (
+          <VehicleForm existing={vehicle} regions={regions ?? []} projects={projects ?? []} />
+        ) : (
+          <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+            You can assign or unassign this vehicle from the assignment section on this page. Editing plate, photos, and
+            maintenance requires{" "}
+            <strong>Manage vehicles</strong>.
+          </p>
+        )}
       </section>
-      <VehicleMaintenance vehicleId={id} logs={maintenance ?? []} />
+      {canManage ? <VehicleMaintenance vehicleId={id} logs={maintenance ?? []} /> : null}
       <EntityHistory entityType="vehicle" entityId={id} />
     </div>
   );

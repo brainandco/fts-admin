@@ -5,7 +5,10 @@ import { getDataClient } from "@/lib/supabase/server";
 
 export default async function ReceiptConfirmationsPage() {
   const allowed =
-    (await can("assets.manage")) || (await can("assets.assign")) || (await can("vehicles.manage"));
+    (await can("assets.manage")) ||
+    (await can("assets.assign")) ||
+    (await can("vehicles.manage")) ||
+    (await can("vehicles.assign"));
   if (!allowed) redirect("/dashboard");
 
   const supabase = await getDataClient();

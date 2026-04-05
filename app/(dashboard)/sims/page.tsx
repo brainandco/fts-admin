@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { can } from "@/lib/rbac/permissions";
+import { can, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { SimImport } from "@/components/sims/SimImport";
 import { SimsInventoryTables, type SimInventoryRow } from "@/components/sims/SimsInventoryTables";
 
 export default async function SimsPage() {
   if (!(await can("assets.manage"))) redirect("/dashboard");
+  const canBulkDelete = await can(PERMISSION_BULK_DELETE);
   const supabase = await getDataClient();
   const { data: sims } = await supabase
     .from("sim_cards")
@@ -51,6 +52,7 @@ export default async function SimsPage() {
       </div>
 
       <SimsInventoryTables
+        canBulkDelete={canBulkDelete}
         availableRows={availableRows as SimInventoryRow[]}
         assignedRows={assignedRows as SimInventoryRow[]}
       />

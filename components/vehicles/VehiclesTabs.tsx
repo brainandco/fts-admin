@@ -44,9 +44,13 @@ const ASSIGNED_COLUMNS = [
 export function VehiclesTabs({
   allRows,
   assignedRows,
+  canManageVehicles,
+  canBulkDelete,
 }: {
   allRows: VehicleRow[];
   assignedRows: VehicleRow[];
+  canManageVehicles: boolean;
+  canBulkDelete: boolean;
 }) {
   const [tab, setTab] = useState<"all" | "assigned">("all");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
@@ -73,15 +77,32 @@ export function VehiclesTabs({
     }
   };
 
-  const allRowActions = (row: VehicleRow): RowAction<VehicleRow>[] => [
-    { label: "View", href: `/vehicles/${row.id}` },
-    { label: "Delete", onClick: () => setDeleteTarget({ id: row.id, label: row.plate_number || row.id }) },
-  ];
+  const allRowActions = (row: VehicleRow): RowAction<VehicleRow>[] => {
+    const actions: RowAction<VehicleRow>[] = [{ label: "View", href: `/vehicles/${row.id}` }];
+    if (canManageVehicles) {
+      actions.push({
+        label: "Delete",
+        onClick: () => setDeleteTarget({ id: row.id, label: row.plate_number || row.id }),
+      });
+    }
+    return actions;
+  };
 
-  const assignedRowActions = (row: VehicleRow): RowAction<VehicleRow>[] => [
-    { label: "View", href: `/vehicles/${row.id}` },
-    { label: "Delete", onClick: () => setDeleteTarget({ id: row.id, label: row.plate_number || row.id }) },
-  ];
+  const assignedRowActions = (row: VehicleRow): RowAction<VehicleRow>[] => {
+    const actions: RowAction<VehicleRow>[] = [{ label: "View", href: `/vehicles/${row.id}` }];
+    if (canManageVehicles) {
+      actions.push({
+        label: "Delete",
+        onClick: () => setDeleteTarget({ id: row.id, label: row.plate_number || row.id }),
+      });
+    }
+    return actions;
+  };
+
+  const bulkCfg =
+    canManageVehicles && canBulkDelete
+      ? { apiPath: "/api/vehicles/bulk-delete", entityLabel: "vehicles", confirmTitle: "Delete selected vehicles" }
+      : undefined;
 
   return (
     <div>
@@ -119,17 +140,19 @@ export function VehiclesTabs({
           keyField="id"
           data={allRows}
           rowActions={allRowActions}
-          multiSelect
-          bulkDelete={{ apiPath: "/api/vehicles/bulk-delete", entityLabel: "vehicles", confirmTitle: "Delete selected vehicles" }}
+          multiSelect={!!bulkCfg}
+          bulkDelete={bulkCfg}
           filterKeys={["status"]}
           searchPlaceholder="Search by plate, type, make, model…"
           toolbarTrailing={
-            <>
-              <VehicleImport />
-              <Link href="/vehicles/new" className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
-                Add vehicle
-              </Link>
-            </>
+            canManageVehicles ? (
+              <>
+                <VehicleImport />
+                <Link href="/vehicles/new" className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+                  Add vehicle
+                </Link>
+              </>
+            ) : null
           }
           columns={ALL_VEHICLES_COLUMNS}
           emptyMessage="No vehicles. Add vehicles or import from CSV."
@@ -141,16 +164,14 @@ export function VehiclesTabs({
           keyField="id"
           data={assignedRows}
           rowActions={assignedRowActions}
-          multiSelect
-          bulkDelete={{ apiPath: "/api/vehicles/bulk-delete", entityLabel: "vehicles", confirmTitle: "Delete selected vehicles" }}
+          multiSelect={!!bulkCfg}
+          bulkDelete={bulkCfg}
           filterKeys={["project_name", "region_name"]}
           searchPlaceholder="Search by name, plate, project, region…"
           toolbarTrailing={
-            <>
-              <span className="rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
-                Employee assignment is PM-only
-              </span>
-            </>
+            <span className="rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+              Open a vehicle to assign or change assignee (region + employee).
+            </span>
           }
           columns={ASSIGNED_COLUMNS}
           emptyMessage="No assigned vehicles."

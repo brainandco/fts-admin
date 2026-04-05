@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 type ColumnFormat = "text" | "date" | "datetime" | "boolean";
 
@@ -156,6 +157,9 @@ export function DataTable<T extends Record<string, unknown>>({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ title: string; message: string; variant: "success" | "danger" } | null>(
+    null
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectableEffective = selectable && !multiSelect;
@@ -258,21 +262,32 @@ export function DataTable<T extends Record<string, unknown>>({
       setBulkDeleting(false);
       setBulkConfirmOpen(false);
       if (!res.ok) {
-        alert(typeof dataJson.message === "string" ? dataJson.message : "Bulk delete failed");
+        setBulkResult({
+          title: "Could not delete",
+          message: typeof dataJson.message === "string" ? dataJson.message : "Bulk delete failed.",
+          variant: "danger",
+        });
         return;
       }
       const failed = (dataJson.failed ?? []) as { id: string; message: string }[];
       const deletedCount = typeof dataJson.deletedCount === "number" ? dataJson.deletedCount : ids.length;
-      if (failed.length > 0) {
-        alert(
-          `Deleted ${deletedCount}. Failed ${failed.length}: ${failed.slice(0, 5).map((f) => f.message).join("; ")}${failed.length > 5 ? "…" : ""}`
-        );
-      }
+      const failMsg =
+        failed.length > 0
+          ? `Removed ${deletedCount} of ${ids.length}.\n\nSome rows failed:\n${failed
+              .slice(0, 8)
+              .map((f) => `• ${f.message}`)
+              .join("\n")}${failed.length > 8 ? `\n… and ${failed.length - 8} more` : ""}`
+          : `Successfully removed ${deletedCount} ${bulkDelete.entityLabel}.`;
+      setBulkResult({
+        title: failed.length > 0 ? "Deletion finished with errors" : "Deletion complete",
+        message: failMsg,
+        variant: "success",
+      });
       setSelectedIds(new Set());
       router.refresh();
     } catch {
       setBulkDeleting(false);
-      alert("Bulk delete failed");
+      setBulkResult({ title: "Could not delete", message: "Network or server error. Try again.", variant: "danger" });
     }
   }
 
@@ -492,6 +507,15 @@ export function DataTable<T extends Record<string, unknown>>({
           onCancel={() => !bulkDeleting && setBulkConfirmOpen(false)}
         />
       )}
+
+      <InfoModal
+        open={bulkResult !== null}
+        title={bulkResult?.title ?? ""}
+        message={bulkResult?.message ?? ""}
+        variant={bulkResult?.variant === "danger" ? "danger" : "success"}
+        buttonLabel="OK"
+        onClose={() => setBulkResult(null)}
+      />
     </div>
   );
 }
