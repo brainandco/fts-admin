@@ -41,6 +41,7 @@ const navStructure: NavEntry[] = [
     group: {
       label: "People",
       children: [
+        { href: "/people", label: "Users & employees", permission: "users.view" },
         { href: "/employees", label: "Employees", permission: "users.view" },
         { href: "/employees/region-project-assignments", label: "Employee region & project", superOnly: true },
         { href: "/delegate", label: "Delegate" },

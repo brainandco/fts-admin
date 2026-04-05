@@ -38,3 +38,21 @@ export async function countActiveAdminPortalUsers(
   const profiles = profilesRes.data ?? [];
   return countAdminPortalProfiles(profiles, empSet, "ACTIVE");
 }
+
+/** All employee roster rows (any status). */
+export async function countAllEmployees(supabase: SupabaseClient): Promise<number> {
+  const { count } = await supabase.from("employees").select("id", { count: "exact", head: true });
+  return count ?? 0;
+}
+
+/**
+ * Cumulative FTS headcount: everyone on the employee roster plus active admin-portal-only
+ * accounts (profiles whose email is not on `employees`). No double-count.
+ */
+export async function getTotalFtsPeopleCount(supabase: SupabaseClient): Promise<number> {
+  const [roster, adminOnly] = await Promise.all([
+    countAllEmployees(supabase),
+    countActiveAdminPortalUsers(supabase),
+  ]);
+  return roster + adminOnly;
+}

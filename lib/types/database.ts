@@ -146,6 +146,8 @@ export interface Asset {
   assigned_by: string | null;
   assigned_at: string | null;
   specs: Record<string, unknown> | null;
+  /** Public URLs for intake condition photos (min 2 for new/edited assets via UI). */
+  purchase_image_urls?: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -178,6 +180,8 @@ export interface Vehicle {
   assigned_at: string | null;
   next_service_due_date: string | null;
   next_service_due_mileage: number | null;
+  /** Public URLs for intake condition photos (min 2 for new/edited vehicles via UI). */
+  purchase_image_urls?: string[] | null;
   created_at: string;
   updated_at: string;
 }

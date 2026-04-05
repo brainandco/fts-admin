@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/profile/UserAvatar";
 const SECTION_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   employees: "Employees",
+  people: "Users & employees",
   regions: "Regions",
   projects: "Projects",
   teams: "Teams",

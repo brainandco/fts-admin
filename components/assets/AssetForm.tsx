@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PurchasePhotoUploader } from "@/components/assets/PurchasePhotoUploader";
+import { MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
 type Employee = { id: string; full_name: string; region_id?: string };
 type Asset = {
   id: string;
@@ -19,31 +21,21 @@ type Asset = {
   imei_1?: string | null;
   imei_2?: string | null;
   model?: string | null;
+  purchase_image_urls?: unknown;
 } | null;
 
-function parseSpecs(specs: Record<string, unknown> | null | undefined): { company: string; ram: string; other: string } {
-  if (!specs || typeof specs !== "object") return { company: "", ram: "", other: "" };
-  const company = typeof specs.company === "string" ? specs.company : "";
-  const ram = typeof specs.ram === "string" ? specs.ram : "";
-  const rest = { ...specs };
-  delete rest.company;
-  delete rest.ram;
-  delete rest.serial;
-  return { company, ram, other: Object.keys(rest).length ? JSON.stringify(rest, null, 2) : "" };
+function parseSpecs(specs: Record<string, unknown> | null | undefined): { company: string; ram: string } {
+  if (!specs || typeof specs !== "object") return { company: "", ram: "" };
+  return {
+    company: typeof specs.company === "string" ? specs.company : "",
+    ram: typeof specs.ram === "string" ? specs.ram : "",
+  };
 }
 
-function buildSpecs(company: string, ram: string, other: string): Record<string, unknown> {
+function buildSpecs(company: string, ram: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (company.trim()) out.company = company.trim();
   if (ram.trim()) out.ram = ram.trim();
-  if (other.trim()) {
-    try {
-      const parsed = JSON.parse(other) as Record<string, unknown>;
-      Object.assign(out, parsed);
-    } catch {
-      // ignore invalid JSON
-    }
-  }
   return out;
 }
 
@@ -57,41 +49,51 @@ export function AssetForm({
   const router = useRouter();
   const initialSpecs = parseSpecs(existing?.specs);
   const [assetId, setAssetId] = useState(existing?.asset_id ?? "");
-  const [name, setName] = useState(existing?.name ?? "");
   const [category, setCategory] = useState(existing?.category ?? "");
   const [serial, setSerial] = useState(existing?.serial ?? "");
   const [imei1, setImei1] = useState(existing?.imei_1 ?? "");
   const [imei2, setImei2] = useState(existing?.imei_2 ?? "");
   const [model, setModel] = useState(existing?.model ?? "");
-  const [specCompany, setSpecCompany] = useState(initialSpecs.company);
+  const [specCompany, setSpecCompany] = useState(initialSpecs.company || (existing?.name ?? "").trim() || "");
   const [specRam, setSpecRam] = useState(initialSpecs.ram);
-  const [specOther, setSpecOther] = useState(initialSpecs.other);
   const [purchaseDate, setPurchaseDate] = useState(existing?.purchase_date?.slice(0, 10) ?? "");
   const [warrantyEnd, setWarrantyEnd] = useState(existing?.warranty_end?.slice(0, 10) ?? "");
   const [condition, setCondition] = useState(existing?.condition ?? "");
   const [softwareConnectivity, setSoftwareConnectivity] = useState(existing?.software_connectivity ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [purchaseImageUrls, setPurchaseImageUrls] = useState<string[]>(() =>
+    parseImageUrlArray(existing?.purchase_image_urls)
+  );
   const showImeiFields = /mobile/i.test(category);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (purchaseImageUrls.length < MIN_RESOURCE_PHOTOS) {
+      setError(`Add at least ${MIN_RESOURCE_PHOTOS} condition photos before saving.`);
+      return;
+    }
+    if (!specCompany.trim()) {
+      setError("Company / brand is required.");
+      return;
+    }
     setSaving(true);
     const url = existing ? `/api/assets/${existing.id}` : "/api/assets";
     const body: Record<string, unknown> = {
       asset_id: assetId || null,
-      name,
+      name: specCompany.trim(),
       category,
       serial: serial || null,
       imei_1: imei1.trim() || null,
       imei_2: imei2.trim() || null,
       model: model.trim() || null,
-      specs: buildSpecs(specCompany, specRam, specOther),
+      specs: buildSpecs(specCompany, specRam),
       purchase_date: purchaseDate || null,
       warranty_end: warrantyEnd || null,
       condition: condition || null,
       software_connectivity: softwareConnectivity.trim() || null,
+      purchase_image_urls: purchaseImageUrls,
     };
     const res = await fetch(url, {
       method: existing ? "PATCH" : "POST",
@@ -160,9 +162,21 @@ export function AssetForm({
         />
         <p className="mt-1 text-xs text-zinc-500">Enter any type label; it is used for grouping and filters.</p>
       </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">Name / label</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="e.g. Dell Latitude 5520" />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-zinc-700">Company / brand</label>
+          <input
+            value={specCompany}
+            onChange={(e) => setSpecCompany(e.target.value)}
+            required
+            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="e.g. Dell, HP"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-zinc-700">RAM (if applicable)</label>
+          <input value={specRam} onChange={(e) => setSpecRam(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="e.g. 16GB" />
+        </div>
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Model</label>
@@ -177,20 +191,6 @@ export function AssetForm({
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Asset ID</label>
         <input value={assetId} onChange={(e) => setAssetId(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="Optional internal ID" />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Company / brand</label>
-          <input value={specCompany} onChange={(e) => setSpecCompany(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="e.g. Dell, HP" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">RAM (if applicable)</label>
-          <input value={specRam} onChange={(e) => setSpecRam(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="e.g. 16GB" />
-        </div>
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">Other specs (JSON)</label>
-        <textarea value={specOther} onChange={(e) => setSpecOther(e.target.value)} rows={2} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm font-mono text-zinc-600" placeholder='{"key": "value"}' />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -216,6 +216,11 @@ export function AssetForm({
         />
         <p className="mt-1 text-xs text-zinc-500">What software or tools this asset is used with (free text).</p>
       </div>
+      <PurchasePhotoUploader
+        purpose="asset-purchase"
+        urls={purchaseImageUrls}
+        onUrlsChange={setPurchaseImageUrls}
+      />
       {existing ? (
         <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
           <span className="font-medium text-zinc-700">Current status: </span>

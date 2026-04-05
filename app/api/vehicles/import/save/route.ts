@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       model: r.model || null,
       assignment_type: r.assignment_type === "Temporary" ? "Temporary" : "Permanent",
       status: "Available",
+      purchase_image_urls: [] as unknown[],
     };
     const { data, error } = await supabase.from("vehicles").insert(insert).select("id").single();
     if (error) {

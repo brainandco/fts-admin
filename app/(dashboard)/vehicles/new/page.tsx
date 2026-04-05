@@ -11,7 +11,10 @@ export default async function NewVehiclePage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Add vehicle</h1>
-      <p className="mb-4 text-sm text-zinc-600">Add the vehicle to the database first. You can assign it to an employee later from the vehicle&apos;s edit page.</p>
+      <p className="mb-4 text-sm text-zinc-600">
+        Add the vehicle to the database first. At least two condition photos are required (intake / purchase state). You can assign
+        it to an employee later from the vehicle&apos;s edit page.
+      </p>
       <VehicleForm existing={null} regions={regions ?? []} projects={projects ?? []} />
     </div>
   );

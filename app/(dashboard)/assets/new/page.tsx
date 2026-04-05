@@ -8,7 +8,10 @@ export default async function NewAssetPage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Add tools / assets</h1>
-      <p className="mb-4 text-sm text-zinc-500">Add one tool at a time (type, serial, name). Counts by type and unassigned/assigned lists refresh on the Assets page.</p>
+      <p className="mb-4 text-sm text-zinc-500">
+        Add one tool at a time (type, serial, name). You must upload at least two intake photos per asset so returns can be
+        compared to purchase condition. Counts by type and unassigned/assigned lists refresh on the Assets page.
+      </p>
       <AssetForm existing={null} qcEmployees={[]} />
     </div>
   );

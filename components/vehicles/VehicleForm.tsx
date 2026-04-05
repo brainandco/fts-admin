@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PurchasePhotoUploader } from "@/components/assets/PurchasePhotoUploader";
+import { MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 type Vehicle = {
   id: string;
@@ -12,6 +14,7 @@ type Vehicle = {
   model: string | null;
   assignment_type?: "Temporary" | "Permanent" | null;
   status: string;
+  purchase_image_urls?: unknown;
 } | null;
 
 /** Form for adding or editing vehicle details only. No assignment, no project/region. */
@@ -20,7 +23,7 @@ export function VehicleForm({
   regions,
   projects,
 }: {
-  existing: Vehicle;
+  existing: Vehicle | null;
   regions: { id: string; name: string }[];
   projects: { id: string; name: string }[];
 }) {
@@ -36,10 +39,17 @@ export function VehicleForm({
   const [status, setStatus] = useState(existing?.status ?? "Available");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [purchaseImageUrls, setPurchaseImageUrls] = useState<string[]>(() =>
+    parseImageUrlArray(existing?.purchase_image_urls)
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (purchaseImageUrls.length < MIN_RESOURCE_PHOTOS) {
+      setError(`Add at least ${MIN_RESOURCE_PHOTOS} condition photos before saving.`);
+      return;
+    }
     setSaving(true);
     const url = existing ? `/api/vehicles/${existing.id}` : "/api/vehicles";
     const body = {
@@ -50,6 +60,7 @@ export function VehicleForm({
       model: model.trim() || null,
       assignment_type: assignmentType,
       status,
+      purchase_image_urls: purchaseImageUrls,
     };
     const res = await fetch(url, {
       method: existing ? "PATCH" : "POST",
@@ -125,9 +136,14 @@ export function VehicleForm({
           <option value="Under_Maintenance">Under Maintenance</option>
         </select>
       </div>
+      <PurchasePhotoUploader
+        purpose="vehicle-purchase"
+        urls={purchaseImageUrls}
+        onUrlsChange={setPurchaseImageUrls}
+      />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? "Update" : "Create"}</button>
+        <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? "Saving…" : existing ? "Update" : "Create"}</button>
         <button type="button" onClick={() => router.back()} className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
       </div>
     </form>

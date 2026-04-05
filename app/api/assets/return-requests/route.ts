@@ -12,7 +12,7 @@ export async function GET() {
   const { data: queue, error: e1 } = await supabase
     .from("asset_return_requests")
     .select(
-      "id, asset_id, from_employee_id, region_id, employee_comment, status, pm_decision, pm_comment, processed_at, created_at"
+      "id, asset_id, from_employee_id, region_id, employee_comment, return_image_urls, status, pm_decision, pm_comment, processed_at, created_at"
     )
     .or("status.eq.pending,and(status.eq.processed,pm_decision.eq.Under_Maintenance),and(status.eq.processed,pm_decision.eq.Damaged)")
     .order("created_at", { ascending: true });

@@ -5,6 +5,7 @@ import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
+import { hasMinimumPhotos, parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 const VEHICLE_KEYS = [
   "plate_number", "vehicle_type", "rent_company", "make", "model", "assignment_type", "status",
@@ -124,6 +125,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       typeof body.assigned_region_id === "string" && body.assigned_region_id.trim()
         ? body.assigned_region_id.trim()
         : null;
+  }
+  if (body.purchase_image_urls !== undefined) {
+    updates.purchase_image_urls = parseImageUrlArray(body.purchase_image_urls);
+  }
+  const mergedPurchase =
+    updates.purchase_image_urls !== undefined
+      ? parseImageUrlArray(updates.purchase_image_urls)
+      : parseImageUrlArray((old as { purchase_image_urls?: unknown }).purchase_image_urls);
+  if (Object.keys(updates).length > 0 && !hasMinimumPhotos(mergedPurchase)) {
+    return NextResponse.json(
+      { message: "At least 2 condition photos are required. Add them in the vehicle form before saving." },
+      { status: 400 }
+    );
+  }
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ ok: true });
   }
   const { error } = await supabase.from("vehicles").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });

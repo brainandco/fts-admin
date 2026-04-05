@@ -6,6 +6,7 @@ import { ClearMaintenanceButton } from "@/components/assets/ClearMaintenanceButt
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { can } from "@/lib/rbac/permissions";
 import { AdminRegionEmployeeAssignCard } from "@/components/admin-assignment/AdminRegionEmployeeAssignCard";
+import { ConditionPhotosGallery } from "@/components/assets/ConditionPhotosGallery";
 
 export default async function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -55,6 +56,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
         initialRegionId={(asset as { assigned_region_id?: string | null }).assigned_region_id ?? null}
         statusLabel={asset.status}
         canAssign={canAssignAsset}
+      />
+      <ConditionPhotosGallery
+        title="Intake / purchase condition photos"
+        urls={(asset as { purchase_image_urls?: unknown }).purchase_image_urls as string[] | undefined}
       />
       <section>
         <h2 className="mb-3 text-lg font-medium text-zinc-900">Edit asset</h2>

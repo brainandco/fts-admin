@@ -1,5 +1,5 @@
 import { getDataClient } from "@/lib/supabase/server";
-import { countActiveAdminPortalUsers } from "@/lib/admin-portal-user-counts";
+import { countActiveAdminPortalUsers, getTotalFtsPeopleCount } from "@/lib/admin-portal-user-counts";
 import { getCurrentUserProfile } from "@/lib/rbac/permissions";
 import Link from "next/link";
 
@@ -37,6 +37,7 @@ export default async function DashboardPage() {
   });
 
   const adminUsersCount = await countActiveAdminPortalUsers(supabase);
+  const totalFtsPeople = await getTotalFtsPeopleCount(supabase);
 
   const tasksInProgress = await safeCount(async () => {
     let q = supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["In_Progress", "Assigned_to_PM", "Assigned_to_User"]);
@@ -65,11 +66,22 @@ export default async function DashboardPage() {
 
   const groups: {
     label: string;
-    cards: { title: string; value: number; href: string; accent: "indigo" | "violet" | "cyan" | "amber" | "rose" }[];
+    cards: {
+      title: string;
+      value: number;
+      href: string;
+      accent: "teal" | "indigo" | "violet" | "cyan" | "amber" | "rose";
+    }[];
   }[] = [
     {
       label: "People & access",
       cards: [
+        {
+          title: "Total FTS people",
+          value: totalFtsPeople,
+          href: "/people",
+          accent: "teal",
+        },
         { title: "Active employees", value: employeesCount, href: "/employees", accent: "indigo" },
         { title: "Admin users", value: adminUsersCount, href: "/users", accent: "violet" },
       ],
@@ -92,6 +104,7 @@ export default async function DashboardPage() {
   ];
 
   const accentBar: Record<string, string> = {
+    teal: "bg-teal-500",
     indigo: "bg-indigo-500",
     violet: "bg-violet-500",
     cyan: "bg-cyan-500",

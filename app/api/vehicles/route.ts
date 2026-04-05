@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
+import { hasMinimumPhotos, MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 export async function GET() {
   if (!(await can("vehicles.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
@@ -30,6 +31,13 @@ export async function POST(req: Request) {
   const body = await req.json();
   const plate_number = typeof body.plate_number === "string" ? body.plate_number.trim() : "";
   if (!plate_number) return NextResponse.json({ message: "Vehicle plate number is required" }, { status: 400 });
+  const purchaseUrls = parseImageUrlArray(body.purchase_image_urls);
+  if (!hasMinimumPhotos(purchaseUrls)) {
+    return NextResponse.json(
+      { message: `Add at least ${MIN_RESOURCE_PHOTOS} condition photos before saving the vehicle.` },
+      { status: 400 }
+    );
+  }
   const supabase = await createServerSupabaseClient();
   const assignment_type =
     body.assignment_type === "Temporary" || body.assignment_type === "Permanent"
@@ -43,6 +51,7 @@ export async function POST(req: Request) {
     model: body.model || null,
     assignment_type,
     status: body.status || "Available",
+    purchase_image_urls: purchaseUrls,
   };
   const { data, error } = await supabase.from("vehicles").insert(insert).select("id").single();
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });

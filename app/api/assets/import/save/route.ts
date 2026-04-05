@@ -16,7 +16,6 @@ export async function POST(req: Request) {
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    const name = typeof r.name === "string" ? r.name.trim() : "";
     const categoryRaw = typeof r.category === "string" ? r.category.trim() : "";
     const serial = typeof r.serial === "string" ? r.serial.trim() || null : r.serial ?? null;
     const model = typeof r.model === "string" ? r.model.trim() || null : r.model ?? null;
@@ -29,9 +28,12 @@ export async function POST(req: Request) {
     const software_connectivity =
       typeof r.software_connectivity === "string" ? r.software_connectivity.trim() || null : r.software_connectivity ?? null;
     const specs = r.specs && typeof r.specs === "object" && !Array.isArray(r.specs) ? (r.specs as Record<string, unknown>) : {};
+    const company =
+      typeof specs.company === "string" ? specs.company.trim() : typeof r.name === "string" ? r.name.trim() : "";
+    const name = company;
 
-    if (!name || !categoryRaw) {
-      errors.push({ row: i + 1, message: "name and category required" });
+    if (!categoryRaw || !name) {
+      errors.push({ row: i + 1, message: "company (in specs) and category required" });
       continue;
     }
 
@@ -49,6 +51,7 @@ export async function POST(req: Request) {
       software_connectivity,
       status: "Available",
       specs,
+      purchase_image_urls: [],
     };
 
     const { data, error } = await supabase.from("assets").insert(insert).select("id").single();

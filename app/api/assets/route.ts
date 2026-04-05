@@ -2,13 +2,27 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
+import { hasMinimumPhotos, MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 /** Create one asset (Available). Assignment to employees is done on Assign to employee page. */
 export async function POST(req: Request) {
   if (!(await can("assets.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   const body = await req.json();
-  const { name, category } = body;
-  if (!name || !category) return NextResponse.json({ message: "name, category required" }, { status: 400 });
+  const { category } = body;
+  const specsRaw = body.specs && typeof body.specs === "object" && !Array.isArray(body.specs) ? (body.specs as Record<string, unknown>) : {};
+  const company =
+    typeof specsRaw.company === "string" ? specsRaw.company.trim() : typeof body.name === "string" ? body.name.trim() : "";
+  if (!category || !company) {
+    return NextResponse.json({ message: "category and company (company / brand) required" }, { status: 400 });
+  }
+  const name = company;
+  const purchaseUrls = parseImageUrlArray(body.purchase_image_urls);
+  if (!hasMinimumPhotos(purchaseUrls)) {
+    return NextResponse.json(
+      { message: `Add at least ${MIN_RESOURCE_PHOTOS} condition photos (purchase / intake) before saving.` },
+      { status: 400 }
+    );
+  }
   const supabase = await createServerSupabaseClient();
 
   const insert: Record<string, unknown> = {
@@ -25,6 +39,7 @@ export async function POST(req: Request) {
     software_connectivity: typeof body.software_connectivity === "string" ? body.software_connectivity.trim() || null : null,
     status: "Available",
     specs: body.specs && typeof body.specs === "object" ? body.specs : {},
+    purchase_image_urls: purchaseUrls,
   };
 
   const { data, error } = await supabase.from("assets").insert(insert).select("id").single();
