@@ -145,7 +145,8 @@ export function AssetImport() {
             <div className="max-h-[calc(90vh-8rem)] space-y-4 overflow-y-auto px-6 py-4">
               <p className="text-sm text-zinc-600">
                 CSV columns: <strong>company</strong>, <strong>category</strong> (required — category is any type label).
-                Optional model, serial, imei_1, imei_2, asset_id, condition, software_connectivity, ram.
+                Optional model, serial, imei_1, imei_2, asset_id, condition, software_connectivity, ram. Large imports are
+                saved in batches on the server (hundreds of rows in a few seconds).
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <input
@@ -190,7 +191,11 @@ export function AssetImport() {
                         disabled={saving}
                         className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                       >
-                        {saving ? "Saving…" : `Save ${validCount} to database`}
+                        {saving
+                          ? validCount > 80
+                            ? "Saving (batched)…"
+                            : "Saving…"
+                          : `Save ${validCount} to database`}
                       </button>
                     )}
                   </div>
