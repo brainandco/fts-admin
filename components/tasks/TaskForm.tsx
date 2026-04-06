@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Region = { id: string; name: string };
@@ -45,7 +45,7 @@ export function TaskForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const regionProjects = projects.filter((p) => p.region_id === regionId);
+  const projectOptions = useMemo(() => [...projects].sort((a, b) => a.name.localeCompare(b.name)), [projects]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -112,7 +112,7 @@ export function TaskForm({
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Region</label>
-        <select value={regionId} onChange={(e) => { setRegionId(e.target.value); setProjectId(""); }} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm">
+        <select value={regionId} onChange={(e) => setRegionId(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm">
           {regions.map((r) => (
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
@@ -122,7 +122,7 @@ export function TaskForm({
         <label className="mb-1 block text-sm font-medium text-zinc-700">Project</label>
         <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm">
           <option value="">—</option>
-          {regionProjects.map((p) => (
+          {projectOptions.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>

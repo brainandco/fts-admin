@@ -1,5 +1,6 @@
 /**
- * Roles that may have `employees.region_id` and `employees.project_id` (project must belong to that region).
+ * Roles that may have `employees.region_id` and `employees.project_id`.
+ * Primary region is where the person works; the formal project is independent (e.g. STC Rollout may apply in any region).
  * Super User sets these on Region & project assignments. Other roles are region-only on the record.
  */
 export const EMPLOYEE_RECORD_PROJECT_ROLES = new Set([

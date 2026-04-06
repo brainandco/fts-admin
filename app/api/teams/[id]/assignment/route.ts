@@ -5,7 +5,7 @@ import { auditLog } from "@/lib/audit/log";
 
 /**
  * PATCH — Super User only. Assign region and formal project to a team (after creation).
- * When both are set, project must belong to the selected region.
+ * Region is where the team operates; the project catalog is not region-specific.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const superResult = await requireSuper();
@@ -36,11 +36,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (fetchErr || !old) return NextResponse.json({ message: "Not found" }, { status: 404 });
 
   if (region_id && project_id) {
-    const { data: proj, error: pErr } = await supabase.from("projects").select("id, region_id").eq("id", project_id).single();
+    const { data: proj, error: pErr } = await supabase.from("projects").select("id").eq("id", project_id).single();
     if (pErr || !proj) return NextResponse.json({ message: "Invalid project" }, { status: 400 });
-    if (proj.region_id !== region_id) {
-      return NextResponse.json({ message: "Project must belong to the selected region." }, { status: 400 });
-    }
   }
   if (project_id && !region_id) {
     return NextResponse.json({ message: "Select a region before assigning a project to this team." }, { status: 400 });

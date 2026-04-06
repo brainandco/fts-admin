@@ -6,7 +6,7 @@ import { EMPLOYEE_RECORD_PROJECT_ROLES } from "@/lib/employees/employee-record-p
 
 /**
  * PATCH — Super User only. Sets region and formal project for an employee.
- * PM / QA / PP / Project Coordinator / Self DT: when region is set, project_id must be set and must belong to that region.
+ * PM / QA / PP / Project Coordinator / Self DT: when one of region or project is set, both must be set (project is not tied to region in the catalog).
  * Other roles: project_id is cleared.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -51,15 +51,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ message: "Select a region before assigning a project." }, { status: 400 });
     }
     if (region_id && project_id) {
-      const { data: proj, error: pErr } = await supabase
-        .from("projects")
-        .select("id, region_id")
-        .eq("id", project_id)
-        .single();
+      const { data: proj, error: pErr } = await supabase.from("projects").select("id").eq("id", project_id).single();
       if (pErr || !proj) return NextResponse.json({ message: "Invalid project" }, { status: 400 });
-      if (proj.region_id !== region_id) {
-        return NextResponse.json({ message: "Project must belong to the selected region." }, { status: 400 });
-      }
     }
   } else {
     if (project_id) {

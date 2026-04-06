@@ -62,10 +62,7 @@ export function EmployeeRegionProjectAssignmentsClient({
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
 
-  const projectsForRegion = useMemo(() => {
-    if (!regionId) return [];
-    return projects.filter((p) => p.region_id === regionId);
-  }, [projects, regionId]);
+  const projectsSorted = useMemo(() => [...projects].sort((a, b) => a.name.localeCompare(b.name)), [projects]);
 
   const distinctRoles = useMemo(() => {
     const s = new Set<string>();
@@ -337,11 +334,10 @@ export function EmployeeRegionProjectAssignmentsClient({
                               <select
                                 value={projectId}
                                 onChange={(e) => setProjectId(e.target.value)}
-                                disabled={!regionId}
-                                className={`${selectClass} disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:opacity-60`}
+                                className={selectClass}
                               >
                                 <option value="">— No project —</option>
-                                {projectsForRegion.map((p) => (
+                                {projectsSorted.map((p) => (
                                   <option key={p.id} value={p.id}>
                                     {p.name}
                                   </option>

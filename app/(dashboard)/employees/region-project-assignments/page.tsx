@@ -46,7 +46,8 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
         <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Super User</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Region &amp; project assignments</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-          Assign primary region and formal project per employee. Use filters and search to work through the list; rows that need attention are sorted first. For Project Managers, extra regions beyond the primary are set on the employee profile under <span className="font-medium text-zinc-800">PM scope</span>.
+          Assign primary region (where the person works) and formal project per employee. Projects are not limited by region — e.g. the same rollout project can apply in South, East, or West. Use filters and search; rows that need attention are sorted first. For Project Managers, extra regions beyond the primary are set on the employee profile under{" "}
+          <span className="font-medium text-zinc-800">PM scope</span>.
         </p>
       </header>
       <EmployeeRegionProjectAssignmentsClient employees={employees} regions={regions ?? []} projects={projects ?? []} />

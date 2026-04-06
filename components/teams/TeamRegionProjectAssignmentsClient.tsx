@@ -30,10 +30,7 @@ export function TeamRegionProjectAssignmentsClient({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
-  const projectsForRegion = useMemo(() => {
-    if (!regionId) return [];
-    return projects.filter((p) => p.region_id === regionId);
-  }, [projects, regionId]);
+  const projectsSorted = useMemo(() => [...projects].sort((a, b) => a.name.localeCompare(b.name)), [projects]);
 
   function startEdit(row: TeamRow) {
     setEditingId(row.id);
@@ -75,7 +72,7 @@ export function TeamRegionProjectAssignmentsClient({
   return (
     <div className="space-y-4">
       <p className="text-sm text-zinc-600">
-        Assign a region first, then a project in that region. Teams (DT + Driver/Rigger) use project assignment here after the team is created.
+        Choose the region where the team operates, then the formal project (any project in the catalog — projects are not limited to that region). Use this after the team is created.
       </p>
       {message && (
         <p className={`text-sm ${message.type === "ok" ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>
@@ -105,7 +102,6 @@ export function TeamRegionProjectAssignmentsClient({
                         value={regionId}
                         onChange={(e) => {
                           setRegionId(e.target.value);
-                          setProjectId("");
                         }}
                         className="w-full max-w-[200px] rounded border border-zinc-300 px-2 py-1.5 text-sm"
                       >
@@ -125,7 +121,7 @@ export function TeamRegionProjectAssignmentsClient({
                         className="w-full max-w-[220px] rounded border border-zinc-300 px-2 py-1.5 text-sm disabled:opacity-50"
                       >
                         <option value="">— None —</option>
-                        {projectsForRegion.map((p) => (
+                        {projectsSorted.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name}
                           </option>
