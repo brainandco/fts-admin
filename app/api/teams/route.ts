@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { assertEmployeesAllowedOnTeam } from "@/lib/teams/teamMemberEligibility";
+import {
+  assertDtAndDriverSameRegionForTeam,
+  getTeamRegionProjectFromDtEmployee,
+} from "@/lib/teams/teamRegionProjectFromDt";
 import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
 
 export async function POST(req: Request) {
@@ -39,11 +43,22 @@ export async function POST(req: Request) {
   if (!eligible.ok) {
     return NextResponse.json({ message: eligible.message }, { status: 400 });
   }
+  const sameRegion = await assertDtAndDriverSameRegionForTeam(supabase, dt_employee_id, driver_rigger_employee_id);
+  if (!sameRegion.ok) {
+    return NextResponse.json({ message: sameRegion.message }, { status: 400 });
+  }
+  const { region_id, project_id } = await getTeamRegionProjectFromDtEmployee(supabase, dt_employee_id);
+  if (!region_id) {
+    return NextResponse.json(
+      { message: "DT must have a primary region before creating a team (Employee region & project assignments)." },
+      { status: 400 }
+    );
+  }
   const { data, error } = await supabase.from("teams").insert({
     name: String(name).trim(),
     team_code,
-    project_id: null,
-    region_id: null,
+    project_id,
+    region_id,
     dt_employee_id,
     driver_rigger_employee_id,
     max_size: max_size != null ? Number(max_size) : 2,

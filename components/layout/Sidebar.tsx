@@ -30,7 +30,6 @@ const navStructure: NavEntry[] = [
         { href: "/regions", label: "Regions", permission: "regions.manage" },
         { href: "/projects", label: "Projects", permission: "projects.manage" },
         { href: "/teams", label: "Teams", permission: "teams.manage" },
-        { href: "/teams/region-project-assignments", label: "Team region & project", superOnly: true },
         { href: "/users", label: "Users", superOnly: true },
       ],
     },

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
 import { ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
 
-type Employee = { id: string; full_name: string; roles: string[] };
+type Employee = { id: string; full_name: string; roles: string[]; region_id: string | null };
 type Team = {
   id: string;
   name: string;
@@ -19,7 +19,10 @@ type Team = {
   onboarding_date?: string | null;
 } | null;
 
-/** Members & name only — region and project are set on Teams → Region & project assignments. */
+/**
+ * Region and project on the team row are taken from the DT’s employee record when the team is saved.
+ * Driver/Rigger must be in the same primary region as the DT.
+ */
 export function TeamForm({
   existing,
   employees,
@@ -47,26 +50,78 @@ export function TeamForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const unavailableSet = new Set(unavailableEmployeeIds);
   /** Field roles only: not QC/QA/PP/PM/PC or Other/custom roles. */
   const canBeOnTeam = (e: Employee) => !e.roles.some((r) => ROLES_NOT_ALLOWED_ON_TEAM.has(r));
-  const selectable = employees.filter((e) => {
-    if (!canBeOnTeam(e)) return false;
-    if (existing && (e.id === existing.dt_employee_id || e.id === existing.driver_rigger_employee_id)) return true;
-    return !unavailableSet.has(e.id);
-  });
-  const employeesWithDt = selectable.filter((e) => e.roles.includes("DT"));
-  const employeesWithDriverRigger = selectable.filter((e) => e.roles.includes("Driver/Rigger"));
-  const employeesWithSelfDt = selectable.filter((e) => e.roles.includes("Self DT"));
+  const selectable = useMemo(() => {
+    const unavailableSet = new Set(unavailableEmployeeIds);
+    return employees.filter((e) => {
+      if (!canBeOnTeam(e)) return false;
+      if (existing && (e.id === existing.dt_employee_id || e.id === existing.driver_rigger_employee_id)) return true;
+      return !unavailableSet.has(e.id);
+    });
+  }, [employees, existing, unavailableEmployeeIds]);
+
+  const employeesWithDt = useMemo(
+    () =>
+      selectable.filter(
+        (e) => e.roles.includes("DT") && (e.region_id || (!!existing && e.id === existing.dt_employee_id))
+      ),
+    [selectable, existing]
+  );
+  const employeesWithDriverRigger = useMemo(
+    () => selectable.filter((e) => e.roles.includes("Driver/Rigger")),
+    [selectable]
+  );
+  const employeesWithSelfDt = useMemo(
+    () =>
+      selectable.filter(
+        (e) =>
+          e.roles.includes("Self DT") &&
+          (e.region_id ||
+            (!!existing &&
+              e.id === existing.dt_employee_id &&
+              existing.dt_employee_id === existing.driver_rigger_employee_id))
+      ),
+    [selectable, existing]
+  );
+
+  const dtRegionId = useMemo(() => {
+    const e = selectable.find((x) => x.id === dtEmployeeId);
+    return e?.region_id ?? null;
+  }, [selectable, dtEmployeeId]);
+
+  const driversInDtRegion = useMemo(() => {
+    if (!dtRegionId) {
+      return driverRiggerEmployeeId
+        ? employeesWithDriverRigger.filter((e) => e.id === driverRiggerEmployeeId)
+        : [];
+    }
+    const inRegion = employeesWithDriverRigger.filter((e) => e.region_id === dtRegionId);
+    if (driverRiggerEmployeeId && !inRegion.some((e) => e.id === driverRiggerEmployeeId)) {
+      const cur = employeesWithDriverRigger.find((e) => e.id === driverRiggerEmployeeId);
+      if (cur) return [...inRegion, cur];
+    }
+    return inRegion;
+  }, [employeesWithDriverRigger, dtRegionId, driverRiggerEmployeeId]);
 
   const toOptions = (list: Employee[]): SearchableOption[] =>
     list.map((e) => ({ id: e.id, label: e.full_name }));
 
-  const dtSelectedName = employeesWithDt.find((e) => e.id === dtEmployeeId)?.full_name ?? "";
-  const drSelectedName = employeesWithDriverRigger.find((e) => e.id === driverRiggerEmployeeId)?.full_name ?? "";
-  const selfDtSelectedName = employeesWithSelfDt.find((e) => e.id === selfDtEmployeeId)?.full_name ?? "";
+  const dtSelectedName = selectable.find((e) => e.id === dtEmployeeId)?.full_name ?? "";
+  const drSelectedName = selectable.find((e) => e.id === driverRiggerEmployeeId)?.full_name ?? "";
+  const selfDtSelectedName = selectable.find((e) => e.id === selfDtEmployeeId)?.full_name ?? "";
 
   const selectClass = "w-full rounded border border-zinc-300 px-3 py-2 text-sm";
+
+  function handleDtSelected(option?: SearchableOption) {
+    if (!option) return;
+    setDtEmployeeId(option.id);
+    const dr = selectable.find((e) => e.id === driverRiggerEmployeeId);
+    const newDt = selectable.find((e) => e.id === option.id);
+    if (dr && newDt?.region_id && dr.region_id !== newDt.region_id) {
+      setDriverRiggerEmployeeId("");
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -132,7 +187,9 @@ export function TeamForm({
   return (
     <form onSubmit={submit} className="max-w-md space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
       <p className="text-sm text-zinc-600">
-        After creating the team, use <strong>Teams → Region &amp; project assignments</strong> (Super User) to assign region and project.
+        The team&apos;s region and project come from the <strong>DT</strong> (or Self DT) employee record — set those on{" "}
+        <strong>People → Employee region &amp; project assignments</strong>. The Driver/Rigger must be in the{" "}
+        <strong>same primary region</strong> as the DT.
       </p>
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">
@@ -218,7 +275,10 @@ export function TeamForm({
             className={selectClass}
             listClassName="max-h-72"
           />
-          <p className="mt-1 text-xs text-zinc-500">One person acts as both DT and Driver/Rigger for this team.</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            One person acts as both DT and Driver/Rigger. They must have a primary region (and formal project if required for
+            their role) on Employee region &amp; project assignments.
+          </p>
         </div>
       ) : (
         <>
@@ -230,29 +290,42 @@ export function TeamForm({
               options={toOptions(employeesWithDt)}
               value={dtSelectedName}
               onChange={(_value, option) => {
-                if (option) setDtEmployeeId(option.id);
+                handleDtSelected(option);
               }}
               placeholder="Type to search DT…"
               required
               className={selectClass}
               listClassName="max-h-72"
             />
+            <p className="mt-1 text-xs text-zinc-500">
+              New teams: only DTs with a primary region are listed. When editing, the current DT always appears so you can
+              replace them after fixing region in Employee assignments.
+            </p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Driver/Rigger (1 per team) <span className="text-red-600">*</span>
             </label>
             <SearchableSelect
-              options={toOptions(employeesWithDriverRigger)}
+              options={toOptions(driversInDtRegion)}
               value={drSelectedName}
               onChange={(_value, option) => {
                 if (option) setDriverRiggerEmployeeId(option.id);
               }}
-              placeholder="Type to search Driver/Rigger…"
+              placeholder={
+                dtEmployeeId
+                  ? dtRegionId
+                    ? "Type to search Driver/Rigger (same region as DT)…"
+                    : "Selected DT has no region — fix in Employee region & project first."
+                  : "Select a DT first…"
+              }
               required
               className={selectClass}
               listClassName="max-h-72"
             />
+            <p className="mt-1 text-xs text-zinc-500">
+              Only Driver/Riggers in the <strong>same region</strong> as the DT are shown.
+            </p>
           </div>
         </>
       )}

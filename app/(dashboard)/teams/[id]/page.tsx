@@ -28,7 +28,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   const { profile } = await getCurrentUserProfile();
   const isSuper = profile?.is_super_user ?? false;
 
-  const { data: employees } = await supabase.from("employees").select("id, full_name").eq("status", "ACTIVE");
+  const { data: employees } = await supabase.from("employees").select("id, full_name, region_id").eq("status", "ACTIVE");
   const { data: teams } = await supabase.from("teams").select("id, dt_employee_id, driver_rigger_employee_id");
   const empIds = (employees ?? []).map((e) => e.id);
   const { data: roleRows } = await supabase.from("employee_roles").select("employee_id, role, role_custom").in("employee_id", empIds);
@@ -41,6 +41,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   const employeesWithRoles = (employees ?? []).map((e) => ({
     id: e.id,
     full_name: e.full_name,
+    region_id: e.region_id ?? null,
     roles: rolesByEmpId.get(e.id) ?? [],
   }));
   const unavailableEmployeeIds = Array.from(
@@ -55,10 +56,11 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   const drId = team.driver_rigger_employee_id ?? null;
   const memberIdsForFleet = [...new Set([dtId, drId].filter(Boolean))] as string[];
 
-  const [dtEmpRes, drEmpRes, projectRes, dtAssetsRes, teamVehicleAssignRes] = await Promise.all([
+  const [dtEmpRes, drEmpRes, projectRes, regionRes, dtAssetsRes, teamVehicleAssignRes] = await Promise.all([
     dtId ? supabase.from("employees").select("full_name").eq("id", dtId).single() : { data: null },
     drId ? supabase.from("employees").select("full_name").eq("id", drId).single() : { data: null },
     team.project_id ? supabase.from("projects").select("name").eq("id", team.project_id).single() : { data: null },
+    team.region_id ? supabase.from("regions").select("name").eq("id", team.region_id).single() : { data: null },
     dtId ? supabase.from("assets").select("id, name, serial, category, status").eq("assigned_to_employee_id", dtId).order("name") : { data: [] },
     memberIdsForFleet.length
       ? supabase
@@ -72,6 +74,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   const dtEmp = dtEmpRes.data;
   const drEmp = drEmpRes.data;
   const project = projectRes.data;
+  const region = regionRes.data;
   const dtAssets = dtAssetsRes.data ?? [];
 
   type VehicleEmbed = { id: string; plate_number: string | null; vehicle_type: string | null; status: string | null };
@@ -102,7 +105,10 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
               </span>
             ) : null}
           </h1>
-          {project?.name && <span className="text-sm font-normal text-zinc-500">({project.name})</span>}
+          {region?.name ? (
+            <span className="text-sm font-normal text-zinc-500">· {region.name}</span>
+          ) : null}
+          {project?.name ? <span className="text-sm font-normal text-zinc-500">· {project.name}</span> : null}
         </div>
         {isSuper && (
           <TerminateTeamButton
@@ -121,19 +127,11 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
           until the same is true for every member.
         </p>
         <p className="mb-4 text-sm text-zinc-600">
-          Region and project are not edited here — assign them
-          {isSuper ? (
-            <>
-              {" "}
-              on{" "}
-              <Link href="/teams/region-project-assignments" className="font-medium text-indigo-600 hover:text-indigo-800">
-                Region &amp; project assignments
-              </Link>
-            </>
-          ) : (
-            <> (Super User)</>
-          )}
-          .
+          Region and project on this team follow the <strong>DT</strong> (or Self DT) employee — update them on{" "}
+          <Link href="/employees/region-project-assignments" className="font-medium text-indigo-600 hover:text-indigo-800">
+            Employee region &amp; project assignments
+          </Link>
+          . Driver/Rigger must stay in the same region as the DT when you change members.
         </p>
         <TeamForm existing={team} employees={employeesWithRoles} unavailableEmployeeIds={unavailableEmployeeIds} />
       </section>

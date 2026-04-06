@@ -72,6 +72,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { error } = await supabase.from("employees").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
+  const { data: asDtTeams } = await supabase.from("teams").select("id").eq("dt_employee_id", id);
+  if ((asDtTeams ?? []).length > 0) {
+    await supabase
+      .from("teams")
+      .update({ region_id: updates.region_id, project_id: updates.project_id })
+      .eq("dt_employee_id", id);
+  }
+
   await auditLog({
     actionType: "update",
     entityType: "employee",

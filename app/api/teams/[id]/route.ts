@@ -8,6 +8,10 @@ import {
   teamTerminationBlockedMessage,
 } from "@/lib/teams/teamTermination";
 import { assertEmployeesAllowedOnTeam } from "@/lib/teams/teamMemberEligibility";
+import {
+  assertDtAndDriverSameRegionForTeam,
+  getTeamRegionProjectFromDtEmployee,
+} from "@/lib/teams/teamRegionProjectFromDt";
 import { assertEmployeeHasNoAssignmentsForTeamChange } from "@/lib/teams/employeeAssignments";
 import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
 
@@ -21,7 +25,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!old) return NextResponse.json({ message: "Not found" }, { status: 404 });
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = String(body.name).trim();
-  /* region / project: use PATCH /api/teams/[id]/assignment only */
   if (body.dt_employee_id !== undefined) updates.dt_employee_id = body.dt_employee_id;
   if (body.driver_rigger_employee_id !== undefined) updates.driver_rigger_employee_id = body.driver_rigger_employee_id;
   if (body.max_size !== undefined) updates.max_size = body.max_size == null ? null : Number(body.max_size);
@@ -53,6 +56,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!eligible.ok) {
     return NextResponse.json({ message: eligible.message }, { status: 400 });
   }
+  const sameRegion = await assertDtAndDriverSameRegionForTeam(supabase, newDt as string, newDr as string);
+  if (!sameRegion.ok) {
+    return NextResponse.json({ message: sameRegion.message }, { status: 400 });
+  }
+  const fromDt = await getTeamRegionProjectFromDtEmployee(supabase, newDt as string);
+  if (!fromDt.region_id) {
+    return NextResponse.json(
+      { message: "DT must have a primary region (Employee region & project assignments)." },
+      { status: 400 }
+    );
+  }
+  updates.region_id = fromDt.region_id;
+  updates.project_id = fromDt.project_id;
 
   if (oldDt && newDt !== oldDt) {
     const cleared = await assertEmployeeHasNoAssignmentsForTeamChange(supabase, oldDt);
