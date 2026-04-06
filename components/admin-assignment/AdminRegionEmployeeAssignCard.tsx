@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
 
 type Variant = "asset" | "vehicle" | "sim";
 
@@ -171,6 +172,18 @@ export function AdminRegionEmployeeAssignCard({
 
   const selectClass = "w-full max-w-md rounded border border-zinc-300 px-3 py-2 text-sm bg-white";
 
+  const regionOptions: SearchableOption[] = useMemo(
+    () => regions.map((r) => ({ id: r.id, label: r.name })),
+    [regions]
+  );
+  const regionLabel = regionId ? regions.find((r) => r.id === regionId)?.name ?? "" : "";
+
+  const employeeOptions: SearchableOption[] = useMemo(
+    () => employees.map((e) => ({ id: e.id, label: e.full_name })),
+    [employees]
+  );
+  const employeeLabel = employeeId ? employees.find((e) => e.id === employeeId)?.full_name ?? "" : "";
+
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-6">
       <h2 className="mb-1 text-lg font-medium text-zinc-900">{title}</h2>
@@ -184,14 +197,16 @@ export function AdminRegionEmployeeAssignCard({
         <>
           <div className="mb-4 max-w-md">
             <label className="mb-1 block text-sm font-medium text-zinc-700">Region</label>
-            <select className={selectClass} value={regionId} onChange={(e) => setRegionId(e.target.value)}>
-              <option value="">Select region…</option>
-              {regions.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              options={regionOptions}
+              value={regionLabel}
+              onChange={(_value, option) => {
+                if (option) setRegionId(option.id);
+              }}
+              placeholder="Type to search or select region…"
+              className={selectClass}
+              listClassName="max-h-60"
+            />
           </div>
           {loadingEmployees ? (
             <p className="text-sm text-zinc-500">Loading employees…</p>
@@ -204,13 +219,16 @@ export function AdminRegionEmployeeAssignCard({
           ) : (
             <div className="max-w-md">
               <label className="mb-1 block text-sm font-medium text-zinc-700">Employee</label>
-              <select className={selectClass} value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.full_name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={employeeOptions}
+                value={employeeLabel}
+                onChange={(_value, option) => {
+                  if (option) setEmployeeId(option.id);
+                }}
+                placeholder="Type to search or select employee…"
+                className={selectClass}
+                listClassName="max-h-72"
+              />
             </div>
           )}
           {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
