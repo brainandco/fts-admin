@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
 import { ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
+import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
 
 type Employee = { id: string; full_name: string; roles: string[] };
 type Team = {
@@ -57,6 +58,15 @@ export function TeamForm({
   const employeesWithDt = selectable.filter((e) => e.roles.includes("DT"));
   const employeesWithDriverRigger = selectable.filter((e) => e.roles.includes("Driver/Rigger"));
   const employeesWithSelfDt = selectable.filter((e) => e.roles.includes("Self DT"));
+
+  const toOptions = (list: Employee[]): SearchableOption[] =>
+    list.map((e) => ({ id: e.id, label: e.full_name }));
+
+  const dtSelectedName = employeesWithDt.find((e) => e.id === dtEmployeeId)?.full_name ?? "";
+  const drSelectedName = employeesWithDriverRigger.find((e) => e.id === driverRiggerEmployeeId)?.full_name ?? "";
+  const selfDtSelectedName = employeesWithSelfDt.find((e) => e.id === selfDtEmployeeId)?.full_name ?? "";
+
+  const selectClass = "w-full rounded border border-zinc-300 px-3 py-2 text-sm";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -163,11 +173,28 @@ export function TeamForm({
         <label className="mb-1 block text-sm font-medium text-zinc-700">Team type</label>
         <div className="flex gap-4">
           <label className="flex items-center gap-1.5 text-sm">
-            <input type="radio" name="teamType" checked={!isSelfDtTeam} onChange={() => setIsSelfDtTeam(false)} />
+            <input
+              type="radio"
+              name="teamType"
+              checked={!isSelfDtTeam}
+              onChange={() => {
+                setIsSelfDtTeam(false);
+                setSelfDtEmployeeId("");
+              }}
+            />
             Standard (DT + Driver/Rigger)
           </label>
           <label className="flex items-center gap-1.5 text-sm">
-            <input type="radio" name="teamType" checked={isSelfDtTeam} onChange={() => setIsSelfDtTeam(true)} />
+            <input
+              type="radio"
+              name="teamType"
+              checked={isSelfDtTeam}
+              onChange={() => {
+                setIsSelfDtTeam(true);
+                setDtEmployeeId("");
+                setDriverRiggerEmployeeId("");
+              }}
+            />
             Self DT (one person)
           </label>
         </div>
@@ -180,19 +207,17 @@ export function TeamForm({
           <label className="mb-1 block text-sm font-medium text-zinc-700">
             Self DT employee <span className="text-red-600">*</span>
           </label>
-          <select
-            value={selfDtEmployeeId}
-            onChange={(e) => setSelfDtEmployeeId(e.target.value)}
+          <SearchableSelect
+            options={toOptions(employeesWithSelfDt)}
+            value={selfDtSelectedName}
+            onChange={(_value, option) => {
+              if (option) setSelfDtEmployeeId(option.id);
+            }}
+            placeholder="Type to search Self DT…"
             required
-            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-          >
-            <option value="">— Select Self DT —</option>
-            {employeesWithSelfDt.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.full_name}
-              </option>
-            ))}
-          </select>
+            className={selectClass}
+            listClassName="max-h-72"
+          />
           <p className="mt-1 text-xs text-zinc-500">One person acts as both DT and Driver/Rigger for this team.</p>
         </div>
       ) : (
@@ -201,37 +226,33 @@ export function TeamForm({
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               DT (1 per team) <span className="text-red-600">*</span>
             </label>
-            <select
-              value={dtEmployeeId}
-              onChange={(e) => setDtEmployeeId(e.target.value)}
+            <SearchableSelect
+              options={toOptions(employeesWithDt)}
+              value={dtSelectedName}
+              onChange={(_value, option) => {
+                if (option) setDtEmployeeId(option.id);
+              }}
+              placeholder="Type to search DT…"
               required
-              className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-            >
-              <option value="">— Select DT —</option>
-              {employeesWithDt.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.full_name}
-                </option>
-              ))}
-            </select>
+              className={selectClass}
+              listClassName="max-h-72"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Driver/Rigger (1 per team) <span className="text-red-600">*</span>
             </label>
-            <select
-              value={driverRiggerEmployeeId}
-              onChange={(e) => setDriverRiggerEmployeeId(e.target.value)}
+            <SearchableSelect
+              options={toOptions(employeesWithDriverRigger)}
+              value={drSelectedName}
+              onChange={(_value, option) => {
+                if (option) setDriverRiggerEmployeeId(option.id);
+              }}
+              placeholder="Type to search Driver/Rigger…"
               required
-              className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-            >
-              <option value="">— Select Driver/Rigger —</option>
-              {employeesWithDriverRigger.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.full_name}
-                </option>
-              ))}
-            </select>
+              className={selectClass}
+              listClassName="max-h-72"
+            />
           </div>
         </>
       )}
