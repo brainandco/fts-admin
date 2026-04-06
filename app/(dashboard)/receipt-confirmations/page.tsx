@@ -15,7 +15,7 @@ export default async function ReceiptConfirmationsPage() {
   const { data: rows } = await supabase
     .from("resource_receipt_confirmations")
     .select(
-      "id, employee_id, resource_type, resource_id, status, confirmation_message, assigned_at, confirmed_at, assigned_by_user_id"
+      "id, employee_id, resource_type, resource_id, status, confirmation_message, assigned_at, confirmed_at, assigned_by_user_id, receipt_image_urls"
     )
     .order("assigned_at", { ascending: false })
     .limit(500);
@@ -67,6 +67,12 @@ export default async function ReceiptConfirmationsPage() {
     return `/vehicles/${r.resource_id}`;
   }
 
+  function receiptPhotoUrls(r: { receipt_image_urls?: unknown }): string[] {
+    const u = r.receipt_image_urls;
+    if (!Array.isArray(u)) return [];
+    return u.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -75,16 +81,19 @@ export default async function ReceiptConfirmationsPage() {
           Employees confirm in the{" "}
           <span className="font-medium text-zinc-800">employee portal</span> (Confirm receipt) when they physically
           receive assigned tools, SIMs, or vehicles. This list shows pending and confirmed records for your oversight.
+          For <span className="font-medium text-zinc-800">assets</span>, condition photos taken at confirmation appear in
+          the Receipt photos column once the employee has confirmed.
         </p>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
-        <table className="w-full min-w-[880px] text-left text-sm">
+        <table className="w-full min-w-[960px] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-700">
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Resource</th>
+              <th className="px-4 py-3 font-medium">Receipt photos</th>
               <th className="px-4 py-3 font-medium">Employee</th>
               <th className="px-4 py-3 font-medium">Assigned</th>
               <th className="px-4 py-3 font-medium">Confirmed</th>
@@ -95,7 +104,7 @@ export default async function ReceiptConfirmationsPage() {
           <tbody>
             {list.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-zinc-500">
                   No receipt records yet. Assignments will appear here after employees confirm (or while still pending).
                 </td>
               </tr>
@@ -120,6 +129,39 @@ export default async function ReceiptConfirmationsPage() {
                     <Link href={resourceHref(r)} className="font-medium text-teal-700 hover:underline">
                       {resourceLabel(r)}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    {r.resource_type === "asset" ? (
+                      (() => {
+                        const urls = receiptPhotoUrls(r);
+                        if (urls.length === 0) {
+                          return (
+                            <span className="text-zinc-400">
+                              {r.status === "confirmed" ? "—" : "After confirm"}
+                            </span>
+                          );
+                        }
+                        return (
+                          <div className="flex max-w-[220px] flex-wrap gap-1.5">
+                            {urls.map((url) => (
+                              <a
+                                key={url}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block h-14 w-14 shrink-0 overflow-hidden rounded border border-zinc-200 bg-zinc-50 hover:opacity-90"
+                                title="Open full size"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={url} alt="" className="h-full w-full object-cover" />
+                              </a>
+                            ))}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <span className="text-zinc-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-zinc-800">{empMap.get(r.employee_id) ?? r.employee_id}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-zinc-600">
