@@ -5,9 +5,7 @@ import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
 import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
-import { hasMinimumPhotos, parseImageUrlArray } from "@/lib/assets/resource-photos";
-
-const ASSET_ASSIGNMENT_KEYS = new Set(["assigned_to_employee_id", "assignment_region_id", "assignment_notes"]);
+import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 /** PM assigns assets to employees; admin updates details only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -41,19 +39,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   for (const k of ["imei_1", "imei_2", "model"] as const) {
     if (body[k] !== undefined) {
       updates[k] = typeof body[k] === "string" ? body[k].trim() || null : null;
-    }
-  }
-  const assignmentOnly = patchKeys.every((k) => ASSET_ASSIGNMENT_KEYS.has(k));
-  if (!assignmentOnly) {
-    const merged =
-      body.purchase_image_urls !== undefined
-        ? parseImageUrlArray(body.purchase_image_urls)
-        : parseImageUrlArray((old as { purchase_image_urls?: unknown }).purchase_image_urls);
-    if (!hasMinimumPhotos(merged)) {
-      return NextResponse.json(
-        { message: "At least 2 intake condition photos are required. Add them in the asset form before saving other changes." },
-        { status: 400 }
-      );
     }
   }
   if (body.purchase_image_urls !== undefined) {

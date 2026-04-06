@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
-import { hasMinimumPhotos, MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 /** Create one asset (Available). Assignment to employees is done on Assign to employee page. */
 export async function POST(req: Request) {
@@ -17,12 +17,6 @@ export async function POST(req: Request) {
   }
   const name = company;
   const purchaseUrls = parseImageUrlArray(body.purchase_image_urls);
-  if (!hasMinimumPhotos(purchaseUrls)) {
-    return NextResponse.json(
-      { message: `Add at least ${MIN_RESOURCE_PHOTOS} condition photos (purchase / intake) before saving.` },
-      { status: 400 }
-    );
-  }
   const supabase = await createServerSupabaseClient();
 
   const insert: Record<string, unknown> = {

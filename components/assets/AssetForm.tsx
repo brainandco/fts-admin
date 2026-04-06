@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PurchasePhotoUploader } from "@/components/assets/PurchasePhotoUploader";
-import { MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 type Employee = { id: string; full_name: string; region_id?: string };
 type Asset = {
   id: string;
@@ -66,10 +66,6 @@ export function AssetForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (purchaseImageUrls.length < MIN_RESOURCE_PHOTOS) {
-      setError(`Add at least ${MIN_RESOURCE_PHOTOS} condition photos before saving.`);
-      return;
-    }
     if (!specCompany.trim()) {
       setError("Company / brand is required.");
       return;

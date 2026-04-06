@@ -19,6 +19,7 @@ export function PurchasePhotoUploader({
   onUrlsChange: (urls: string[]) => void;
   disabled?: boolean;
 }) {
+  const assetPhotosOptional = purpose === "asset-purchase";
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -55,11 +56,25 @@ export function PurchasePhotoUploader({
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4">
       <label className="mb-2 block text-sm font-medium text-zinc-800">
-        Condition photos (purchase / intake) <span className="text-red-600">*</span>
+        Condition photos (purchase / intake)
+        {assetPhotosOptional ? (
+          <span className="font-normal text-zinc-500"> (optional)</span>
+        ) : (
+          <span className="text-red-600"> *</span>
+        )}
       </label>
       <p className="mb-3 text-xs text-zinc-600">
-        Add at least {MIN_RESOURCE_PHOTOS} clear photos of the item as received. These support return and dispute review
-        later.
+        {assetPhotosOptional ? (
+          <>
+            Clear photos as received help with returns and dispute review. You can add them when registering new stock
+            or later from the asset record.
+          </>
+        ) : (
+          <>
+            Add at least {MIN_RESOURCE_PHOTOS} clear photos of the item as received. These support return and dispute
+            review later.
+          </>
+        )}
       </p>
       <div className="flex flex-wrap gap-2">
         {urls.map((url, i) => (
@@ -95,9 +110,25 @@ export function PurchasePhotoUploader({
           {uploading ? <span className="ml-2 text-xs text-zinc-500">Uploading…</span> : null}
         </div>
       ) : null}
-      <p className={`mt-2 text-xs ${urls.length >= MIN_RESOURCE_PHOTOS ? "text-emerald-700" : "text-amber-800"}`}>
-        {urls.length} / {MIN_RESOURCE_PHOTOS} minimum
-        {urls.length < MIN_RESOURCE_PHOTOS ? " — add more photos to save." : " — OK."}
+      <p
+        className={`mt-2 text-xs ${
+          assetPhotosOptional
+            ? "text-zinc-600"
+            : urls.length >= MIN_RESOURCE_PHOTOS
+              ? "text-emerald-700"
+              : "text-amber-800"
+        }`}
+      >
+        {assetPhotosOptional ? (
+          <>
+            {urls.length} photo{urls.length === 1 ? "" : "s"} — optional for now; recommended when you can.
+          </>
+        ) : (
+          <>
+            {urls.length} / {MIN_RESOURCE_PHOTOS} minimum
+            {urls.length < MIN_RESOURCE_PHOTOS ? " — add more photos to save." : " — OK."}
+          </>
+        )}
       </p>
       {error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null}
     </div>
