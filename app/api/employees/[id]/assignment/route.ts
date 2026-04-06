@@ -2,12 +2,12 @@ import { getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
-import { EMPLOYEE_RECORD_PROJECT_ROLES } from "@/lib/employees/employee-record-project-roles";
+import { employeeMayHaveFormalProjectOnRecord } from "@/lib/employees/employee-record-project-roles";
 
 /**
  * PATCH — Super User only. Sets region and formal project for an employee.
- * PM / QA / PP / Project Coordinator / Self DT: when one of region or project is set, both must be set (project is not tied to region in the catalog).
- * Other roles: project_id is cleared.
+ * Driver/Rigger and QC: region only (project_id cleared).
+ * All other roles may have project_id; project requires a region. Region without project is allowed (e.g. DT for team matching).
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const superResult = await requireSuper();
@@ -40,32 +40,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { data: roleRows } = await supabase.from("employee_roles").select("role").eq("employee_id", id);
   const role = (roleRows ?? [])[0]?.role ?? "";
 
-  if (EMPLOYEE_RECORD_PROJECT_ROLES.has(role)) {
-    if (region_id && !project_id) {
-      return NextResponse.json(
-        { message: "Select a project for Project Manager, QA, PP, Project Coordinator, and Self DT when a region is set." },
-        { status: 400 }
-      );
-    }
-    if (project_id && !region_id) {
-      return NextResponse.json({ message: "Select a region before assigning a project." }, { status: 400 });
-    }
-    if (region_id && project_id) {
-      const { data: proj, error: pErr } = await supabase.from("projects").select("id").eq("id", project_id).single();
-      if (pErr || !proj) return NextResponse.json({ message: "Invalid project" }, { status: 400 });
-    }
-  } else {
-    if (project_id) {
-      return NextResponse.json(
-        { message: "Only Project Manager, QA, PP, Project Coordinator, and Self DT can have a project on their employee record." },
-        { status: 400 }
-      );
-    }
+  const mayHaveProject = employeeMayHaveFormalProjectOnRecord(role);
+
+  if (!mayHaveProject && project_id) {
+    return NextResponse.json(
+      { message: "Driver/Rigger and QC cannot have a formal project on their employee record (region only)." },
+      { status: 400 }
+    );
+  }
+
+  if (mayHaveProject && project_id && !region_id) {
+    return NextResponse.json({ message: "Select a region before assigning a project." }, { status: 400 });
+  }
+
+  if (mayHaveProject && project_id) {
+    const { data: proj, error: pErr } = await supabase.from("projects").select("id").eq("id", project_id).single();
+    if (pErr || !proj) return NextResponse.json({ message: "Invalid project" }, { status: 400 });
   }
 
   const updates = {
     region_id,
-    project_id: EMPLOYEE_RECORD_PROJECT_ROLES.has(role) ? project_id : null,
+    project_id: mayHaveProject ? project_id : null,
     project_name_other: null,
   };
 

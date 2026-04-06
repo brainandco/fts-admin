@@ -1,12 +1,14 @@
 /**
- * Roles that may have `employees.region_id` and `employees.project_id`.
- * Primary region is where the person works; the formal project is independent (e.g. STC Rollout may apply in any region).
- * Super User sets these on Region & project assignments. Other roles are region-only on the record.
+ * Formal `employees.project_id` on the employee record:
+ * — **Driver/Rigger** and **QC** are region-only (no project on the record).
+ * — All other roles (DT, Self DT, PM, QA, PP, Project Coordinator, Other/custom, etc.) may have a project.
+ *
+ * Use `employee_roles.role` (canonical enum), not display labels from `formatEmployeeRoleDisplay`.
  */
-export const EMPLOYEE_RECORD_PROJECT_ROLES = new Set([
-  "Project Manager",
-  "QA",
-  "PP",
-  "Project Coordinator",
-  "Self DT",
-]);
+const CANONICAL_ROLES_WITHOUT_FORMAL_PROJECT = new Set(["Driver/Rigger", "QC"]);
+
+export function employeeMayHaveFormalProjectOnRecord(canonicalRole: string): boolean {
+  const r = canonicalRole.trim();
+  if (!r) return false;
+  return !CANONICAL_ROLES_WITHOUT_FORMAL_PROJECT.has(r);
+}

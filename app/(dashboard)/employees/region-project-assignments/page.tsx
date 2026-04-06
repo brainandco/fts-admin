@@ -17,9 +17,11 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
     .select("employee_id, role, role_custom")
     .in("employee_id", empIds);
   const roleByEmp = new Map<string, string>();
+  const roleCodeByEmp = new Map<string, string>();
   for (const r of roleRows ?? []) {
     if (!roleByEmp.has(r.employee_id)) {
       roleByEmp.set(r.employee_id, formatEmployeeRoleDisplay(r.role, r.role_custom));
+      roleCodeByEmp.set(r.employee_id, r.role);
     }
   }
   const employees = (employeesRaw ?? []).map((e) => ({
@@ -28,6 +30,7 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
     region_id: e.region_id,
     project_id: e.project_id,
     role: roleByEmp.get(e.id) ?? "",
+    role_code: roleCodeByEmp.get(e.id) ?? "",
   }));
 
   const { data: regions } = await supabase.from("regions").select("id, name").order("name");
@@ -46,7 +49,8 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
         <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Super User</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Region &amp; project assignments</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-          Assign primary region (where the person works) and formal project per employee. Projects are not limited by region — e.g. the same rollout project can apply in South, East, or West. Use filters and search; rows that need attention are sorted first. For Project Managers, extra regions beyond the primary are set on the employee profile under{" "}
+          Assign primary region (where the person works) and, when applicable, a formal project. <span className="font-medium text-zinc-800">Driver/Rigger</span> and{" "}
+          <span className="font-medium text-zinc-800">QC</span> are region-only (no project on the record). All other roles — including <span className="font-medium text-zinc-800">DT</span> — may have a project. Projects are not limited by region. For Project Managers, extra regions beyond the primary are set on the employee profile under{" "}
           <span className="font-medium text-zinc-800">PM scope</span>.
         </p>
       </header>
