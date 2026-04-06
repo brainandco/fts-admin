@@ -80,7 +80,7 @@ export function PmScopeSettings({
     <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-6 shadow-sm">
       <h2 className="text-lg font-semibold text-zinc-900">Project Manager — scope (teams &amp; assignments)</h2>
       <p className="mt-1 text-sm text-zinc-600">
-        In the employee portal, PMs see teams from: (1) all teams in their primary region and any extra regions below, (2) all teams on projects listed here, and (3) projects where their portal user is set as project PM (
+        In the employee portal, each extra region behaves like the primary region for operational scope: the PM can track projects, teams, assignments, transfers, and returns in those regions the same way as in their home region. Teams also come from: (1) all teams in the primary region and any extra regions below, (2) all teams on projects listed here, and (3) projects where their portal user is set as project PM (
         <code className="rounded bg-white px-1 text-xs">projects.pm_user_id</code>
         ). Primary region stays on{" "}
         <span className="font-medium text-zinc-800">Region &amp; project assignments</span>; it is not duplicated below.
@@ -94,7 +94,7 @@ export function PmScopeSettings({
         <div className="mt-5 rounded-lg border border-white bg-white/80 p-4">
           <h3 className="text-sm font-semibold text-zinc-900">Extra regions (Super User only)</h3>
           <p className="mt-1 text-xs text-zinc-500">
-            Rare: assign additional regions beyond the primary. Do not select the primary region here.
+            Add regions where this PM should have the same operational scope as their primary region (teams, assignments, transfer reviews, pending returns, etc.). Do not select the primary region here.
           </p>
           <div className="mt-3 max-h-48 space-y-2 overflow-y-auto rounded border border-zinc-200 bg-white p-2">
             {regionOptions.length === 0 ? (
