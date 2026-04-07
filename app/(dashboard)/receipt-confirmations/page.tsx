@@ -39,7 +39,7 @@ export default async function ReceiptConfirmationsPage() {
   const vehicleIds = list.filter((r) => r.resource_type === "vehicle").map((r) => r.resource_id);
 
   const [assetsRes, simsRes, vehiclesRes] = await Promise.all([
-    assetIds.length ? supabase.from("assets").select("id, name, serial").in("id", assetIds) : { data: [] },
+    assetIds.length ? supabase.from("assets").select("id, name, serial, category").in("id", assetIds) : { data: [] },
     simIds.length ? supabase.from("sim_cards").select("id, sim_number").in("id", simIds) : { data: [] },
     vehicleIds.length ? supabase.from("vehicles").select("id, plate_number").in("id", vehicleIds) : { data: [] },
   ]);
@@ -50,8 +50,11 @@ export default async function ReceiptConfirmationsPage() {
 
   function resourceLabel(r: (typeof list)[0]): string {
     if (r.resource_type === "asset") {
-      const a = assetMap.get(r.resource_id);
-      return a ? `${a.name}${a.serial ? ` · ${a.serial}` : ""}` : r.resource_id;
+      const a = assetMap.get(r.resource_id) as { name?: string | null; serial?: string | null } | undefined;
+      if (!a) return r.resource_id;
+      const n = typeof a.name === "string" && a.name.trim() ? a.name.trim() : "";
+      if (n) return n;
+      return a.serial ? String(a.serial) : r.resource_id;
     }
     if (r.resource_type === "sim_card") {
       const s = simMap.get(r.resource_id);
@@ -59,6 +62,17 @@ export default async function ReceiptConfirmationsPage() {
     }
     const v = vehicleMap.get(r.resource_id);
     return v ? String(v.plate_number) : r.resource_id;
+  }
+
+  /** Human-readable kind: asset category (Laptop, Mobile, …), SIM, Vehicle. */
+  function typeLabel(r: (typeof list)[0]): string {
+    if (r.resource_type === "asset") {
+      const a = assetMap.get(r.resource_id) as { category?: string | null } | undefined;
+      const c = typeof a?.category === "string" && a.category.trim() ? a.category.trim() : "";
+      return c || "Asset";
+    }
+    if (r.resource_type === "sim_card") return "SIM";
+    return "Vehicle";
   }
 
   function resourceHref(r: (typeof list)[0]): string {
@@ -122,9 +136,7 @@ export default async function ReceiptConfirmationsPage() {
                       {r.status === "confirmed" ? "Confirmed" : "Pending"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 capitalize text-zinc-700">
-                    {r.resource_type === "sim_card" ? "SIM" : r.resource_type}
-                  </td>
+                  <td className="px-4 py-3 text-zinc-700">{typeLabel(r)}</td>
                   <td className="px-4 py-3">
                     <Link href={resourceHref(r)} className="font-medium text-teal-700 hover:underline">
                       {resourceLabel(r)}
