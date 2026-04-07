@@ -6,6 +6,42 @@ export function appendPreviewRowError(row: { _error?: string }, message: string)
 }
 
 /**
+ * False for empty, N/A-style placeholders, dash-only, and punctuation-only values.
+ * Used so many rows can share "N/A" for missing IMEI/serial/etc. without duplicate errors.
+ */
+export function isCsvDuplicateSignificantValue(raw: string | null | undefined): boolean {
+  if (raw == null) return false;
+  const t = String(raw).trim();
+  if (!t) return false;
+  const lower = t.toLowerCase().replace(/\s+/g, " ").trim();
+  const exactPlaceholders = new Set([
+    "n/a",
+    "na",
+    "n.a.",
+    "n.a",
+    "not applicable",
+    "not available",
+    "none",
+    "null",
+    "nil",
+    "tbd",
+    "tba",
+    "unknown",
+    "?",
+    "??",
+    "---",
+    "-",
+    "--",
+  ]);
+  if (exactPlaceholders.has(lower)) return false;
+  if (/^[—–−]+$/u.test(t)) return false;
+  if (/^[\-\u2013\u2014\u2015\u2212]+$/u.test(t)) return false;
+  const alnum = t.replace(/[\s\-\u2013\u2014\u2015\u2212._/\\|.,;:]+/gu, "");
+  if (!alnum) return false;
+  return true;
+}
+
+/**
  * Flag rows where the same normalized key appears more than once in the file.
  * First occurrence stays without this error; later rows reference earlier row numbers (1-based CSV order).
  */
@@ -18,6 +54,7 @@ export function flagCsvDuplicateKeys<T extends { _error?: string }>(
   for (let i = 0; i < rows.length; i++) {
     const raw = getKey(rows[i]);
     if (!raw || !String(raw).trim()) continue;
+    if (!isCsvDuplicateSignificantValue(raw)) continue;
     const norm = String(raw).trim();
     if (!byKey.has(norm)) byKey.set(norm, []);
     byKey.get(norm)!.push(i);
@@ -44,7 +81,7 @@ async function valuesExistingInColumn(
   values: string[]
 ): Promise<Set<string>> {
   const out = new Set<string>();
-  const unique = [...new Set(values.map((v) => v.trim()).filter(Boolean))];
+  const unique = [...new Set(values.map((v) => v.trim()).filter((v) => isCsvDuplicateSignificantValue(v)))];
   for (let i = 0; i < unique.length; i += CHUNK) {
     const chunk = unique.slice(i, i + CHUNK);
     const { data, error } = await supabase.from(table).select(column).in(column, chunk);
@@ -82,7 +119,7 @@ export async function fetchExistingAssetImeis(
   supabase: SupabaseClient,
   imeis: string[]
 ): Promise<Set<string>> {
-  const unique = [...new Set(imeis.map((v) => v.trim()).filter(Boolean))];
+  const unique = [...new Set(imeis.map((v) => v.trim()).filter((v) => isCsvDuplicateSignificantValue(v)))];
   const found = new Set<string>();
   for (let i = 0; i < unique.length; i += CHUNK) {
     const chunk = unique.slice(i, i + CHUNK);
@@ -195,10 +232,14 @@ export async function assetIdentifierConflictMessage(
   input: AssetIdentifierInput,
   excludeAssetId?: string
 ): Promise<string | null> {
-  const serial = input.serial?.trim() || null;
-  const assetId = input.asset_id?.trim() || null;
-  const imei1 = input.imei_1?.trim() || null;
-  const imei2 = input.imei_2?.trim() || null;
+  const serialRaw = input.serial?.trim() || null;
+  const assetIdRaw = input.asset_id?.trim() || null;
+  const imei1Raw = input.imei_1?.trim() || null;
+  const imei2Raw = input.imei_2?.trim() || null;
+  const serial = serialRaw && isCsvDuplicateSignificantValue(serialRaw) ? serialRaw : null;
+  const assetId = assetIdRaw && isCsvDuplicateSignificantValue(assetIdRaw) ? assetIdRaw : null;
+  const imei1 = imei1Raw && isCsvDuplicateSignificantValue(imei1Raw) ? imei1Raw : null;
+  const imei2 = imei2Raw && isCsvDuplicateSignificantValue(imei2Raw) ? imei2Raw : null;
 
   if (serial) {
     const { data } = await supabase.from("assets").select("id").eq("serial", serial).maybeSingle();
@@ -229,6 +270,7 @@ export function flagCsvDuplicateImeisInAssetImport<
     const seenInRow = new Set<string>();
     const push = (raw: string | null) => {
       if (!raw || !String(raw).trim()) return;
+      if (!isCsvDuplicateSignificantValue(raw)) return;
       const t = String(raw).trim();
       if (seenInRow.has(t)) return;
       seenInRow.add(t);

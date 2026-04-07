@@ -5,6 +5,7 @@ import { auditLog } from "@/lib/audit/log";
 import {
   fetchExistingAssetIdentifiers,
   fetchExistingAssetImeis,
+  isCsvDuplicateSignificantValue,
 } from "@/lib/data-uniqueness";
 
 /** Rows per INSERT; keeps payloads small and avoids long single transactions. */
@@ -101,13 +102,13 @@ export async function POST(req: Request) {
     const row = p.csvRow;
     const ins = p.insert;
     const ser = typeof ins.serial === "string" ? ins.serial.trim() : "";
-    if (ser && !serialFirstRow.has(ser)) serialFirstRow.set(ser, row);
+    if (ser && isCsvDuplicateSignificantValue(ser) && !serialFirstRow.has(ser)) serialFirstRow.set(ser, row);
     const aid = typeof ins.asset_id === "string" ? ins.asset_id.trim() : "";
-    if (aid && !assetIdFirstRow.has(aid)) assetIdFirstRow.set(aid, row);
+    if (aid && isCsvDuplicateSignificantValue(aid) && !assetIdFirstRow.has(aid)) assetIdFirstRow.set(aid, row);
     const i1 = typeof ins.imei_1 === "string" ? ins.imei_1.trim() : "";
     const i2 = typeof ins.imei_2 === "string" ? ins.imei_2.trim() : "";
-    if (i1 && !imeiFirstRow.has(i1)) imeiFirstRow.set(i1, row);
-    if (i2 && !imeiFirstRow.has(i2)) imeiFirstRow.set(i2, row);
+    if (i1 && isCsvDuplicateSignificantValue(i1) && !imeiFirstRow.has(i1)) imeiFirstRow.set(i1, row);
+    if (i2 && isCsvDuplicateSignificantValue(i2) && !imeiFirstRow.has(i2)) imeiFirstRow.set(i2, row);
   }
 
   const insertable: typeof prepared = [];
@@ -117,7 +118,7 @@ export async function POST(req: Request) {
     const row = p.csvRow;
 
     const ser = typeof ins.serial === "string" ? ins.serial.trim() : "";
-    if (ser) {
+    if (ser && isCsvDuplicateSignificantValue(ser)) {
       const firstS = serialFirstRow.get(ser);
       if (firstS !== undefined && firstS !== row) {
         errors.push({ row, message: `Duplicate serial in this import (same as row ${firstS}).` });
@@ -130,7 +131,7 @@ export async function POST(req: Request) {
     }
 
     const aid = typeof ins.asset_id === "string" ? ins.asset_id.trim() : "";
-    if (aid) {
+    if (aid && isCsvDuplicateSignificantValue(aid)) {
       const firstA = assetIdFirstRow.get(aid);
       if (firstA !== undefined && firstA !== row) {
         errors.push({ row, message: `Duplicate asset ID in this import (same as row ${firstA}).` });
@@ -144,13 +145,17 @@ export async function POST(req: Request) {
 
     const i1 = typeof ins.imei_1 === "string" ? ins.imei_1.trim() : "";
     const i2 = typeof ins.imei_2 === "string" ? ins.imei_2.trim() : "";
-    if (i1 && i2 && i1 === i2) {
+    if (
+      isCsvDuplicateSignificantValue(i1) &&
+      isCsvDuplicateSignificantValue(i2) &&
+      i1 === i2
+    ) {
       errors.push({ row, message: "Duplicate IMEI on this row (IMEI 1 and IMEI 2 are the same)." });
       continue;
     }
     let imeiOk = true;
     for (const v of [i1, i2]) {
-      if (!v) continue;
+      if (!v || !isCsvDuplicateSignificantValue(v)) continue;
       if (exImei.has(v)) {
         errors.push({ row, message: `IMEI "${v}" already exists on another asset.` });
         imeiOk = false;
