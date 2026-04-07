@@ -152,7 +152,7 @@ export function AssetForm({
         <p className="mt-1 text-xs text-zinc-500">
           {existing
             ? "Asset ID does not change after creation."
-            : "Assigned on save from the next number in sequence (per company for Laptop/Mobile, per type for other tools). Custom asset types may have no auto ID."}
+            : "Assigned on save from the next number in sequence. Laptop/Mobile use short brand codes (e.g. Samsung → SS, Huawei → HU, Dell → DELL, iPhone → IPHONE); other brands use a compact uppercase form."}
         </p>
       </div>
 

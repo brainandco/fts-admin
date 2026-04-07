@@ -10,13 +10,82 @@ export type AssetIdScheme =
   | { kind: "company_middle"; middle: "ASTL" | "ASTM"; start: number }
   | { kind: "prefix"; prefix: string; start: number };
 
-/** Normalize company string for ID segment (matches historical "COMPANY-ASTL-1001"). */
+/** Fallback when company is not in the known list: compact alphanumeric uppercase. */
 export function slugCompany(company: string): string {
   return company
     .trim()
     .replace(/\s+/g, "")
     .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase();
+}
+
+function normalizeCompanyLookupKey(company: string): string {
+  return company.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Known brand / company names → short segment for Laptop & Mobile asset IDs (before -ASTL- / -ASTM-).
+ * Longer names first so e.g. "apple iphone" wins over "iphone".
+ */
+const COMPANY_NAME_TO_ABBREV: [string, string][] = [
+  ["apple iphone", "IPHONE"],
+  ["hewlett packard", "HP"],
+  ["samsung", "SS"],
+  ["huawei", "HU"],
+  ["iphone", "IPHONE"],
+  ["lenovo", "LEN"],
+  ["acer", "AC"],
+  ["dell", "DELL"],
+  ["hp", "HP"],
+];
+
+/**
+ * Map an existing asset_id company segment (any historical spelling) to a canonical abbrev for comparison.
+ */
+const ID_SEGMENT_TO_CANONICAL: Record<string, string> = {
+  SS: "SS",
+  SAMSUNG: "SS",
+  HU: "HU",
+  HUAWEI: "HU",
+  AC: "AC",
+  ACER: "AC",
+  DELL: "DELL",
+  LEN: "LEN",
+  LENOVO: "LEN",
+  HP: "HP",
+  IPHONE: "IPHONE",
+};
+
+/**
+ * Short code for new asset IDs (Laptop/Mobile). Uses known mappings; otherwise {@link slugCompany}.
+ */
+export function companyAbbrevForAssetId(company: string): string {
+  const key = normalizeCompanyLookupKey(company);
+  if (!key) return "";
+  for (const [name, abbr] of COMPANY_NAME_TO_ABBREV) {
+    if (key === name) return abbr;
+  }
+  const sorted = [...COMPANY_NAME_TO_ABBREV].sort((a, b) => b[0].length - a[0].length);
+  for (const [name, abbr] of sorted) {
+    if (key.startsWith(`${name} `)) return abbr;
+  }
+  return slugCompany(company);
+}
+
+function canonicalAbbrevFromIdSegment(segment: string): string {
+  const u = segment.trim().toUpperCase();
+  return ID_SEGMENT_TO_CANONICAL[u] ?? u;
+}
+
+/** True if `idSegment` (from an existing asset_id) is the same brand as `enteredCompany`. */
+export function sameCompanyForAssetId(enteredCompany: string, idSegment: string): boolean {
+  const target = companyAbbrevForAssetId(enteredCompany);
+  if (!target) return false;
+  if (canonicalAbbrevFromIdSegment(idSegment) === target) return true;
+  const legacyEntered = slugCompany(enteredCompany);
+  const legacySeg = slugCompany(idSegment);
+  if (legacyEntered && legacySeg === legacyEntered) return true;
+  return false;
 }
 
 const EXACT_CATEGORY_SCHEME: Record<string, AssetIdScheme> = {
@@ -57,7 +126,7 @@ export function resolveAssetIdScheme(category: string): AssetIdScheme | null {
   return null;
 }
 
-function maxForCompanyMiddle(assetIds: (string | null)[], middle: "ASTL" | "ASTM", companySlug: string): number {
+function maxForCompanyMiddle(assetIds: (string | null)[], middle: "ASTL" | "ASTM", company: string): number {
   const re = new RegExp(`^(.+)-${middle}-(\\d+)$`, "i");
   let max = 0;
   for (const raw of assetIds) {
@@ -65,7 +134,7 @@ function maxForCompanyMiddle(assetIds: (string | null)[], middle: "ASTL" | "ASTM
     const id = raw.trim();
     const m = id.match(re);
     if (!m) continue;
-    if (slugCompany(m[1]) !== companySlug) continue;
+    if (!sameCompanyForAssetId(company, m[1])) continue;
     const n = parseInt(m[2], 10);
     if (!Number.isNaN(n) && n > max) max = n;
   }
@@ -88,8 +157,8 @@ function maxForPrefix(assetIds: (string | null)[], prefix: string): number {
 
 export function formatNextAssetId(scheme: AssetIdScheme, company: string, nextNum: number): string {
   if (scheme.kind === "company_middle") {
-    const slug = slugCompany(company);
-    return `${slug}-${scheme.middle}-${nextNum}`;
+    const abbrev = companyAbbrevForAssetId(company);
+    return `${abbrev}-${scheme.middle}-${nextNum}`;
   }
   return `${scheme.prefix}-${nextNum}`;
 }
@@ -106,8 +175,8 @@ export async function computeNextAssetId(
   if (!scheme) return null;
 
   if (scheme.kind === "company_middle") {
-    const slug = slugCompany(company);
-    if (!slug) return null;
+    const abbrev = companyAbbrevForAssetId(company);
+    if (!abbrev) return null;
   }
 
   const cat = category.trim();
@@ -118,9 +187,9 @@ export async function computeNextAssetId(
 
   let nextNum: number;
   if (scheme.kind === "company_middle") {
-    const slug = slugCompany(company);
-    if (!slug) return null;
-    const max = maxForCompanyMiddle(ids, scheme.middle, slug);
+    const abbrev = companyAbbrevForAssetId(company);
+    if (!abbrev) return null;
+    const max = maxForCompanyMiddle(ids, scheme.middle, company);
     nextNum = max > 0 ? max + 1 : scheme.start;
   } else {
     const max = maxForPrefix(ids, scheme.prefix);
