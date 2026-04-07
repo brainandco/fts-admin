@@ -31,8 +31,20 @@ export default async function DashboardPage() {
     return q.then((r) => ({ count: r.count }));
   });
 
-  const vehiclesCount = await safeCount(async () => {
-    const q = supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("status", "Assigned");
+  const simsCount = await safeCount(async () => {
+    const q = supabase.from("sim_cards").select("id", { count: "exact", head: true });
+    return q.then((r) => ({ count: r.count }));
+  });
+
+  const totalVehiclesCount = await safeCount(async () => {
+    let q = supabase.from("vehicles").select("id", { count: "exact", head: true });
+    if (regionId && !isSuper) q = q.eq("assigned_region_id", regionId);
+    return q.then((r) => ({ count: r.count }));
+  });
+
+  const assignedVehiclesCount = await safeCount(async () => {
+    let q = supabase.from("vehicles").select("id", { count: "exact", head: true }).eq("status", "Assigned");
+    if (regionId && !isSuper) q = q.eq("assigned_region_id", regionId);
     return q.then((r) => ({ count: r.count }));
   });
 
@@ -70,7 +82,7 @@ export default async function DashboardPage() {
       title: string;
       value: number;
       href: string;
-      accent: "teal" | "indigo" | "violet" | "cyan" | "amber" | "rose";
+      accent: "teal" | "indigo" | "violet" | "cyan" | "amber" | "rose" | "emerald";
     }[];
   }[] = [
     {
@@ -90,7 +102,9 @@ export default async function DashboardPage() {
       label: "Fleet & assets",
       cards: [
         { title: "Active assets", value: assetsCount, href: "/assets", accent: "cyan" },
-        { title: "Assigned vehicles", value: vehiclesCount, href: "/vehicles", accent: "indigo" },
+        { title: "Total vehicles", value: totalVehiclesCount, href: "/vehicles", accent: "indigo" },
+        { title: "Assigned vehicles", value: assignedVehiclesCount, href: "/vehicles", accent: "violet" },
+        { title: "Total SIMs", value: simsCount, href: "/sims", accent: "emerald" },
         { title: "Upcoming maintenance (30d)", value: upcomingMaintenance, href: "/vehicles", accent: "amber" },
       ],
     },
@@ -110,6 +124,7 @@ export default async function DashboardPage() {
     cyan: "bg-cyan-500",
     amber: "bg-amber-500",
     rose: "bg-rose-500",
+    emerald: "bg-emerald-500",
   };
 
   return (
