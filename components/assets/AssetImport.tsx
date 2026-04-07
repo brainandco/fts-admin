@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 export type AssetImportPreviewRow = {
   category: string;
@@ -44,6 +44,7 @@ const PREVIEW_COLUMNS: { key: PreviewColumnKey; label: string }[] = [
 
 export function AssetImport() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -101,10 +102,15 @@ export function AssetImport() {
         setParseError(data.message || "Failed to save");
         return;
       }
-      setSaveResult({ inserted: data.inserted ?? 0, errors: data.errors });
-      setMessage(`${data.inserted ?? 0} asset(s) imported as Available.`);
-      if (data.errors?.length) setMessage((m) => `${m} ${data.errors.length} row(s) failed.`);
+      const rowErrors = data.errors as { row: number; message: string }[] | undefined;
+      const hasRowErrors = Array.isArray(rowErrors) && rowErrors.length > 0;
       router.refresh();
+      if (!hasRowErrors) {
+        resetImportModal();
+        return;
+      }
+      setSaveResult({ inserted: data.inserted ?? 0, errors: rowErrors });
+      setMessage(`${data.inserted ?? 0} asset(s) imported as Available. ${rowErrors.length} row(s) failed.`);
     } catch {
       setSaving(false);
       setParseError("Failed to save");
@@ -112,6 +118,16 @@ export function AssetImport() {
   }
 
   const validCount = previewRows.filter((r) => !r._error).length;
+
+  function resetImportModal() {
+    setOpen(false);
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setPreviewRows([]);
+    setMessage("");
+    setParseError("");
+    setSaveResult(null);
+  }
 
   return (
     <div className="inline-block">
@@ -124,6 +140,7 @@ export function AssetImport() {
           setParseError("");
           setSaveResult(null);
           setFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
         }}
         className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
       >
@@ -150,15 +167,31 @@ export function AssetImport() {
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <input
+                  ref={fileInputRef}
                   type="file"
                   accept=".csv"
-                  className="text-sm"
+                  className="hidden"
                   onChange={(e) => {
                     setFile(e.target.files?.[0] ?? null);
                     setPreviewRows([]);
                     setSaveResult(null);
+                    setParseError("");
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50"
+                >
+                  Upload file
+                </button>
+                {file ? (
+                  <span className="max-w-[min(280px,40vw)] truncate text-sm text-zinc-600" title={file.name}>
+                    {file.name}
+                  </span>
+                ) : (
+                  <span className="text-sm text-zinc-500">No file selected</span>
+                )}
                 <button
                   type="button"
                   onClick={handleParse}

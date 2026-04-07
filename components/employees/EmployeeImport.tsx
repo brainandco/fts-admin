@@ -105,10 +105,17 @@ export function EmployeeImport() {
         setParseError(data.message || "Failed to save");
         return;
       }
-      setSaveResult({ inserted: data.inserted ?? 0, errors: data.errors });
-      setMessage(`${data.inserted ?? 0} employee(s) imported successfully.`);
-      if (data.errors?.length) setMessage((m) => m + ` ${data.errors.length} row(s) failed.`);
+      const rowErrors = data.errors as { row: number; message: string }[] | undefined;
+      const hasRowErrors = Array.isArray(rowErrors) && rowErrors.length > 0;
       router.refresh();
+      if (!hasRowErrors) {
+        resetImportModal();
+        return;
+      }
+      setSaveResult({ inserted: data.inserted ?? 0, errors: rowErrors });
+      setMessage(
+        `${data.inserted ?? 0} employee(s) imported. ${rowErrors.length} row(s) failed — fix the CSV and try again.`
+      );
     } catch {
       setSaving(false);
       setParseError("Failed to save");
@@ -117,11 +124,29 @@ export function EmployeeImport() {
 
   const validCount = previewRows.filter((r) => !r._error).length;
 
+  function resetImportModal() {
+    setOpen(false);
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setPreviewRows([]);
+    setMessage("");
+    setParseError("");
+    setSaveResult(null);
+  }
+
   return (
     <div className="inline-block">
       <button
         type="button"
-        onClick={() => { setOpen(true); setPreviewRows([]); setMessage(""); setParseError(""); setSaveResult(null); setFile(null); }}
+        onClick={() => {
+          setOpen(true);
+          setPreviewRows([]);
+          setMessage("");
+          setParseError("");
+          setSaveResult(null);
+          setFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        }}
         className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
       >
         Import
@@ -150,9 +175,28 @@ export function EmployeeImport() {
                   ref={fileInputRef}
                   type="file"
                   accept=".csv"
-                  className="text-sm"
-                  onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreviewRows([]); setSaveResult(null); }}
+                  className="hidden"
+                  onChange={(e) => {
+                    setFile(e.target.files?.[0] ?? null);
+                    setPreviewRows([]);
+                    setSaveResult(null);
+                    setParseError("");
+                  }}
                 />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50"
+                >
+                  Upload file
+                </button>
+                {file ? (
+                  <span className="max-w-[min(280px,40vw)] truncate text-sm text-zinc-600" title={file.name}>
+                    {file.name}
+                  </span>
+                ) : (
+                  <span className="text-sm text-zinc-500">No file selected</span>
+                )}
                 <button
                   type="button"
                   onClick={handleParse}
