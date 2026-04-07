@@ -5,6 +5,7 @@ import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { randomPassword, sendEmployeeCredentials } from "@/lib/email/send-employee-credentials";
 import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
+import { employeeIdentityConflict } from "@/lib/data-uniqueness";
 export async function POST(req: Request) {
   if (!(await can("users.create"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
@@ -34,6 +35,13 @@ export async function POST(req: Request) {
     typeof input.accommodations === "string" ? input.accommodations.trim() || null : null;
 
   const supabase = await getDataClient();
+
+  const identityClash = await employeeIdentityConflict(supabase, {
+    email,
+    passport_number,
+    iqama_number,
+  });
+  if (identityClash) return NextResponse.json({ message: identityClash }, { status: 400 });
 
   const payload = {
     full_name,

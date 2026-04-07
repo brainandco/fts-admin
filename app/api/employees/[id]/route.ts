@@ -4,6 +4,7 @@ import { requireSuper } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { deleteEmployeeById } from "@/lib/employees/delete-employee-internal";
 import { normalizeEmployeeRolePayload, ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
+import { employeeIdentityConflict } from "@/lib/data-uniqueness";
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const superResult = await requireSuper();
   if (!superResult.allowed) return NextResponse.json({ message: "Only Super User can edit employees." }, { status: 403 });
@@ -41,6 +42,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ message: `${key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} is required` }, { status: 400 });
     }
   }
+  const identityClash = await employeeIdentityConflict(
+    supabase,
+    {
+      email: String(final.email).trim(),
+      passport_number: String(final.passport_number).trim(),
+      iqama_number: String(final.iqama_number).trim(),
+    },
+    id
+  );
+  if (identityClash) return NextResponse.json({ message: identityClash }, { status: 400 });
+
   const { error } = await supabase.from("employees").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 

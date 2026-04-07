@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { getDataClient } from "@/lib/supabase/server";
+import {
+  appendPreviewRowError,
+  fetchExistingSimNumbers,
+  flagCsvDuplicateKeys,
+} from "@/lib/data-uniqueness";
 
 function parseCSVLine(line: string): string[] {
   const out: string[] = [];
@@ -104,6 +110,29 @@ export async function POST(req: Request) {
       },
       ...(errors.length ? { _error: errors.join(". ") } : {}),
     });
+  }
+
+  flagCsvDuplicateKeys(
+    previewRows,
+    (r) => {
+      const s = r._payload.sim_number?.trim();
+      return s || null;
+    },
+    "SIM number"
+  );
+
+  const supabase = await getDataClient();
+  const candidateSims = previewRows
+    .filter((r) => !r._error && r._payload.sim_number.trim())
+    .map((r) => r._payload.sim_number.trim());
+  const existingSims = await fetchExistingSimNumbers(supabase, candidateSims);
+  for (const r of previewRows) {
+    if (r._error) continue;
+    const sn = r._payload.sim_number.trim();
+    if (!sn) continue;
+    if (existingSims.has(sn)) {
+      appendPreviewRowError(r, "This SIM number already exists in the database.");
+    }
   }
 
   const validCount = previewRows.filter((r) => !r._error).length;

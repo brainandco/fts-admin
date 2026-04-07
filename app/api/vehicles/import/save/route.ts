@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
+import { fetchVehiclePlatesLowerSet } from "@/lib/data-uniqueness";
 
 const CHUNK_SIZE = 120;
 
@@ -44,8 +45,28 @@ export async function POST(req: Request) {
     });
   }
 
-  for (let start = 0; start < prepared.length; start += CHUNK_SIZE) {
-    const slice = prepared.slice(start, start + CHUNK_SIZE);
+  const platesInDb = await fetchVehiclePlatesLowerSet(supabase);
+  const seenPlatesLower = new Set<string>();
+  const insertable: typeof prepared = [];
+  for (const p of prepared) {
+    const pl = String(p.insert.plate_number ?? "").trim().toLowerCase();
+    if (platesInDb.has(pl)) {
+      errors.push({ row: p.csvRow, message: "This plate number is already registered in the database." });
+      continue;
+    }
+    if (seenPlatesLower.has(pl)) {
+      errors.push({
+        row: p.csvRow,
+        message: "Duplicate plate number in this import (same as an earlier row in the file).",
+      });
+      continue;
+    }
+    seenPlatesLower.add(pl);
+    insertable.push(p);
+  }
+
+  for (let start = 0; start < insertable.length; start += CHUNK_SIZE) {
+    const slice = insertable.slice(start, start + CHUNK_SIZE);
     const batch = slice.map((p) => p.insert);
     const { data: batchData, error: batchError } = await supabase.from("vehicles").insert(batch).select("id");
 

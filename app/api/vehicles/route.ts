@@ -1,8 +1,9 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { hasMinimumPhotos, MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { vehiclePlateTaken } from "@/lib/data-uniqueness";
 
 export async function GET() {
   if (!(await can("vehicles.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
@@ -39,6 +40,10 @@ export async function POST(req: Request) {
     );
   }
   const supabase = await createServerSupabaseClient();
+  const dataClient = await getDataClient();
+  if (await vehiclePlateTaken(dataClient, plate_number)) {
+    return NextResponse.json({ message: "This plate number is already registered." }, { status: 400 });
+  }
   const assignment_type =
     body.assignment_type === "Temporary" || body.assignment_type === "Permanent"
       ? body.assignment_type

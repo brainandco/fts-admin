@@ -4,6 +4,7 @@ import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server
 import { auditLog } from "@/lib/audit/log";
 import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
+import { simNumberExistsOtherThan } from "@/lib/data-uniqueness";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await can("assets.manage")) && !(await can("assets.assign"))) {
@@ -27,6 +28,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const allowed = new Set(["Data", "Voice", "Data+Voice"]);
     if (!allowed.has(String(meta.service_type))) {
       return NextResponse.json({ message: "service_type must be Data, Voice, or Data+Voice" }, { status: 400 });
+    }
+  }
+
+  if (meta.sim_number !== undefined) {
+    const next = typeof meta.sim_number === "string" ? meta.sim_number.trim() : "";
+    const prev = String((old as { sim_number?: string | null }).sim_number ?? "").trim();
+    if (next && next !== prev) {
+      const taken = await simNumberExistsOtherThan(supabase, next, id);
+      if (taken) {
+        return NextResponse.json({ message: "This SIM number already exists." }, { status: 400 });
+      }
     }
   }
 

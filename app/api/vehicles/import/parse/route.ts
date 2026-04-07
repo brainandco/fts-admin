@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { getDataClient } from "@/lib/supabase/server";
+import {
+  appendPreviewRowError,
+  fetchVehiclePlatesLowerSet,
+  flagCsvDuplicateKeys,
+} from "@/lib/data-uniqueness";
 
 function parseCSVLine(line: string): string[] {
   const out: string[] = [];
@@ -109,6 +115,26 @@ export async function POST(req: Request) {
       _payload,
       ...(errors.length ? { _error: errors.join(". ") } : {}),
     });
+  }
+
+  flagCsvDuplicateKeys(
+    previewRows,
+    (r) => {
+      const p = r._payload.plate_number?.trim();
+      return p || null;
+    },
+    "vehicle plate number"
+  );
+
+  const supabase = await getDataClient();
+  const platesLower = await fetchVehiclePlatesLowerSet(supabase);
+  for (const r of previewRows) {
+    if (r._error) continue;
+    const p = r._payload.plate_number?.trim();
+    if (!p) continue;
+    if (platesLower.has(p.toLowerCase())) {
+      appendPreviewRowError(r, "This plate number is already registered in the database.");
+    }
   }
 
   const validCount = previewRows.filter((r) => !r._error).length;

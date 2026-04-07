@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
+import { fetchExistingSimNumbers } from "@/lib/data-uniqueness";
 
 const CHUNK_SIZE = 120;
 
@@ -53,8 +54,31 @@ export async function POST(req: Request) {
     });
   }
 
-  for (let start = 0; start < prepared.length; start += CHUNK_SIZE) {
-    const slice = prepared.slice(start, start + CHUNK_SIZE);
+  const existingSims = await fetchExistingSimNumbers(
+    supabase,
+    prepared.map((p) => String(p.insert.sim_number ?? ""))
+  );
+  const seenInFile = new Set<string>();
+  const insertable: Prepared[] = [];
+  for (const p of prepared) {
+    const sn = String(p.insert.sim_number ?? "").trim();
+    if (existingSims.has(sn)) {
+      errors.push({ row: p.csvRow, message: "This SIM number already exists in the database." });
+      continue;
+    }
+    if (seenInFile.has(sn)) {
+      errors.push({
+        row: p.csvRow,
+        message: `Duplicate SIM number in this import (same as an earlier row in the file).`,
+      });
+      continue;
+    }
+    seenInFile.add(sn);
+    insertable.push(p);
+  }
+
+  for (let start = 0; start < insertable.length; start += CHUNK_SIZE) {
+    const slice = insertable.slice(start, start + CHUNK_SIZE);
     const batch = slice.map((p) => p.insert);
     const { data: batchData, error: batchError } = await supabase.from("sim_cards").insert(batch).select("id");
 

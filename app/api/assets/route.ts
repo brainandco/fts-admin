@@ -1,8 +1,9 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { assetIdentifierConflictMessage } from "@/lib/data-uniqueness";
 
 /** Create one asset (Available). Assignment to employees is done on Assign to employee page. */
 export async function POST(req: Request) {
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
   const name = company;
   const purchaseUrls = parseImageUrlArray(body.purchase_image_urls);
   const supabase = await createServerSupabaseClient();
+  const dataClient = await getDataClient();
 
   const insert: Record<string, unknown> = {
     asset_id: body.asset_id || null,
@@ -33,6 +35,14 @@ export async function POST(req: Request) {
     specs: body.specs && typeof body.specs === "object" ? body.specs : {},
     purchase_image_urls: purchaseUrls,
   };
+
+  const idConflict = await assetIdentifierConflictMessage(dataClient, {
+    serial: insert.serial as string | null | undefined,
+    asset_id: insert.asset_id as string | null | undefined,
+    imei_1: insert.imei_1 as string | null | undefined,
+    imei_2: insert.imei_2 as string | null | undefined,
+  });
+  if (idConflict) return NextResponse.json({ message: idConflict }, { status: 400 });
 
   const { data, error } = await supabase.from("assets").insert(insert).select("id").single();
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });

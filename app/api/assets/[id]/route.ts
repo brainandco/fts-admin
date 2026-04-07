@@ -6,6 +6,7 @@ import { auditLog } from "@/lib/audit/log";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
 import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { assetIdentifierConflictMessage } from "@/lib/data-uniqueness";
 
 /** PM assigns assets to employees; admin updates details only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -73,6 +74,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       updates.status = "Available";
     }
   }
+
+  const touchesId =
+    updates.serial !== undefined ||
+    updates.asset_id !== undefined ||
+    updates.imei_1 !== undefined ||
+    updates.imei_2 !== undefined;
+  if (touchesId) {
+    const o = old as {
+      serial?: string | null;
+      asset_id?: string | null;
+      imei_1?: string | null;
+      imei_2?: string | null;
+    };
+    const pick = (u: unknown, fallback: string | null | undefined) => {
+      if (u !== undefined) return typeof u === "string" ? u.trim() || null : null;
+      return typeof fallback === "string" ? fallback.trim() || null : null;
+    };
+    const idMsg = await assetIdentifierConflictMessage(
+      supabase,
+      {
+        serial: pick(updates.serial, o.serial),
+        asset_id: pick(updates.asset_id, o.asset_id),
+        imei_1: pick(updates.imei_1, o.imei_1),
+        imei_2: pick(updates.imei_2, o.imei_2),
+      },
+      id
+    );
+    if (idMsg) return NextResponse.json({ message: idMsg }, { status: 400 });
+  }
+
   const { error } = await supabase.from("assets").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 

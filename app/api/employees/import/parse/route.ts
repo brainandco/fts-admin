@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { getDataClient } from "@/lib/supabase/server";
+import {
+  appendPreviewRowError,
+  flagCsvDuplicateKeys,
+  loadEmployeeIdentitySets,
+} from "@/lib/data-uniqueness";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
 import { formatEmployeeRoleDisplay, parseImportRoleToken } from "@/lib/employees/employee-role-options";
 
@@ -182,6 +188,40 @@ export async function POST(req: Request) {
       _payload,
       ...(errors.length ? { _error: errors.join(". ") } : {}),
     });
+  }
+
+  flagCsvDuplicateKeys(
+    previewRows,
+    (r) => r._payload.email?.trim().toLowerCase() || null,
+    "email"
+  );
+  flagCsvDuplicateKeys(
+    previewRows,
+    (r) => r._payload.passport_number?.trim() || null,
+    "passport number"
+  );
+  flagCsvDuplicateKeys(
+    previewRows,
+    (r) => r._payload.iqama_number?.trim() || null,
+    "Iqama number"
+  );
+
+  const supabase = await getDataClient();
+  const identity = await loadEmployeeIdentitySets(supabase);
+  for (const r of previewRows) {
+    if (r._error) continue;
+    const em = r._payload.email.trim().toLowerCase();
+    if (identity.emailsLower.has(em)) {
+      appendPreviewRowError(r, "This email is already used by an employee in the database.");
+    }
+    const pp = r._payload.passport_number.trim();
+    if (pp && identity.passports.has(pp)) {
+      appendPreviewRowError(r, "This passport number is already used by an employee in the database.");
+    }
+    const iq = r._payload.iqama_number.trim();
+    if (iq && identity.iqamas.has(iq)) {
+      appendPreviewRowError(r, "This Iqama number is already used by an employee in the database.");
+    }
   }
 
   const validCount = previewRows.filter((r) => !r._error).length;

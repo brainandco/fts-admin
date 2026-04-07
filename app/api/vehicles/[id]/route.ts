@@ -6,6 +6,7 @@ import { auditLog } from "@/lib/audit/log";
 import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
 import { hasMinimumPhotos, parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { vehiclePlateTaken } from "@/lib/data-uniqueness";
 
 const VEHICLE_KEYS = [
   "plate_number", "vehicle_type", "rent_company", "make", "model", "assignment_type", "status",
@@ -146,6 +147,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ ok: true });
+  }
+  if (updates.plate_number !== undefined) {
+    const nextPlate =
+      typeof updates.plate_number === "string" ? updates.plate_number.trim() : String(updates.plate_number ?? "").trim();
+    if (nextPlate && (await vehiclePlateTaken(supabase, nextPlate, id))) {
+      return NextResponse.json({ message: "This plate number is already registered." }, { status: 400 });
+    }
   }
   const { error } = await supabase.from("vehicles").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });

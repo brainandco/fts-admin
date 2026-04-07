@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
+import { simNumberExists } from "@/lib/data-uniqueness";
 
 export async function POST(req: Request) {
   if (!(await can("assets.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
   }
 
   const supabase = await getDataClient();
+  if (await simNumberExists(supabase, sim_number)) {
+    return NextResponse.json({ message: "This SIM number already exists." }, { status: 400 });
+  }
   const insert = {
     operator,
     service_type,

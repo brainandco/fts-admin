@@ -4,6 +4,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
 import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
+import { loadEmployeeIdentitySets } from "@/lib/data-uniqueness";
 
 const CHUNK_SIZE = 80;
 
@@ -94,8 +95,76 @@ export async function POST(req: Request) {
     });
   }
 
-  for (let start = 0; start < prepared.length; start += CHUNK_SIZE) {
-    const slice = prepared.slice(start, start + CHUNK_SIZE);
+  const identity = await loadEmployeeIdentitySets(supabase);
+
+  const emailFirstRow = new Map<string, number>();
+  const passportFirstRow = new Map<string, number>();
+  const iqamaFirstRow = new Map<string, number>();
+  for (const p of prepared) {
+    const row = p.csvRow;
+    const em = p.payload.email.trim().toLowerCase();
+    if (!emailFirstRow.has(em)) emailFirstRow.set(em, row);
+    const pp = p.payload.passport_number.trim();
+    if (pp && !passportFirstRow.has(pp)) passportFirstRow.set(pp, row);
+    const iq = p.payload.iqama_number.trim();
+    if (iq && !iqamaFirstRow.has(iq)) iqamaFirstRow.set(iq, row);
+  }
+
+  const insertable: Prepared[] = [];
+  for (const p of prepared) {
+    const row = p.csvRow;
+    const em = p.payload.email.trim().toLowerCase();
+    const pp = p.payload.passport_number.trim();
+    const iq = p.payload.iqama_number.trim();
+
+    const firstEmail = emailFirstRow.get(em);
+    if (firstEmail !== undefined && firstEmail !== row) {
+      errors.push({
+        row,
+        message: `Duplicate email in this import (same as row ${firstEmail}).`,
+      });
+      continue;
+    }
+    if (identity.emailsLower.has(em)) {
+      errors.push({ row, message: "This email is already used by an employee in the database." });
+      continue;
+    }
+
+    if (pp) {
+      const firstP = passportFirstRow.get(pp);
+      if (firstP !== undefined && firstP !== row) {
+        errors.push({
+          row,
+          message: `Duplicate passport number in this import (same as row ${firstP}).`,
+        });
+        continue;
+      }
+      if (identity.passports.has(pp)) {
+        errors.push({ row, message: "This passport number is already used by an employee in the database." });
+        continue;
+      }
+    }
+
+    if (iq) {
+      const firstQ = iqamaFirstRow.get(iq);
+      if (firstQ !== undefined && firstQ !== row) {
+        errors.push({
+          row,
+          message: `Duplicate Iqama number in this import (same as row ${firstQ}).`,
+        });
+        continue;
+      }
+      if (identity.iqamas.has(iq)) {
+        errors.push({ row, message: "This Iqama number is already used by an employee in the database." });
+        continue;
+      }
+    }
+
+    insertable.push(p);
+  }
+
+  for (let start = 0; start < insertable.length; start += CHUNK_SIZE) {
+    const slice = insertable.slice(start, start + CHUNK_SIZE);
     const batchPayloads = slice.map((p) => p.payload);
     const { data: batchData, error: batchError } = await supabase.from("employees").insert(batchPayloads).select("id");
 

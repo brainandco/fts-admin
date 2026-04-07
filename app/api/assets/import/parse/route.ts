@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { getDataClient } from "@/lib/supabase/server";
+import {
+  appendPreviewRowError,
+  fetchExistingAssetIdentifiers,
+  fetchExistingAssetImeis,
+  flagCsvDuplicateImeisInAssetImport,
+  flagCsvDuplicateKeys,
+} from "@/lib/data-uniqueness";
 
 function parseCSVLine(line: string): string[] {
   const out: string[] = [];
@@ -142,6 +150,50 @@ export async function POST(req: Request) {
       _payload,
       ...(errors.length ? { _error: errors.join(". ") } : {}),
     });
+  }
+
+  flagCsvDuplicateKeys(
+    previewRows,
+    (r) => r._payload.serial?.trim() || null,
+    "serial"
+  );
+  flagCsvDuplicateKeys(
+    previewRows,
+    (r) => r._payload.asset_id?.trim() || null,
+    "asset ID"
+  );
+  flagCsvDuplicateImeisInAssetImport(previewRows);
+
+  const supabase = await getDataClient();
+  const serials = previewRows
+    .filter((r) => !r._error && r._payload.serial?.trim())
+    .map((r) => r._payload.serial!.trim());
+  const assetIds = previewRows
+    .filter((r) => !r._error && r._payload.asset_id?.trim())
+    .map((r) => r._payload.asset_id!.trim());
+  const imeis: string[] = [];
+  for (const r of previewRows) {
+    if (r._error) continue;
+    if (r._payload.imei_1?.trim()) imeis.push(r._payload.imei_1.trim());
+    if (r._payload.imei_2?.trim()) imeis.push(r._payload.imei_2.trim());
+  }
+
+  const [exSerial, exAssetId, exImei] = await Promise.all([
+    fetchExistingAssetIdentifiers(supabase, "serial", serials),
+    fetchExistingAssetIdentifiers(supabase, "asset_id", assetIds),
+    fetchExistingAssetImeis(supabase, imeis),
+  ]);
+
+  for (const r of previewRows) {
+    if (r._error) continue;
+    const s = r._payload.serial?.trim();
+    if (s && exSerial.has(s)) appendPreviewRowError(r, `Serial "${s}" already exists in the database.`);
+    const aid = r._payload.asset_id?.trim();
+    if (aid && exAssetId.has(aid)) appendPreviewRowError(r, `Asset ID "${aid}" already exists in the database.`);
+    const i1 = r._payload.imei_1?.trim();
+    if (i1 && exImei.has(i1)) appendPreviewRowError(r, `IMEI "${i1}" already exists on another asset.`);
+    const i2 = r._payload.imei_2?.trim();
+    if (i2 && exImei.has(i2)) appendPreviewRowError(r, `IMEI "${i2}" already exists on another asset.`);
   }
 
   const validCount = previewRows.filter((r) => !r._error).length;
