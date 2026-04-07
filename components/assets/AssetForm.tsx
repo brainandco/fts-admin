@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PurchasePhotoUploader } from "@/components/assets/PurchasePhotoUploader";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
+
 type Employee = { id: string; full_name: string; region_id?: string };
 type Asset = {
   id: string;
@@ -46,7 +47,6 @@ export function AssetForm({
 }) {
   const router = useRouter();
   const initialSpecs = parseSpecs(existing?.specs);
-  const [assetId, setAssetId] = useState(existing?.asset_id ?? "");
   const [category, setCategory] = useState(existing?.category ?? "");
   const [serial, setSerial] = useState(existing?.serial ?? "");
   const [imei1, setImei1] = useState(existing?.imei_1 ?? "");
@@ -61,7 +61,36 @@ export function AssetForm({
   const [purchaseImageUrls, setPurchaseImageUrls] = useState<string[]>(() =>
     parseImageUrlArray(existing?.purchase_image_urls)
   );
+  const [previewAssetId, setPreviewAssetId] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
   const showImeiFields = /mobile/i.test(category);
+
+  useEffect(() => {
+    if (existing) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      if (!category.trim()) {
+        setPreviewAssetId("");
+        return;
+      }
+      setPreviewLoading(true);
+      try {
+        const qs = new URLSearchParams();
+        qs.set("category", category.trim());
+        qs.set("company", specCompany.trim());
+        const res = await fetch(`/api/assets/next-asset-id?${qs.toString()}`);
+        const data = (await res.json().catch(() => ({}))) as { asset_id?: string | null };
+        if (cancelled) return;
+        setPreviewAssetId(typeof data.asset_id === "string" && data.asset_id ? data.asset_id : "");
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    }, 320);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [existing, category, specCompany]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,7 +102,7 @@ export function AssetForm({
     setSaving(true);
     const url = existing ? `/api/assets/${existing.id}` : "/api/assets";
     const body: Record<string, unknown> = {
-      asset_id: assetId || null,
+      asset_id: existing ? existing.asset_id : null,
       name: specCompany.trim(),
       category,
       serial: serial || null,
@@ -106,11 +135,35 @@ export function AssetForm({
     }
   }
 
+  const assetIdShown = existing ? (existing.asset_id ?? "") : previewAssetId;
+  const assetIdPlaceholder = existing ? "—" : previewLoading ? "Calculating…" : "Select asset type (and company for Laptop / Mobile)";
+
   return (
     <form onSubmit={submit} className="max-w-lg space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
       <div>
+        <label className="mb-1 block text-sm font-medium text-zinc-700">Asset ID</label>
+        <input
+          value={assetIdShown}
+          readOnly
+          disabled
+          className="w-full cursor-not-allowed rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800"
+          placeholder={assetIdPlaceholder}
+        />
+        <p className="mt-1 text-xs text-zinc-500">
+          {existing
+            ? "Asset ID does not change after creation."
+            : "Assigned on save from the next number in sequence (per company for Laptop/Mobile, per type for other tools). Custom asset types may have no auto ID."}
+        </p>
+      </div>
+
+      <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Serial number</label>
-        <input value={serial} onChange={(e) => setSerial(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="Primary tracking identifier" />
+        <input
+          value={serial}
+          onChange={(e) => setSerial(e.target.value)}
+          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          placeholder="Primary tracking identifier"
+        />
       </div>
       {showImeiFields ? (
         <>
@@ -148,9 +201,12 @@ export function AssetForm({
           onChange={(e) => setCategory(e.target.value)}
           required
           className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-          placeholder="e.g. Laptop, GPS, Spectrum Analyzer, custom type…"
+          placeholder="e.g. Laptop, Mobile, GPS, USB Hub…"
         />
-        <p className="mt-1 text-xs text-zinc-500">Enter any type label; it is used for grouping and filters.</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          Use exact labels for auto IDs: Laptop, Mobile, GPS, Inverter, Data Cable, Charger, Dongle, Router, Power Bank, USB
+          Hub, Aramco Digital/Device, Aramco Mobile Device.
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -165,7 +221,12 @@ export function AssetForm({
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">RAM (if applicable)</label>
-          <input value={specRam} onChange={(e) => setSpecRam(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="e.g. 16GB" />
+          <input
+            value={specRam}
+            onChange={(e) => setSpecRam(e.target.value)}
+            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="e.g. 16GB"
+          />
         </div>
       </div>
       <div>
@@ -179,12 +240,13 @@ export function AssetForm({
         <p className="mt-1 text-xs text-zinc-500">Optional. Specific model or part number for this item.</p>
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">Asset ID</label>
-        <input value={assetId} onChange={(e) => setAssetId(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="Optional internal ID" />
-      </div>
-      <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Condition</label>
-        <input value={condition} onChange={(e) => setCondition(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" placeholder="e.g. Good, Fair" />
+        <input
+          value={condition}
+          onChange={(e) => setCondition(e.target.value)}
+          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          placeholder="e.g. Good, Fair"
+        />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Software connectivity</label>
@@ -196,11 +258,7 @@ export function AssetForm({
         />
         <p className="mt-1 text-xs text-zinc-500">What software or tools this asset is used with (free text).</p>
       </div>
-      <PurchasePhotoUploader
-        purpose="asset-purchase"
-        urls={purchaseImageUrls}
-        onUrlsChange={setPurchaseImageUrls}
-      />
+      <PurchasePhotoUploader purpose="asset-purchase" urls={purchaseImageUrls} onUrlsChange={setPurchaseImageUrls} />
       {existing ? (
         <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
           <span className="font-medium text-zinc-700">Current status: </span>
@@ -214,8 +272,20 @@ export function AssetForm({
       ) : null}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? "Saving…" : existing ? "Update" : "Create"}</button>
-        <button type="button" onClick={() => router.back()} className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : existing ? "Update" : "Create"}
+        </button>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+        >
+          Cancel
+        </button>
       </div>
     </form>
   );

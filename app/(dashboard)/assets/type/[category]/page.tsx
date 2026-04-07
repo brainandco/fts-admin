@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { can, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { AssetCategoryTables, type AssetCategoryRow } from "@/components/assets/AssetCategoryTables";
+import { categoryGroupsByCompany, companyFromAssetRow } from "@/lib/assets/asset-id-scheme";
 
 function StatCard({
   label,
@@ -44,9 +45,11 @@ export default async function AssetTypePage({ params }: { params: Promise<{ cate
 
   const { data: assets } = await supabase
     .from("assets")
-    .select("id, name, category, model, serial, imei_1, imei_2, status, assigned_to_employee_id, software_connectivity")
+    .select("id, asset_id, name, category, model, serial, imei_1, imei_2, status, assigned_to_employee_id, software_connectivity, specs")
     .eq("category", category)
     .order("name");
+
+  const groupByCompany = categoryGroupsByCompany(category);
 
   const employeeIds = [...new Set((assets ?? []).map((a) => a.assigned_to_employee_id).filter(Boolean) as string[])];
   const { data: employees } = employeeIds.length
@@ -57,6 +60,7 @@ export default async function AssetTypePage({ params }: { params: Promise<{ cate
   const rows = (assets ?? []).map((a) => ({
     ...a,
     assigned_name: a.assigned_to_employee_id ? employeeMap.get(a.assigned_to_employee_id) ?? "—" : "—",
+    company_label: companyFromAssetRow(a.specs, a.name),
   }));
   const availableRows = rows.filter((r) => r.status === "Available" && !r.assigned_to_employee_id);
   const pendingRows = rows.filter((r) => r.status === "Pending_Return");
@@ -73,9 +77,9 @@ export default async function AssetTypePage({ params }: { params: Promise<{ cate
           <span className="text-zinc-900">{category}</span>
         </nav>
         <h1 className="text-2xl font-semibold text-zinc-900">{category}</h1>
-        {/* <p className="mt-1 text-sm text-zinc-600">
-          {rows.length} asset(s) in this type.
-        </p> */}
+        {groupByCompany ? (
+          <p className="mt-2 text-sm text-zinc-600">Lists are grouped by <span className="font-medium text-zinc-800">company / brand</span> (from each asset&apos;s details).</p>
+        ) : null}
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -92,6 +96,7 @@ export default async function AssetTypePage({ params }: { params: Promise<{ cate
         activeRows={activeRows as AssetCategoryRow[]}
         maintenanceRows={maintenanceRows as AssetCategoryRow[]}
         damagedRows={damagedRows as AssetCategoryRow[]}
+        groupByCompany={groupByCompany}
       />
     </div>
   );

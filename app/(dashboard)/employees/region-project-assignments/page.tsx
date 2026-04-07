@@ -1,13 +1,14 @@
 import { getDataClient } from "@/lib/supabase/server";
-import { getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT } from "@/lib/rbac/permission-codes";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EmployeeRegionProjectAssignmentsClient } from "@/components/employees/EmployeeRegionProjectAssignmentsClient";
 import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 
 export default async function EmployeeRegionProjectAssignmentsPage() {
+  if (!(await can(PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT))) redirect("/employees");
   const { profile } = await getCurrentUserProfile();
-  if (!profile?.is_super_user) redirect("/employees");
 
   const supabase = await getDataClient();
   const { data: employeesRaw } = await supabase.from("employees").select("id, full_name, region_id, project_id").order("full_name");
@@ -46,7 +47,9 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
         <span className="font-medium text-zinc-800">Region &amp; project assignments</span>
       </nav>
       <header className="border-b border-zinc-200/80 pb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Super User</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
+          {profile?.is_super_user ? "Super User" : "People"}
+        </p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Region &amp; project assignments</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
           Assign primary region (where the person works) and, when applicable, a formal project. <span className="font-medium text-zinc-800">Driver/Rigger</span> and{" "}

@@ -4,6 +4,7 @@ import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 import { assetIdentifierConflictMessage } from "@/lib/data-uniqueness";
+import { computeNextAssetId, resolveAssetIdScheme } from "@/lib/assets/asset-id-scheme";
 
 /** Create one asset (Available). Assignment to employees is done on Assign to employee page. */
 export async function POST(req: Request) {
@@ -21,10 +22,23 @@ export async function POST(req: Request) {
   const supabase = await createServerSupabaseClient();
   const dataClient = await getDataClient();
 
+  const categoryTrim = String(category).trim();
+  const scheme = resolveAssetIdScheme(categoryTrim);
+  let resolvedAssetId: string | null = null;
+  if (scheme) {
+    if (scheme.kind === "company_middle" && !company) {
+      return NextResponse.json({ message: "Company / brand is required for this asset type to generate an asset ID." }, { status: 400 });
+    }
+    resolvedAssetId = await computeNextAssetId(dataClient, categoryTrim, company);
+    if (!resolvedAssetId) {
+      return NextResponse.json({ message: "Could not generate asset ID. Check category and company." }, { status: 400 });
+    }
+  }
+
   const insert: Record<string, unknown> = {
-    asset_id: body.asset_id || null,
+    asset_id: resolvedAssetId ?? (typeof body.asset_id === "string" && body.asset_id.trim() ? body.asset_id.trim() : null),
     name: String(name).trim(),
-    category: String(category).trim(),
+    category: categoryTrim,
     serial: body.serial?.trim() || null,
     imei_1: typeof body.imei_1 === "string" ? body.imei_1.trim() || null : null,
     imei_2: typeof body.imei_2 === "string" ? body.imei_2.trim() || null : null,

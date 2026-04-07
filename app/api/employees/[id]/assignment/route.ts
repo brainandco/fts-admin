@@ -1,18 +1,21 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { requireSuper } from "@/lib/rbac/permissions";
+import { can } from "@/lib/rbac/permissions";
+import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT } from "@/lib/rbac/permission-codes";
 import { auditLog } from "@/lib/audit/log";
 import { employeeMayHaveFormalProjectOnRecord } from "@/lib/employees/employee-record-project-roles";
 
 /**
- * PATCH — Super User only. Sets region and formal project for an employee.
+ * PATCH — requires `employees.assign_region_project` (or Super User). Sets region and formal project for an employee.
  * Driver/Rigger and QC: region only (project_id cleared).
  * All other roles may have project_id; project requires a region. Region without project is allowed (e.g. DT for team matching).
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const superResult = await requireSuper();
-  if (!superResult.allowed) {
-    return NextResponse.json({ message: "Only Super User can assign region and project." }, { status: 403 });
+  if (!(await can(PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT))) {
+    return NextResponse.json(
+      { message: "You do not have permission to assign region and project for employees." },
+      { status: 403 }
+    );
   }
 
   const { id } = await params;

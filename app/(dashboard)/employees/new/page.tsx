@@ -1,4 +1,5 @@
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT } from "@/lib/rbac/permission-codes";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EmployeeForm } from "@/components/employees/EmployeeForm";
@@ -6,15 +7,14 @@ import { EmployeeForm } from "@/components/employees/EmployeeForm";
 export default async function NewEmployeePage() {
   if (!(await can("users.create"))) redirect("/employees");
 
-  const { profile } = await getCurrentUserProfile();
-  const isSuper = profile?.is_super_user ?? false;
+  const canAssignRegionProject = await can(PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT);
 
   return (
     <div>
       <h1 className="mb-2 text-2xl font-semibold text-zinc-900">New employee</h1>
       <p className="mb-6 text-sm text-zinc-600">
         Create the profile first. Region and project are assigned afterward
-        {isSuper ? (
+        {canAssignRegionProject ? (
           <>
             {" "}
             on{" "}
@@ -23,7 +23,7 @@ export default async function NewEmployeePage() {
             </Link>
           </>
         ) : (
-          <> (Super User)</>
+          <> (requires the &quot;Assign employee region &amp; project&quot; permission)</>
         )}
         .
       </p>
