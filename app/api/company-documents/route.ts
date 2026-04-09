@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
+import { uploadResourcePhotosBuffer } from "@/lib/supabase/upload-resource-photos";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -51,10 +52,7 @@ export async function POST(req: Request) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   const contentType = file.type || "application/octet-stream";
-  const { error: upErr } = await admin.storage.from("resource-photos").upload(path, buf, {
-    contentType,
-    upsert: false,
-  });
+  const { error: upErr } = await uploadResourcePhotosBuffer(admin, path, buf, contentType, { upsert: false });
   if (upErr) return NextResponse.json({ message: upErr.message }, { status: 400 });
 
   const {

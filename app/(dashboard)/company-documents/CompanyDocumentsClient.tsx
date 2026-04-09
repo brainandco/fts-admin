@@ -85,8 +85,8 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
       <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-zinc-900">Upload document</h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Any file type. For leave performas, upload a PDF with AcroForm text fields. Mark it as the template below; field
-          names are listed in the help box.
+          PDFs and other files upload to the same storage bucket as resource photos. For leave performas, use a PDF with
+          real AcroForm fields (not only visible labels). Mark the template below; exact field names are in the help box.
         </p>
         <form onSubmit={onSubmit} className="mt-4 max-w-xl space-y-4">
           <div>
@@ -133,7 +133,14 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
       <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-6">
         <h3 className="text-sm font-semibold text-amber-950">PDF AcroForm field names (text fields)</h3>
         <p className="mt-2 text-xs text-amber-950/90">
-          Create matching field names in your PDF. The app tries each alias. Requestor:{" "}
+          <strong>Labels on the page (English/Arabic) are not enough.</strong> Auto-fill uses each field&apos;s internal{" "}
+          <strong>name</strong> in the PDF. In Adobe Acrobat: Tools → Prepare Form → double-click a field → set{" "}
+          <strong>Name</strong> to one of the values below (or use the <code className="rounded bg-white/80 px-1">fts_*</code>{" "}
+          names). If a name does not match, that box stays empty and the employee can still complete it by hand when they
+          print or sign. Checkboxes and signature lines are never filled by the app.
+        </p>
+        <p className="mt-2 text-xs text-amber-950/90">
+          The app tries each alias. Requestor:{" "}
           <code className="rounded bg-white/80 px-1">fts_requestor_full_name</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_requestor_date</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_requestor_iqama</code>,{" "}

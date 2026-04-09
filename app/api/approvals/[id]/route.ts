@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
+import { uploadResourcePhotosBuffer } from "@/lib/supabase/upload-resource-photos";
 import { fillLeavePerformaPdf } from "@/lib/leave/fill-leave-performa-pdf";
 import { buildPerformaFillFromPayload } from "@/lib/leave/performa-from-payload";
 
@@ -96,10 +97,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
       const admin = createServerSupabaseAdmin();
       const storagePath = `leave-performa/filled/${id}.pdf`;
-      const { error: upErr } = await admin.storage.from("resource-photos").upload(storagePath, Buffer.from(pdfBytes), {
-        contentType: "application/pdf",
-        upsert: true,
-      });
+      const { error: upErr } = await uploadResourcePhotosBuffer(
+        admin,
+        storagePath,
+        Buffer.from(pdfBytes),
+        "application/pdf",
+        { upsert: true }
+      );
       if (upErr) return NextResponse.json({ message: upErr.message }, { status: 400 });
       const {
         data: { publicUrl },
