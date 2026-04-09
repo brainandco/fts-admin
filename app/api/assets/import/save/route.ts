@@ -7,6 +7,7 @@ import {
   fetchExistingAssetImeis,
   isCsvDuplicateSignificantValue,
 } from "@/lib/data-uniqueness";
+import { formatCompanyDisplayName } from "@/lib/assets/company-display";
 
 /** Rows per INSERT; keeps payloads small and avoids long single transactions. */
 const CHUNK_SIZE = 120;
@@ -25,9 +26,11 @@ function mapRowToInsert(r: unknown): { ok: true; insert: Record<string, unknown>
   const condition = typeof row.condition === "string" ? row.condition.trim() || null : row.condition ?? null;
   const software_connectivity =
     typeof row.software_connectivity === "string" ? row.software_connectivity.trim() || null : row.software_connectivity ?? null;
-  const specs = row.specs && typeof row.specs === "object" && !Array.isArray(row.specs) ? (row.specs as Record<string, unknown>) : {};
-  const company =
+  const specs = row.specs && typeof row.specs === "object" && !Array.isArray(row.specs) ? { ...(row.specs as Record<string, unknown>) } : {};
+  const companyRaw =
     typeof specs.company === "string" ? specs.company.trim() : typeof row.name === "string" ? String(row.name).trim() : "";
+  const company = companyRaw ? formatCompanyDisplayName(companyRaw) : "";
+  if (company) specs.company = company;
   const name = company;
 
   if (!categoryRaw || !name) {

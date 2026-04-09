@@ -5,6 +5,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { companyDisplayFromAsset } from "@/lib/assets/company-display";
 
 export type AssetIdScheme =
   | { kind: "company_middle"; middle: "ASTL" | "ASTM"; start: number }
@@ -204,10 +205,7 @@ export function categoryGroupsByCompany(category: string): boolean {
   return k === "laptop" || k === "laptops" || k === "mobile" || k === "mobiles";
 }
 
+/** Formatted company / brand for UI and grouping (consistent casing). */
 export function companyFromAssetRow(specs: unknown, name: string | null): string {
-  if (specs && typeof specs === "object" && !Array.isArray(specs)) {
-    const c = (specs as Record<string, unknown>).company;
-    if (typeof c === "string" && c.trim()) return c.trim();
-  }
-  return (name ?? "").trim() || "—";
+  return companyDisplayFromAsset(specs, name);
 }

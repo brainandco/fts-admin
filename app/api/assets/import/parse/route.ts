@@ -9,6 +9,7 @@ import {
   flagCsvDuplicateKeys,
   isCsvDuplicateSignificantValue,
 } from "@/lib/data-uniqueness";
+import { formatCompanyDisplayName } from "@/lib/assets/company-display";
 
 function parseCSVLine(line: string): string[] {
   const out: string[] = [];
@@ -122,7 +123,7 @@ export async function POST(req: Request) {
     if (!categoryTrimmed) errors.push("Category required");
 
     const specs: Record<string, unknown> = {};
-    if (company.trim()) specs.company = company.trim();
+    if (company.trim()) specs.company = formatCompanyDisplayName(company.trim());
     if (ram.trim()) specs.ram = ram.trim();
 
     const _payload = {
@@ -146,7 +147,7 @@ export async function POST(req: Request) {
       asset_id: asset_id || "—",
       condition: condition || "—",
       software_connectivity: software_connectivity || "—",
-      company: company || "—",
+      company: (company.trim() ? formatCompanyDisplayName(company.trim()) : "") || "—",
       ram: ram || "—",
       _payload,
       ...(errors.length ? { _error: errors.join(". ") } : {}),

@@ -5,6 +5,7 @@ import { auditLog } from "@/lib/audit/log";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 import { assetIdentifierConflictMessage } from "@/lib/data-uniqueness";
 import { computeNextAssetId, resolveAssetIdScheme } from "@/lib/assets/asset-id-scheme";
+import { formatCompanyDisplayName } from "@/lib/assets/company-display";
 
 /** Create one asset (Available). Assignment to employees is done on Assign to employee page. */
 export async function POST(req: Request) {
@@ -12,11 +13,12 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { category } = body;
   const specsRaw = body.specs && typeof body.specs === "object" && !Array.isArray(body.specs) ? (body.specs as Record<string, unknown>) : {};
-  const company =
+  const companyRaw =
     typeof specsRaw.company === "string" ? specsRaw.company.trim() : typeof body.name === "string" ? body.name.trim() : "";
-  if (!category || !company) {
+  if (!category || !companyRaw) {
     return NextResponse.json({ message: "category and company (company / brand) required" }, { status: 400 });
   }
+  const company = formatCompanyDisplayName(companyRaw);
   const name = company;
   const purchaseUrls = parseImageUrlArray(body.purchase_image_urls);
   const supabase = await createServerSupabaseClient();
@@ -35,6 +37,9 @@ export async function POST(req: Request) {
     }
   }
 
+  const baseSpecs = body.specs && typeof body.specs === "object" && !Array.isArray(body.specs) ? { ...(body.specs as Record<string, unknown>) } : {};
+  baseSpecs.company = company;
+
   const insert: Record<string, unknown> = {
     asset_id: resolvedAssetId ?? (typeof body.asset_id === "string" && body.asset_id.trim() ? body.asset_id.trim() : null),
     name: String(name).trim(),
@@ -46,7 +51,7 @@ export async function POST(req: Request) {
     condition: body.condition || null,
     software_connectivity: typeof body.software_connectivity === "string" ? body.software_connectivity.trim() || null : null,
     status: "Available",
-    specs: body.specs && typeof body.specs === "object" ? body.specs : {},
+    specs: baseSpecs,
     purchase_image_urls: purchaseUrls,
   };
 

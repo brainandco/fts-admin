@@ -1,5 +1,5 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { getDataClient } from "@/lib/supabase/server";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ApprovalActions } from "@/components/approvals/ApprovalActions";
 import { EntityHistory } from "@/components/audit/EntityHistory";
@@ -8,13 +8,16 @@ import { leaveRequestTracking } from "@/lib/employee-requests/leave-metrics";
 
 export default async function ApprovalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createServerSupabaseClient();
-  const { data: approval } = await supabase.from("approvals").select("*").eq("id", id).single();
+  const canView = await can("approvals.view");
+  const canApprove = await can("approvals.approve");
+  const canReject = await can("approvals.reject");
+  if (!canView && !canApprove && !canReject) redirect("/dashboard");
+
+  const supabase = await getDataClient();
+  const { data: approval } = await supabase.from("approvals").select("*").eq("id", id).maybeSingle();
   if (!approval) notFound();
   const { profile } = await getCurrentUserProfile();
   const isSuper = profile?.is_super_user === true;
-  const canApprove = await can("approvals.approve");
-  const canReject = await can("approvals.reject");
   const isAdminNonSuper = !isSuper && (canApprove || canReject);
 
   const allowActions =
@@ -22,7 +25,21 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
       ? (approval.status === "Submitted" && isAdminNonSuper) || (approval.status === "Admin_Approved" && isSuper)
       : (canApprove || canReject);
 
-  const { data: requester } = await supabase.from("users_profile").select("full_name, email").eq("id", approval.requester_id).single();
+  const { data: requester } = await supabase
+    .from("users_profile")
+    .select("full_name, email")
+    .eq("id", approval.requester_id)
+    .maybeSingle();
+  const assetPayload =
+    approval.approval_type === "asset_request"
+      ? ((approval.payload_json as {
+          asset_name?: string;
+          category?: string;
+          quantity?: number;
+          reason?: string;
+          priority?: string;
+        }) ?? {})
+      : null;
   const leavePayload =
     approval.approval_type === "leave_request"
       ? ((approval.payload_json as { from_date?: string; to_date?: string; reason?: string }) ?? {})
@@ -84,11 +101,56 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
               ) : null}
             </>
           )}
+          {approval.approval_type === "asset_request" && assetPayload && (
+            <>
+              {assetPayload.asset_name ? (
+                <div>
+                  <dt className="text-zinc-500">Asset</dt>
+                  <dd>{assetPayload.asset_name}</dd>
+                </div>
+              ) : null}
+              {assetPayload.category ? (
+                <div>
+                  <dt className="text-zinc-500">Category</dt>
+                  <dd>{assetPayload.category}</dd>
+                </div>
+              ) : null}
+              {assetPayload.quantity != null ? (
+                <div>
+                  <dt className="text-zinc-500">Quantity</dt>
+                  <dd>{assetPayload.quantity}</dd>
+                </div>
+              ) : null}
+              {assetPayload.priority ? (
+                <div>
+                  <dt className="text-zinc-500">Priority</dt>
+                  <dd>{assetPayload.priority}</dd>
+                </div>
+              ) : null}
+              {assetPayload.reason ? (
+                <div>
+                  <dt className="text-zinc-500">Reason</dt>
+                  <dd className="whitespace-pre-wrap">{assetPayload.reason}</dd>
+                </div>
+              ) : null}
+            </>
+          )}
+          {approval.approval_type !== "leave_request" &&
+            approval.approval_type !== "asset_request" &&
+            approval.payload_json &&
+            typeof approval.payload_json === "object" &&
+            Object.keys(approval.payload_json as object).length > 0 && (
+              <div>
+                <dt className="text-zinc-500">Details</dt>
+                <dd>
+                  <pre className="mt-1 max-h-64 overflow-auto rounded bg-zinc-100 p-3 text-xs">
+                    {JSON.stringify(approval.payload_json, null, 2)}
+                  </pre>
+                </dd>
+              </div>
+            )}
           {approval.pm_comment && <div><dt className="text-zinc-500">GM comment</dt><dd>{approval.pm_comment}</dd></div>}
           {approval.admin_comment && <div><dt className="text-zinc-500">Admin comment</dt><dd>{approval.admin_comment}</dd></div>}
-          {/* {approval.payload_json && Object.keys(approval.payload_json).length > 0 && (
-            <div><dt className="text-zinc-500">Payload</dt><dd><pre className="mt-1 overflow-auto rounded bg-zinc-100 p-2 text-xs">{JSON.stringify(approval.payload_json, null, 2)}</pre></dd></div>
-          )} */}
         </dl>
       </div>
       {approval.approval_type === "leave_request" && (

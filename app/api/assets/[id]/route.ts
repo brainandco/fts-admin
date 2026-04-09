@@ -7,6 +7,8 @@ import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-r
 import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 import { assetIdentifierConflictMessage } from "@/lib/data-uniqueness";
+import { formatCompanyDisplayName } from "@/lib/assets/company-display";
+import { categoryGroupsByCompany } from "@/lib/assets/asset-id-scheme";
 
 /** PM assigns assets to employees; admin updates details only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -73,6 +75,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       updates.assigned_at = null;
       updates.status = "Available";
     }
+  }
+
+  const oldRow = old as { category?: string; specs?: unknown };
+  const mergedCategory =
+    updates.category !== undefined ? String(updates.category).trim() : String(oldRow.category ?? "").trim();
+  const usesCompanyName = categoryGroupsByCompany(mergedCategory);
+
+  if (updates.specs !== undefined && updates.specs && typeof updates.specs === "object" && !Array.isArray(updates.specs)) {
+    const nextSpecs = { ...(updates.specs as Record<string, unknown>) };
+    if (typeof nextSpecs.company === "string" && nextSpecs.company.trim()) {
+      nextSpecs.company = formatCompanyDisplayName(nextSpecs.company.trim());
+    }
+    updates.specs = nextSpecs;
+    if (usesCompanyName && typeof nextSpecs.company === "string" && nextSpecs.company.trim()) {
+      updates.name = nextSpecs.company.trim();
+    }
+  } else if (usesCompanyName && updates.name !== undefined && typeof updates.name === "string") {
+    const formatted = formatCompanyDisplayName(updates.name.trim());
+    updates.name = formatted;
+    const prev =
+      oldRow.specs && typeof oldRow.specs === "object" && !Array.isArray(oldRow.specs)
+        ? { ...(oldRow.specs as Record<string, unknown>) }
+        : {};
+    prev.company = formatted;
+    updates.specs = prev;
   }
 
   const touchesId =

@@ -5,7 +5,10 @@ import { DataTable } from "@/components/ui/DataTable";
 import { leaveRequestTracking } from "@/lib/employee-requests/leave-metrics";
 
 export default async function ApprovalsPage() {
-  if (!(await can("approvals.view"))) redirect("/dashboard");
+  const canView = await can("approvals.view");
+  const canApprove = await can("approvals.approve");
+  const canReject = await can("approvals.reject");
+  if (!canView && !canApprove && !canReject) redirect("/dashboard");
   const supabase = await getDataClient();
   const { data: approvals } = await supabase
     .from("approvals")

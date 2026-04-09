@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PurchasePhotoUploader } from "@/components/assets/PurchasePhotoUploader";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { formatCompanyDisplayName } from "@/lib/assets/company-display";
 
 type Employee = { id: string; full_name: string; region_id?: string };
 type Asset = {
@@ -77,7 +78,7 @@ export function AssetForm({
       try {
         const qs = new URLSearchParams();
         qs.set("category", category.trim());
-        qs.set("company", specCompany.trim());
+        qs.set("company", formatCompanyDisplayName(specCompany.trim()) || specCompany.trim());
         const res = await fetch(`/api/assets/next-asset-id?${qs.toString()}`);
         const data = (await res.json().catch(() => ({}))) as { asset_id?: string | null };
         if (cancelled) return;
@@ -99,17 +100,18 @@ export function AssetForm({
       setError("Company / brand is required.");
       return;
     }
+    const companyNorm = formatCompanyDisplayName(specCompany.trim());
     setSaving(true);
     const url = existing ? `/api/assets/${existing.id}` : "/api/assets";
     const body: Record<string, unknown> = {
       asset_id: existing ? existing.asset_id : null,
-      name: specCompany.trim(),
+      name: companyNorm,
       category,
       serial: serial || null,
       imei_1: imei1.trim() || null,
       imei_2: imei2.trim() || null,
       model: model.trim() || null,
-      specs: buildSpecs(specCompany, specRam),
+      specs: buildSpecs(companyNorm, specRam),
       condition: condition || null,
       software_connectivity: softwareConnectivity.trim() || null,
       purchase_image_urls: purchaseImageUrls,

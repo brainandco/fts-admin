@@ -160,6 +160,7 @@ export default async function EmployeeRequestsPage() {
         <DataTable
           keyField="id"
           data={transferTableRows}
+          hrefPrefix="/employee-requests/transfers/"
           filterKeys={["request_type", "status"]}
           searchPlaceholder="Search transfers…"
           columns={[

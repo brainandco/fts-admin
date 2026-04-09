@@ -1,6 +1,7 @@
 "use client";
 
 import { DataTable } from "@/components/ui/DataTable";
+import { companyGroupingKey, companySectionAnchorId } from "@/lib/assets/company-display";
 
 export type AssetCategoryRow = Record<string, unknown> & { id: string };
 
@@ -10,14 +11,22 @@ const bulk = {
   confirmTitle: "Delete selected assets",
 } as const;
 
-function groupRowsByCompanyLabel(rows: AssetCategoryRow[]): Map<string, AssetCategoryRow[]> {
-  const m = new Map<string, AssetCategoryRow[]>();
+/** Group by case-insensitive company key; heading uses formatted label from first row in bucket. */
+function groupRowsByCompanyLabel(rows: AssetCategoryRow[]): Map<string, { display: string; rows: AssetCategoryRow[] }> {
+  const m = new Map<string, { display: string; rows: AssetCategoryRow[] }>();
   for (const r of rows) {
     const label = String(r.company_label ?? "—");
-    if (!m.has(label)) m.set(label, []);
-    m.get(label)!.push(r);
+    const key = companyGroupingKey(label);
+    const cur = m.get(key);
+    if (!cur) {
+      m.set(key, { display: label, rows: [r] });
+    } else {
+      cur.rows.push(r);
+    }
   }
-  return new Map([...m.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: "base" })));
+  return new Map(
+    [...m.entries()].sort((a, b) => a[1].display.localeCompare(b[1].display, undefined, { sensitivity: "base" }))
+  );
 }
 
 export function AssetCategoryTables({
@@ -85,9 +94,9 @@ export function AssetCategoryTables({
     const byCompany = groupRowsByCompanyLabel(rows);
     return (
       <div className="space-y-8">
-        {[...byCompany.entries()].map(([company, groupRows]) => (
-          <div key={company}>
-            <h3 className="mb-2 text-sm font-semibold text-zinc-800">{company}</h3>
+        {[...byCompany.entries()].map(([groupKey, { display, rows: groupRows }]) => (
+          <div key={groupKey} id={companySectionAnchorId(groupKey)} className="scroll-mt-24">
+            <h3 className="mb-2 text-sm font-semibold text-zinc-800">{display}</h3>
             <DataTable
               keyField="id"
               data={groupRows}
@@ -124,9 +133,9 @@ export function AssetCategoryTables({
     const byCompany = groupRowsByCompanyLabel(rows);
     return (
       <div className="space-y-8">
-        {[...byCompany.entries()].map(([company, groupRows]) => (
-          <div key={company}>
-            <h3 className="mb-2 text-sm font-semibold text-zinc-800">{company}</h3>
+        {[...byCompany.entries()].map(([groupKey, { display, rows: groupRows }]) => (
+          <div key={groupKey} id={companySectionAnchorId(groupKey)} className="scroll-mt-24">
+            <h3 className="mb-2 text-sm font-semibold text-zinc-800">{display}</h3>
             <DataTable
               keyField="id"
               data={groupRows}
