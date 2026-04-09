@@ -108,31 +108,59 @@ export default async function EmployeeRequestsPage() {
     comment_preview: r.employee_comment.length > 60 ? `${r.employee_comment.slice(0, 60)}…` : r.employee_comment,
   }));
 
+  const leaveCount = leaveRows.length;
+  const transferCount = transferTableRows.length;
+  const returnCount = returnTableRows.length;
+
   return (
-    <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">Employee requests</h1>
-        <p className="mt-2 max-w-3xl text-sm text-zinc-600">
-          Super Users and Admins with approval access can monitor leave applications, internal transfer requests, and
-          asset return submissions. Open a leave row for remarks and workflow actions. Use{" "}
-          <Link href="/assets/returns" className="font-medium text-indigo-600 hover:text-indigo-800">
-            Asset returns
-          </Link>{" "}
-          to process pending returns.
-        </p>
-        <p className="mt-2 text-sm text-zinc-500">
-          <span className="font-medium text-zinc-700">Leave — days left</span> counts calendar days remaining in the
-          approved window when today falls between the start and end date; otherwise see the tracking column.
-        </p>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+        <div className="border-b border-zinc-100 bg-gradient-to-r from-violet-50/80 via-white to-zinc-50 px-5 py-6 sm:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Employee requests</h1>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+                Monitor leave applications, internal transfers, and asset return submissions. Open a leave row for remarks
+                and workflow actions. Use{" "}
+                <Link href="/assets/returns" className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-2 hover:text-indigo-800">
+                  Asset returns
+                </Link>{" "}
+                to process pending returns.
+              </p>
+              <p className="mt-2 text-sm text-zinc-500">
+                <span className="font-medium text-zinc-700">Leave — days left</span> counts calendar days remaining in the
+                approved window when today falls between the start and end date; otherwise see the tracking column.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
+                <p className="text-lg font-semibold tabular-nums text-zinc-900">{leaveCount}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Leave</p>
+              </div>
+              <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
+                <p className="text-lg font-semibold tabular-nums text-zinc-900">{transferCount}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Transfers</p>
+              </div>
+              <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
+                <p className="text-lg font-semibold tabular-nums text-zinc-900">{returnCount}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Returns</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <h2 className="text-lg font-semibold text-zinc-900">Leave requests</h2>
+      <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-900">Leave requests</h2>
+            <p className="mt-0.5 text-sm text-zinc-600">Opens the full approval record for remarks and decisions.</p>
+          </div>
           <Link href="/approvals" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
             All approval types →
           </Link>
         </div>
+        <div className="p-4 sm:p-6">
         <DataTable
           keyField="id"
           data={leaveRows}
@@ -150,13 +178,17 @@ export default async function EmployeeRequestsPage() {
             { key: "created_at", label: "Submitted", format: "datetime" },
           ]}
         />
+        </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-zinc-900">Transfer requests</h2>
-        <p className="text-sm text-zinc-600">
-          Vehicle swap, replacement, drive swap, and asset transfer requests between employees or teams.
-        </p>
+      <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+        <div className="border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
+          <h2 className="text-base font-semibold text-zinc-900">Transfer requests</h2>
+          <p className="mt-0.5 text-sm text-zinc-600">
+            Vehicle swap, replacement, drive swap, and asset transfer requests between employees or teams.
+          </p>
+        </div>
+        <div className="p-4 sm:p-6">
         <DataTable
           keyField="id"
           data={transferTableRows}
@@ -173,15 +205,20 @@ export default async function EmployeeRequestsPage() {
             { key: "created_at", label: "Created", format: "datetime" },
           ]}
         />
+        </div>
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <h2 className="text-lg font-semibold text-zinc-900">Asset return requests</h2>
+      <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-900">Asset return requests</h2>
+            <p className="mt-0.5 text-sm text-zinc-600">Summary of return submissions from the employee portal.</p>
+          </div>
           <Link href="/assets/returns" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
             Open return queue →
           </Link>
         </div>
+        <div className="p-4 sm:p-6">
         <DataTable
           keyField="id"
           data={returnTableRows}
@@ -197,6 +234,7 @@ export default async function EmployeeRequestsPage() {
             { key: "processed_at", label: "Processed", format: "datetime" },
           ]}
         />
+        </div>
       </section>
     </div>
   );

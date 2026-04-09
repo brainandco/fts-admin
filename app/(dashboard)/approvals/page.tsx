@@ -17,12 +17,37 @@ export default async function ApprovalsPage() {
 
   const userIds = [...new Set((approvals ?? []).map((a) => a.requester_id))];
   const { data: profiles } = await supabase.from("users_profile").select("id, full_name, email").in("id", userIds);
-  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p.full_name || p.email]));
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const rawEmails = [...new Set((profiles ?? []).map((p) => (p.email ?? "").trim()).filter(Boolean))];
+  const { data: employeesMatch } =
+    rawEmails.length > 0
+      ? await supabase.from("employees").select("email, full_name").in("email", rawEmails)
+      : { data: [] as { email: string; full_name: string | null }[] };
+  const emailToEmployeeName = new Map<string, string>();
+  for (const row of employeesMatch ?? []) {
+    const em = (row.email ?? "").trim().toLowerCase();
+    const fn = (row.full_name ?? "").trim();
+    if (em && fn) emailToEmployeeName.set(em, fn);
+  }
 
   const rowsRaw = (approvals ?? []).map((a) => {
-    const payload = (a.payload_json as { from_date?: string; to_date?: string; requester_name?: string | null }) ?? {};
-    const nameFromPayload = payload.requester_name?.trim();
-    const requester_name = nameFromPayload || profileMap.get(a.requester_id) || a.requester_id;
+    const payload =
+      (a.payload_json as {
+        from_date?: string;
+        to_date?: string;
+        requester_name?: string | null;
+        requester_display_name?: string | null;
+      }) ?? {};
+    const nameFromPayload = (payload.requester_display_name ?? payload.requester_name)?.trim();
+    const prof = profileById.get(a.requester_id);
+    const viaEmployee = prof?.email ? emailToEmployeeName.get(prof.email.trim().toLowerCase()) : undefined;
+    const requester_name =
+      nameFromPayload ||
+      (prof?.full_name ?? "").trim() ||
+      viaEmployee ||
+      prof?.email ||
+      a.requester_id;
 
     let leave_from = "";
     let leave_to = "";
@@ -69,29 +94,48 @@ export default async function ApprovalsPage() {
     ? [...baseColumns, ...leaveColumns, { key: "created_at", label: "Created", format: "datetime" as const }]
     : [...baseColumns, { key: "created_at", label: "Created", format: "datetime" as const }];
 
+  const total = rowsRaw.length;
+  const pendingSubmitted = rowsRaw.filter((r) => r.status === "Submitted").length;
+
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">Approvals</h1>
-          <p className="mt-1 max-w-2xl text-sm text-zinc-600">
-            All workflow requests (leave, assets, vehicles, maintenance). Super Users and Admins see every row,
-            including submitted leave. For a focused view with transfers and returns, open{" "}
-            <a href="/employee-requests" className="font-medium text-indigo-600 hover:text-indigo-800">
-              Employee requests
-            </a>
-            .
-          </p>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+        <div className="border-b border-zinc-100 bg-gradient-to-r from-indigo-50/80 via-white to-zinc-50 px-5 py-6 sm:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Approvals</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
+                Workflow requests across leave, assets, vehicles, and maintenance. Super Users and Admins see every row.
+                For transfers and returns, use{" "}
+                <a href="/employee-requests" className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-2 hover:text-indigo-800">
+                  Employee requests
+                </a>
+                .
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-3">
+              <div className="rounded-xl border border-zinc-200/80 bg-white/80 px-4 py-2.5 text-center shadow-sm">
+                <p className="text-2xl font-semibold tabular-nums text-zinc-900">{total}</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total</p>
+              </div>
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 px-4 py-2.5 text-center shadow-sm">
+                <p className="text-2xl font-semibold tabular-nums text-amber-900">{pendingSubmitted}</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-amber-800/80">Submitted</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 sm:p-6">
+          <DataTable
+            keyField="id"
+            data={rowsRaw}
+            hrefPrefix="/approvals/"
+            filterKeys={["approval_type", "status"]}
+            searchPlaceholder="Search by type, status, requester…"
+            columns={columns}
+          />
         </div>
       </div>
-      <DataTable
-        keyField="id"
-        data={rowsRaw}
-        hrefPrefix="/approvals/"
-        filterKeys={["approval_type", "status"]}
-        searchPlaceholder="Search approvals…"
-        columns={columns}
-      />
     </div>
   );
 }

@@ -63,6 +63,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .from("company_documents")
         .select("file_url")
         .eq("is_leave_performa_template", true)
+        .order("created_at", { ascending: true })
+        .limit(1)
         .maybeSingle();
       if (!template?.file_url) {
         return NextResponse.json(

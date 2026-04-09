@@ -77,6 +77,13 @@ function statusPillClass(status: string): string {
   const s = String(status).toLowerCase();
   if (s === "available") return "bg-emerald-100 text-emerald-800 border-emerald-200";
   if (s === "assigned") return "bg-amber-100 text-amber-800 border-amber-200";
+  if (s === "completed") return "bg-emerald-50 text-emerald-800 border-emerald-200";
+  if (s.includes("rejected")) return "bg-red-50 text-red-800 border-red-200";
+  if (s === "submitted") return "bg-indigo-50 text-indigo-800 border-indigo-200";
+  if (s.includes("awaiting_signed_performa")) return "bg-amber-50 text-amber-900 border-amber-200";
+  if (s.includes("performa_submitted")) return "bg-violet-50 text-violet-800 border-violet-200";
+  if (s.includes("admin_approved")) return "bg-sky-50 text-sky-800 border-sky-200";
+  if (s.includes("pm_approved")) return "bg-cyan-50 text-cyan-800 border-cyan-200";
   return "bg-zinc-100 text-zinc-700 border-zinc-200";
 }
 
@@ -300,7 +307,7 @@ export function DataTable<T extends Record<string, unknown>>({
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
             placeholder={searchPlaceholder}
-            className="w-64 rounded border border-zinc-300 px-3 py-2 text-sm"
+            className="w-full min-w-[12rem] max-w-sm rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-72"
             aria-label="Search table"
           />
         )}
@@ -312,7 +319,7 @@ export function DataTable<T extends Record<string, unknown>>({
             <select
               value={filterValues[key as string] ?? "__all__"}
               onChange={(e) => { setFilterValues((prev) => ({ ...prev, [key as string]: e.target.value })); setPage(1); }}
-              className="rounded border border-zinc-300 px-2 py-1.5 text-sm"
+              className="rounded-lg border border-zinc-300 bg-white px-2.5 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             >
               {(filterOptions[key as string] ?? []).map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -359,10 +366,10 @@ export function DataTable<T extends Record<string, unknown>>({
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-zinc-200/90 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50">
+            <tr className="border-b border-zinc-200 bg-gradient-to-b from-zinc-50 to-zinc-50/80">
               {multiSelect && (
                 <th className="w-10 px-2 py-3">
                   <input
