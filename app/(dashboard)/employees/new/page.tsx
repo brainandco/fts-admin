@@ -1,11 +1,11 @@
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
-import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT } from "@/lib/rbac/permission-codes";
+import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT, PERMISSION_EMPLOYEE_MANAGE } from "@/lib/rbac/permission-codes";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EmployeeForm } from "@/components/employees/EmployeeForm";
 
 export default async function NewEmployeePage() {
-  if (!(await can("users.create"))) redirect("/employees");
+  if (!(await can("users.create")) && !(await can(PERMISSION_EMPLOYEE_MANAGE))) redirect("/employees");
 
   const canAssignRegionProject = await can(PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT);
 

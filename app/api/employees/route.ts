@@ -7,7 +7,9 @@ import { randomPassword, sendEmployeeCredentials } from "@/lib/email/send-employ
 import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
 import { employeeIdentityConflict } from "@/lib/data-uniqueness";
 export async function POST(req: Request) {
-  if (!(await can("users.create"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  if (!(await can("users.create")) && !(await can("employees.manage"))) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
 
   const input = await req.json() as Record<string, unknown>;
   const full_name = typeof input.full_name === "string" ? input.full_name.trim() : "";

@@ -44,7 +44,9 @@ function parseCSV(text: string): { headers: string[]; rows: string[][] } {
 }
 
 export async function POST(req: Request) {
-  if (!(await can("users.create"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  if (!(await can("users.create")) && !(await can("employees.manage"))) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
 
   let text: string;
   try {

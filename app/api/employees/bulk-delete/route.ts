@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireSuper } from "@/lib/rbac/permissions";
+import { can } from "@/lib/rbac/permissions";
 import { deleteEmployeeById } from "@/lib/employees/delete-employee-internal";
 
 const MAX_IDS = 200;
 
 export async function POST(req: Request) {
-  const superResult = await requireSuper();
-  if (!superResult.allowed) {
-    return NextResponse.json({ message: "Only Super User can delete employees." }, { status: 403 });
+  if (!(await can("employees.manage"))) {
+    return NextResponse.json({ message: "You do not have permission to delete employees." }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));

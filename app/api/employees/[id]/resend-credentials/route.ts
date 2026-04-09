@@ -13,7 +13,9 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await can("users.edit"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  if (!(await can("users.edit")) && !(await can("employees.manage"))) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
 
   const { id: employeeId } = await params;
   const supabase = await getDataClient();

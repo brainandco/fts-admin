@@ -1,6 +1,6 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { requireSuper } from "@/lib/rbac/permissions";
+import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 
 const PM = "Project Manager";
@@ -10,9 +10,8 @@ const PM = "Project Manager";
  * Body: { region_ids: string[] }
  */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const superResult = await requireSuper();
-  if (!superResult.allowed) {
-    return NextResponse.json({ message: "Only Super User can assign extra PM regions." }, { status: 403 });
+  if (!(await can("employees.manage"))) {
+    return NextResponse.json({ message: "You do not have permission to assign extra PM regions." }, { status: 403 });
   }
 
   const { id: employeeId } = await params;

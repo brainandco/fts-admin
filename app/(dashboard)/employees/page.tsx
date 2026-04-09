@@ -1,5 +1,6 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { PERMISSION_EMPLOYEE_MANAGE } from "@/lib/rbac/permission-codes";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EmployeeImport } from "@/components/employees/EmployeeImport";
@@ -33,9 +34,12 @@ function StatCard({
 }
 
 export default async function EmployeesPage() {
-  if (!(await can("users.view"))) redirect("/dashboard");
+  const canViewDirectory = (await can("users.view")) || (await can(PERMISSION_EMPLOYEE_MANAGE));
+  if (!canViewDirectory) redirect("/dashboard");
 
   const { profile } = await getCurrentUserProfile();
+  const canCreateOrImport = (await can("users.create")) || (await can(PERMISSION_EMPLOYEE_MANAGE));
+  const canDeleteEmployee = profile?.is_super_user === true || (await can(PERMISSION_EMPLOYEE_MANAGE));
   const supabase = await getDataClient();
   const { data: employees } = await supabase
     .from("employees")
@@ -91,10 +95,17 @@ export default async function EmployeesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <EmployeeImport />
-            <Link href="/employees/new" className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800">
-              Add employee
-            </Link>
+            {canCreateOrImport ? (
+              <>
+                <EmployeeImport />
+                <Link
+                  href="/employees/new"
+                  className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
+                >
+                  Add employee
+                </Link>
+              </>
+            ) : null}
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -112,7 +123,7 @@ export default async function EmployeesPage() {
             {totalEmployees} records
           </span>
         </div>
-        <EmployeesDirectoryTable data={rows} canDelete={profile?.is_super_user === true} />
+        <EmployeesDirectoryTable data={rows} canDelete={canDeleteEmployee} />
       </div>
     </div>
   );

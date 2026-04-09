@@ -1,6 +1,6 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
-import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT } from "@/lib/rbac/permission-codes";
+import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT, PERMISSION_EMPLOYEE_MANAGE } from "@/lib/rbac/permission-codes";
 import { PmScopeSettings } from "@/components/employees/PmScopeSettings";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { ResendCredentialsButton } from "@/components/employees/ResendCredential
 import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 
 export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  if (!(await can("users.edit"))) redirect("/employees");
+  if (!(await can("users.edit")) && !(await can(PERMISSION_EMPLOYEE_MANAGE))) redirect("/employees");
 
   const { id } = await params;
   const supabase = await getDataClient();
@@ -25,6 +25,8 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
   const { profile } = await getCurrentUserProfile();
   const isSuper = profile?.is_super_user ?? false;
   const canEditUsers = await can("users.edit");
+  const canManageEmployees = await can(PERMISSION_EMPLOYEE_MANAGE);
+  const canEditEmployeeRecord = canEditUsers || canManageEmployees;
   const canAssignRegionProject = await can(PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT);
   const isPm = roles.includes("Project Manager");
 
@@ -146,15 +148,15 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
           </p>
         </div>
         <div className="p-6">
-          <EmployeeForm existing={employeeWithRoles} canDeleteEmployee={isSuper} />
+          <EmployeeForm existing={employeeWithRoles} canDeleteEmployee={isSuper || canManageEmployees} />
         </div>
       </div>
 
       {isPm ? (
         <PmScopeSettings
           employeeId={id}
-          isSuper={isSuper}
-          canEditProjects={canEditUsers}
+          canEditExtraPmRegions={canManageEmployees}
+          canEditProjects={canEditEmployeeRecord}
           isPm={isPm}
           primaryRegionId={employee.region_id}
           allRegions={regionsList ?? []}

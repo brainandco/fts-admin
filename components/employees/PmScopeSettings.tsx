@@ -8,7 +8,7 @@ type Project = { id: string; name: string; region_id: string };
 
 export function PmScopeSettings({
   employeeId,
-  isSuper,
+  canEditExtraPmRegions,
   canEditProjects,
   isPm,
   primaryRegionId,
@@ -18,7 +18,8 @@ export function PmScopeSettings({
   projectIds,
 }: {
   employeeId: string;
-  isSuper: boolean;
+  /** Super User and roles with `employees.manage` can set extra PM regions. */
+  canEditExtraPmRegions: boolean;
   canEditProjects: boolean;
   isPm: boolean;
   primaryRegionId: string | null;
@@ -90,11 +91,11 @@ export function PmScopeSettings({
         <p className={`mt-3 text-sm ${msg.type === "ok" ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>
       ) : null}
 
-      {isSuper ? (
+      {canEditExtraPmRegions ? (
         <div className="mt-5 rounded-lg border border-white bg-white/80 p-4">
-          <h3 className="text-sm font-semibold text-zinc-900">Extra regions (Super User only)</h3>
+          <h3 className="text-sm font-semibold text-zinc-900">Extra regions</h3>
           <p className="mt-1 text-xs text-zinc-500">
-            Add regions where this PM should have the same operational scope as their primary region (teams, assignments, transfer reviews, pending returns, etc.). Do not select the primary region here.
+            Add regions where this PM should have the same operational scope as their primary region (teams, assignments, transfer reviews, pending returns, etc.). Do not select the primary region here. Requires Super User or &quot;Manage employees&quot; permission.
           </p>
           <div className="mt-3 max-h-48 space-y-2 overflow-y-auto rounded border border-zinc-200 bg-white p-2">
             {regionOptions.length === 0 ? (
@@ -126,7 +127,9 @@ export function PmScopeSettings({
           </button>
         </div>
       ) : (
-        <p className="mt-4 text-sm text-zinc-500">Only a Super User can assign extra regions for a PM.</p>
+        <p className="mt-4 text-sm text-zinc-500">
+          You do not have permission to assign extra regions for a PM (Super User or Manage employees).
+        </p>
       )}
 
       {canEditProjects ? (

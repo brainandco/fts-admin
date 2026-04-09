@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { UserAvatar } from "@/components/profile/UserAvatar";
-import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT } from "@/lib/rbac/permission-codes";
+import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT, PERMISSION_EMPLOYEE_MANAGE } from "@/lib/rbac/permission-codes";
 
 /** Optional permission: user needs this permission (or be super) to see the link. superOnly: only super user sees it. */
 type NavLink = {
@@ -42,7 +42,11 @@ const navStructure: NavEntry[] = [
       label: "People",
       children: [
         { href: "/people", label: "Users & employees", permission: "users.view" },
-        { href: "/employees", label: "Employees", permission: "users.view" },
+        {
+          href: "/employees",
+          label: "Employees",
+          permissionAnyOf: ["users.view", PERMISSION_EMPLOYEE_MANAGE],
+        },
         {
           href: "/employees/region-project-assignments",
           label: "Employee region & project",

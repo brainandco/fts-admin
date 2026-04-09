@@ -3,3 +3,6 @@
 export const PERMISSION_BULK_DELETE = "bulk_delete.execute";
 
 export const PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT = "employees.assign_region_project";
+
+/** Create, edit, delete employees; import; PM extra regions / same as users.edit for employee APIs where applicable. */
+export const PERMISSION_EMPLOYEE_MANAGE = "employees.manage";

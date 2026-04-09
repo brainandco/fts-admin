@@ -1,18 +1,16 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { can, requireSuper } from "@/lib/rbac/permissions";
+import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 
 const PM = "Project Manager";
 
 /**
- * PUT — Super User or users.edit. Replaces project rows for a PM (multiple projects for team scope).
+ * PUT — Super User, users.edit, or employees.manage. Replaces project rows for a PM (multiple projects for team scope).
  * Body: { project_ids: string[] }
  */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const superResult = await requireSuper();
-  const canEditUsers = await can("users.edit");
-  if (!superResult.allowed && !canEditUsers) {
+  if (!(await can("users.edit")) && !(await can("employees.manage"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
