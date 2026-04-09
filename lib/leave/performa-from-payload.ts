@@ -19,6 +19,7 @@ export function buildPerformaFillFromPayload(
     requestor_full_name: String(p.requester_display_name ?? p.requester_name ?? "").trim(),
     requestor_date: generatedDateIso,
     requestor_iqama: String(p.requester_iqama ?? "").trim(),
+    /** PDF job-title field: portal role(s); snapshot uses `requester_job_title` from leave payload. */
     requestor_job_title: String(p.requester_job_title ?? "").trim(),
     requestor_project: String(p.requester_project_name ?? p.project_name_other ?? "").trim(),
     requestor_region: String(p.requester_region_name ?? "").trim(),
@@ -27,7 +28,8 @@ export function buildPerformaFillFromPayload(
     guarantor_iqama: String(p.guarantor_iqama ?? "").trim(),
     guarantor_phone: String(p.guarantor_phone ?? "").trim(),
     guarantor_email: String(p.guarantor_email ?? "").trim(),
-    guarantor_designation: String(p.guarantor_job_title ?? "").trim(),
+    /** PDF designation field: guarantor portal role(s); snapshot uses `guarantor_job_title` in payload. */
+    guarantor_designation: String(p.guarantor_job_title ?? p.guarantor_designation ?? "").trim(),
     guarantor_project: String(p.guarantor_project_name ?? "").trim(),
     guarantor_region: String(p.guarantor_region_name ?? "").trim(),
     leave_start_date: from,

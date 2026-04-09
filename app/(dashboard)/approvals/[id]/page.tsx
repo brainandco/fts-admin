@@ -94,7 +94,9 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
           to_date?: string;
           reason?: string;
           leave_type?: string;
+          requester_job_title?: string;
           guarantor_display_name?: string;
+          guarantor_job_title?: string;
           filled_performa_pdf_url?: string;
           signed_performa_pdf_url?: string;
           performa_requester_message?: string;
@@ -131,6 +133,12 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
       leavePerformaTemplateForAdmin = { file_url: tpl.file_url, title: tpl.title ?? null };
     }
   }
+
+  const blockApproveWithoutLeavePerformaTemplate =
+    approval.approval_type === "leave_request" &&
+    approval.status === "Submitted" &&
+    isAdminNonSuper &&
+    !leavePerformaTemplateForAdmin;
 
   const detailRow =
     "grid gap-1 border-b border-zinc-100 py-3.5 last:border-0 sm:grid-cols-[minmax(7.5rem,11rem)_1fr] sm:items-start sm:gap-x-6";
@@ -303,10 +311,22 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
                   <dd className={ddClass}>{leavePayload.leave_type}</dd>
                 </div>
               ) : null}
+              {leavePayload.requester_job_title ? (
+                <div className={detailRow}>
+                  <dt className={dtClass}>Requester role(s)</dt>
+                  <dd className={ddClass}>{leavePayload.requester_job_title}</dd>
+                </div>
+              ) : null}
               {leavePayload.guarantor_display_name ? (
                 <div className={detailRow}>
                   <dt className={dtClass}>Guarantor</dt>
                   <dd className={ddClass}>{leavePayload.guarantor_display_name}</dd>
+                </div>
+              ) : null}
+              {leavePayload.guarantor_job_title ? (
+                <div className={detailRow}>
+                  <dt className={dtClass}>Guarantor role(s)</dt>
+                  <dd className={ddClass}>{leavePayload.guarantor_job_title}</dd>
                 </div>
               ) : null}
               {leavePayload.filled_performa_pdf_url ? (
@@ -463,7 +483,11 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
           </div>
         </section>
       )}
-      <ApprovalActions approval={approval} allowActions={allowActions} />
+      <ApprovalActions
+        approval={approval}
+        allowActions={allowActions}
+        blockApproveWithoutLeavePerformaTemplate={blockApproveWithoutLeavePerformaTemplate}
+      />
       <EntityHistory entityType="approval" entityId={id} />
     </div>
   );

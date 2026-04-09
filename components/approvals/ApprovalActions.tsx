@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 type Approval = { id: string; status: string; approval_type?: string };
 
@@ -15,13 +16,27 @@ function actionableStatuses(approvalType: string | undefined, status: string): b
   return ["Submitted", "PM_Approved", "Admin_Approved"].includes(status);
 }
 
-export function ApprovalActions({ approval, allowActions = true }: { approval: Approval; allowActions?: boolean }) {
+export function ApprovalActions({
+  approval,
+  allowActions = true,
+  /** When true, Approve opens a modal instead of calling the API (no leave performa template in Company documents). */
+  blockApproveWithoutLeavePerformaTemplate = false,
+}: {
+  approval: Approval;
+  allowActions?: boolean;
+  blockApproveWithoutLeavePerformaTemplate?: boolean;
+}) {
   const router = useRouter();
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+  const [noPerformaModalOpen, setNoPerformaModalOpen] = useState(false);
   const canAct = allowActions && actionableStatuses(approval.approval_type, approval.status);
 
   async function act(action: "approve" | "reject") {
+    if (action === "approve" && blockApproveWithoutLeavePerformaTemplate) {
+      setNoPerformaModalOpen(true);
+      return;
+    }
     setLoading(true);
     await fetch(`/api/approvals/${approval.id}`, {
       method: "PATCH",
@@ -92,6 +107,17 @@ export function ApprovalActions({ approval, allowActions = true }: { approval: A
           </div>
         </div>
       </div>
+
+      <InfoModal
+        open={noPerformaModalOpen}
+        title="No leave performa template"
+        message={
+          "No document is set as the leave request performa template in Company documents. Go to Company documents, upload a PDF, and check “Use this PDF as the leave request performa template”, then try approving again.\n\nYou can open Company documents from the sidebar (or /company-documents)."
+        }
+        buttonLabel="OK"
+        variant="danger"
+        onClose={() => setNoPerformaModalOpen(false)}
+      />
     </section>
   );
 }

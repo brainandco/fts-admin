@@ -173,7 +173,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
           <code className="rounded bg-white/80 px-1">fts_requestor_full_name</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_requestor_date</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_requestor_iqama</code>,{" "}
-          <code className="rounded bg-white/80 px-1">fts_requestor_job_title</code>,{" "}
+          <code className="rounded bg-white/80 px-1">fts_requestor_job_title</code> (requester portal role(s)),{" "}
           <code className="rounded bg-white/80 px-1">fts_requestor_project</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_requestor_region</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_leave_type</code>. Guarantor:{" "}
@@ -181,7 +181,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
           <code className="rounded bg-white/80 px-1">fts_guarantor_iqama</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_guarantor_phone</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_guarantor_email</code>,{" "}
-          <code className="rounded bg-white/80 px-1">fts_guarantor_designation</code>,{" "}
+          <code className="rounded bg-white/80 px-1">fts_guarantor_designation</code> (guarantor portal role(s)),{" "}
           <code className="rounded bg-white/80 px-1">fts_guarantor_project</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_guarantor_region</code>. Leave:{" "}
           <code className="rounded bg-white/80 px-1">fts_leave_start_date</code>,{" "}

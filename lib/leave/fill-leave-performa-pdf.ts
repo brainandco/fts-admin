@@ -22,6 +22,7 @@ export type LeavePerformaFillInput = {
   /** Usually the date the performa is generated (YYYY-MM-DD). */
   requestor_date: string;
   requestor_iqama: string;
+  /** Portal role(s) for requester (PDF “job title” field). */
   requestor_job_title: string;
   requestor_project: string;
   requestor_region: string;
@@ -30,6 +31,7 @@ export type LeavePerformaFillInput = {
   guarantor_iqama: string;
   guarantor_phone: string;
   guarantor_email: string;
+  /** Portal role(s) for guarantor (PDF “designation” field). */
   guarantor_designation: string;
   guarantor_project: string;
   guarantor_region: string;
