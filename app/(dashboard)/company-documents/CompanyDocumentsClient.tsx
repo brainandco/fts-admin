@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type DocRow = {
@@ -24,6 +24,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
     const res = await fetch("/api/company-documents");
@@ -54,6 +55,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
       setTitle("");
       setDescription("");
       setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setLeaveTemplate(false);
       await refresh();
       router.refresh();
@@ -108,12 +110,34 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">File</label>
+            <span className="mb-1 block text-sm font-medium text-zinc-700">File</span>
             <input
+              ref={fileInputRef}
               type="file"
+              className="sr-only"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="text-sm"
             />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-900 shadow-sm transition hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+              >
+                <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+                Choose file
+              </button>
+              <span className="min-w-0 flex-1 truncate text-sm text-zinc-600" title={file?.name ?? undefined}>
+                {file ? file.name : "No file chosen"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">Any type (PDF, Word, etc.), up to 50MB.</p>
           </div>
           <label className="flex items-center gap-2 text-sm text-zinc-800">
             <input type="checkbox" checked={leaveTemplate} onChange={(e) => setLeaveTemplate(e.target.checked)} />
@@ -134,10 +158,15 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
         <h3 className="text-sm font-semibold text-amber-950">PDF AcroForm field names (text fields)</h3>
         <p className="mt-2 text-xs text-amber-950/90">
           <strong>Labels on the page (English/Arabic) are not enough.</strong> Auto-fill uses each field&apos;s internal{" "}
-          <strong>name</strong> in the PDF. In Adobe Acrobat: Tools → Prepare Form → double-click a field → set{" "}
-          <strong>Name</strong> to one of the values below (or use the <code className="rounded bg-white/80 px-1">fts_*</code>{" "}
-          names). If a name does not match, that box stays empty and the employee can still complete it by hand when they
-          print or sign. Checkboxes and signature lines are never filled by the app.
+          <strong>name</strong> in the PDF you upload here. In Adobe Acrobat: Tools → Prepare Form → double-click a field →
+          set <strong>Name</strong> to one of the values below (or use the{" "}
+          <code className="rounded bg-white/80 px-1">fts_*</code> names).{" "}
+          <strong>Jotform &quot;Unique Name&quot;</strong> only applies inside Jotform; it is not used by this portal unless
+          those same names exist as AcroForm field names in the uploaded PDF (export/download the PDF and check in Acrobat).
+          Date pickers in Jotform often become several PDF fields (month/day/year) — for one filled date use a single{" "}
+          <strong>text</strong> field named <code className="rounded bg-white/80 px-1">fts_requestor_date</code> in the
+          template. If a name does not match, that box stays empty; the employee can still complete it by hand. Checkboxes
+          and signature lines are never filled by the app.
         </p>
         <p className="mt-2 text-xs text-amber-950/90">
           The app tries each alias. Requestor:{" "}

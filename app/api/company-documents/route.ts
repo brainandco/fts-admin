@@ -5,7 +5,8 @@ import { getDataClient } from "@/lib/supabase/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { uploadResourcePhotosBuffer } from "@/lib/supabase/upload-resource-photos";
 
-const MAX_BYTES = 25 * 1024 * 1024;
+/** Aligned with migration bucket limit and typical Supabase project caps (raise in Dashboard if needed). */
+const MAX_BYTES = 50 * 1024 * 1024;
 
 async function gate() {
   const { profile } = await getCurrentUserProfile();
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
 
   if (!title) return NextResponse.json({ message: "title is required" }, { status: 400 });
   if (!file || !(file instanceof File)) return NextResponse.json({ message: "file is required" }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ message: "File must be 25MB or smaller" }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ message: "File must be 50MB or smaller" }, { status: 400 });
 
   const admin = createServerSupabaseAdmin();
   const safeName = (file.name || "document").replace(/[^\w.\-()+ ]/g, "_").slice(0, 180);

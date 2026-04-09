@@ -1,8 +1,21 @@
-import { PDFDocument, type PDFForm } from "pdf-lib";
+import {
+  PDFDocument,
+  PDFDropdown,
+  PDFField,
+  PDFForm,
+  PDFOptionList,
+  PDFTextField,
+  StandardFonts,
+} from "pdf-lib";
 
 /**
- * AcroForm text field names your leave performa PDF should define (any one alias per line works).
+ * AcroForm field names your leave performa PDF should define (any one alias per line works).
  * Leave blank in the generated file: home country, declarations, signatures (do not set or clear).
+ *
+ * Note: Names set in Jotform’s “Unique Name” apply only to the Jotform web form. The file you
+ * upload as the leave template in Company documents must be a PDF whose **AcroForm** field names
+ * match (verify in Acrobat → Prepare Form). Jotform date widgets often become multiple PDF fields
+ * (e.g. month/day/year) — use plain text fields in the template for reliable fills.
  */
 export type LeavePerformaFillInput = {
   requestor_full_name: string;
@@ -25,19 +38,98 @@ export type LeavePerformaFillInput = {
   leave_total_days: string;
 };
 
+function lastSegment(name: string): string {
+  const parts = name.split(".");
+  return parts[parts.length - 1] ?? name;
+}
+
+/** Resolve AcroForm field: exact name, dotted suffix, or bracketed terminal (e.g. fts_name[0]). */
+function resolveField(form: PDFForm, aliases: string[]): PDFField | undefined {
+  for (const alias of aliases) {
+    const direct = form.getFieldMaybe(alias);
+    if (direct) return direct;
+  }
+  const all = form.getFields();
+  for (const alias of aliases) {
+    const hit = all.find((f) => {
+      const n = f.getName();
+      if (n === alias) return true;
+      if (n.endsWith(`.${alias}`)) return true;
+      const last = lastSegment(n);
+      if (last === alias) return true;
+      if (last.startsWith(`${alias}[`)) return true;
+      return false;
+    });
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+function setValueOnField(field: PDFField, value: string): boolean {
+  const v = value ?? "";
+  try {
+    if (field instanceof PDFTextField) {
+      field.setText(v);
+      return true;
+    }
+    if (field instanceof PDFDropdown) {
+      const opts = field.getOptions();
+      if (opts.includes(v)) {
+        field.select(v);
+        return true;
+      }
+      const lower = v.toLowerCase();
+      const match = opts.find((o) => o.toLowerCase() === lower);
+      if (match) {
+        field.select(match);
+        return true;
+      }
+      return false;
+    }
+    if (field instanceof PDFOptionList) {
+      const opts = field.getOptions();
+      if (opts.includes(v)) {
+        field.select(v);
+        return true;
+      }
+      const lower = v.toLowerCase();
+      const match = opts.find((o) => o.toLowerCase() === lower);
+      if (match) {
+        field.select(match);
+        return true;
+      }
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 function setFirstMatch(form: PDFForm, aliases: string[], value: string): void {
   const v = value ?? "";
+  const field = resolveField(form, aliases);
+  if (field && setValueOnField(field, v)) return;
   for (const name of aliases) {
     try {
       form.getTextField(name).setText(v);
       return;
     } catch {
-      /* field missing or wrong type */
+      /* wrong type or missing */
     }
   }
 }
 
 function clearFirstMatch(form: PDFForm, aliases: string[]): void {
+  const field = resolveField(form, aliases);
+  if (field instanceof PDFTextField) {
+    try {
+      field.setText("");
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
   for (const name of aliases) {
     try {
       form.getTextField(name).setText("");
@@ -59,6 +151,14 @@ export async function fillLeavePerformaPdf(templateBytes: Uint8Array, data: Leav
     form = pdfDoc.getForm();
   } catch {
     return templateBytes;
+  }
+
+  if (form.hasXFA()) {
+    try {
+      form.deleteXFA();
+    } catch {
+      /* keep going; some PDFs still fill */
+    }
   }
 
   setFirstMatch(form, ["fts_requestor_full_name", "requestor_full_name", "Requestor_Full_Name", "full_name"], data.requestor_full_name);
@@ -96,6 +196,13 @@ export async function fillLeavePerformaPdf(templateBytes: Uint8Array, data: Leav
   clearFirstMatch(form, ["fts_guarantor_sig_date", "guarantor_sig_date", "Guarantor_Signature_Date"]);
   clearFirstMatch(form, ["fts_guarantor_sig_name", "guarantor_sig_name", "Guarantor_Signature_Name"]);
   clearFirstMatch(form, ["fts_guarantor_signature", "guarantor_signature", "Guarantor_Signature"]);
+
+  try {
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    form.updateFieldAppearances(font);
+  } catch {
+    /* values still stored; some viewers show without custom appearances */
+  }
 
   const bytes = await pdfDoc.save();
   return bytes;
