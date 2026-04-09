@@ -14,6 +14,8 @@ export type ApprovalStatus =
   | "PM_Rejected"
   | "Admin_Approved"
   | "Admin_Rejected"
+  | "Awaiting_Signed_Performa"
+  | "Performa_Submitted"
   | "Completed";
 export type ApprovalType =
   | "leave_request"

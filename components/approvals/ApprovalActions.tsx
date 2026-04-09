@@ -3,13 +3,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Approval = { id: string; status: string };
+type Approval = { id: string; status: string; approval_type?: string };
+
+function actionableStatuses(approvalType: string | undefined, status: string): boolean {
+  if (approvalType === "leave_request") {
+    return status === "Submitted" || status === "Performa_Submitted";
+  }
+  if (approvalType === "asset_request") {
+    return status === "Submitted" || status === "Admin_Approved";
+  }
+  return ["Submitted", "PM_Approved", "Admin_Approved"].includes(status);
+}
 
 export function ApprovalActions({ approval, allowActions = true }: { approval: Approval; allowActions?: boolean }) {
   const router = useRouter();
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
-  const canAct = allowActions && ["Submitted", "PM_Approved", "Admin_Approved"].includes(approval.status);
+  const canAct = allowActions && actionableStatuses(approval.approval_type, approval.status);
 
   async function act(action: "approve" | "reject") {
     setLoading(true);
@@ -27,8 +37,17 @@ export function ApprovalActions({ approval, allowActions = true }: { approval: A
   return (
     <section>
       <h2 className="mb-3 text-lg font-medium text-zinc-900">Actions</h2>
-      {approval.status === "Admin_Approved" ? (
+      {approval.approval_type === "asset_request" && approval.status === "Admin_Approved" ? (
         <p className="mb-3 text-sm text-zinc-600">Final decision stage (Super User).</p>
+      ) : null}
+      {approval.approval_type === "leave_request" && approval.status === "Performa_Submitted" ? (
+        <p className="mb-3 text-sm text-zinc-600">
+          Final decision after signed performa: add remarks when you approve or reject (required).
+        </p>
+      ) : null}
+      {(approval.approval_type === "leave_request" || approval.approval_type === "asset_request") &&
+      approval.status === "Submitted" ? (
+        <p className="mb-3 text-sm text-zinc-600">Admin review: add remarks when you approve or reject (required).</p>
       ) : null}
       <div className="flex flex-wrap items-end gap-4">
         <div>

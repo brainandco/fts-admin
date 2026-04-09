@@ -1,6 +1,6 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { countActiveAdminPortalUsers, getTotalFtsPeopleCount } from "@/lib/admin-portal-user-counts";
-import { getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import Link from "next/link";
 
 async function safeCount(
@@ -19,6 +19,7 @@ export default async function DashboardPage() {
   const { profile } = await getCurrentUserProfile();
   const regionId = profile?.region_id ?? null;
   const isSuper = profile?.is_super_user ?? false;
+  const showCompanyDocuments = isSuper || (await can("approvals.approve"));
 
   const employeesCount = await safeCount(async () => {
     const q = supabase.from("employees").select("id", { count: "exact", head: true }).eq("status", "ACTIVE");
@@ -135,6 +136,21 @@ export default async function DashboardPage() {
           Snapshot of your workspace. Open any card to jump to the full list.
         </p>
       </div>
+
+      {showCompanyDocuments ? (
+        <section className="max-w-3xl rounded-xl border border-indigo-200/90 bg-indigo-50/40 p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-slate-800">Company documents</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Upload internal files and the leave performa PDF template (Super Users and admins with approval access).
+          </p>
+          <Link
+            href="/company-documents"
+            className="mt-3 inline-flex text-sm font-medium text-indigo-700 hover:text-indigo-900 hover:underline"
+          >
+            Open company documents →
+          </Link>
+        </section>
+      ) : null}
 
       <div className="space-y-10">
         {groups.map((group) => (

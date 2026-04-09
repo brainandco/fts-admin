@@ -1,6 +1,13 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { parseImageUrlArray } from "@/lib/assets/resource-photos";
+
+/** Pipe-separated URLs for CSV (single column); empty when no photos. */
+function purchasePhotosForExport(urls: unknown): { count: number; urls_cell: string } {
+  const list = parseImageUrlArray(urls);
+  return { count: list.length, urls_cell: list.join(" | ") };
+}
 
 function toCsv(rows: Record<string, unknown>[]): string {
   const headers = Array.from(
@@ -76,7 +83,7 @@ export async function GET(req: Request) {
     const { data: assets } = await supabase
       .from("assets")
       .select(
-        "asset_id, name, category, model, serial, imei_1, imei_2, status, assigned_to_employee_id, assigned_region_id, assigned_project_id, assigned_by, assigned_at, created_at, updated_at"
+        "asset_id, name, category, model, serial, imei_1, imei_2, status, assigned_to_employee_id, assigned_region_id, assigned_project_id, assigned_by, assigned_at, purchase_image_urls, created_at, updated_at"
       )
       .order("created_at", { ascending: false });
     const empIds = [...new Set((assets ?? []).map((a) => a.assigned_to_employee_id).filter(Boolean) as string[])];
@@ -90,23 +97,28 @@ export async function GET(req: Request) {
     const regionMap = new Map((regions ?? []).map((r) => [r.id, r.name]));
     const projectMap = new Map((projects ?? []).map((p) => [p.id, p.name]));
     const actorMap = await resolveUserDisplayMap(supabase, actorUserIds);
-    rows = (assets ?? []).map((a) => ({
-      asset_code: a.asset_id,
-      name: a.name,
-      category: a.category,
-      model: a.model,
-      serial: a.serial,
-      imei_1: a.imei_1,
-      imei_2: a.imei_2,
-      status: a.status,
-      assigned_employee_name: a.assigned_to_employee_id ? empMap.get(a.assigned_to_employee_id) ?? "" : "",
-      assigned_region_name: a.assigned_region_id ? regionMap.get(a.assigned_region_id) ?? "" : "",
-      assigned_project_name: a.assigned_project_id ? projectMap.get(a.assigned_project_id) ?? "" : "",
-      assigned_by_name: a.assigned_by ? actorMap.get(a.assigned_by) ?? "" : "",
-      assigned_at: a.assigned_at,
-      created_at: a.created_at,
-      updated_at: a.updated_at,
-    }));
+    rows = (assets ?? []).map((a) => {
+      const photos = purchasePhotosForExport(a.purchase_image_urls);
+      return {
+        asset_code: a.asset_id,
+        name: a.name,
+        category: a.category,
+        model: a.model,
+        serial: a.serial,
+        imei_1: a.imei_1,
+        imei_2: a.imei_2,
+        status: a.status,
+        assigned_employee_name: a.assigned_to_employee_id ? empMap.get(a.assigned_to_employee_id) ?? "" : "",
+        assigned_region_name: a.assigned_region_id ? regionMap.get(a.assigned_region_id) ?? "" : "",
+        assigned_project_name: a.assigned_project_id ? projectMap.get(a.assigned_project_id) ?? "" : "",
+        assigned_by_name: a.assigned_by ? actorMap.get(a.assigned_by) ?? "" : "",
+        assigned_at: a.assigned_at,
+        purchase_photo_count: photos.count,
+        purchase_photo_urls: photos.urls_cell,
+        created_at: a.created_at,
+        updated_at: a.updated_at,
+      };
+    });
   } else if (dataset === "asset_assignment_history") {
     const { data } = await supabase
       .from("asset_assignment_history")
@@ -228,7 +240,7 @@ export async function GET(req: Request) {
     const { data: vehicles } = await supabase
       .from("vehicles")
       .select(
-        "id, plate_number, registration_number, make, model, year, vin, mileage, fuel_type, insurance_expiry, license_expiry, status, assigned_region_id, next_service_due_date, next_service_due_mileage, created_at, updated_at"
+        "id, plate_number, registration_number, make, model, year, vin, mileage, fuel_type, insurance_expiry, license_expiry, status, assigned_region_id, next_service_due_date, next_service_due_mileage, purchase_image_urls, created_at, updated_at"
       )
       .order("created_at", { ascending: false });
     const vehicleIds = (vehicles ?? []).map((v) => v.id);
@@ -246,6 +258,7 @@ export async function GET(req: Request) {
     const empMap = new Map((emps ?? []).map((e) => [e.id, e.full_name]));
     rows = (vehicles ?? []).map((v) => {
       const eid = assignMap.get(v.id);
+      const photos = purchasePhotosForExport(v.purchase_image_urls);
       return {
         plate_number: v.plate_number,
         registration_number: v.registration_number,
@@ -262,6 +275,8 @@ export async function GET(req: Request) {
         assigned_employee_name: eid ? empMap.get(eid) ?? "" : "",
         next_service_due_date: v.next_service_due_date,
         next_service_due_mileage: v.next_service_due_mileage,
+        purchase_photo_count: photos.count,
+        purchase_photo_urls: photos.urls_cell,
         created_at: v.created_at,
         updated_at: v.updated_at,
       };

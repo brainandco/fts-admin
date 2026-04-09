@@ -27,11 +27,7 @@ function isRejected(status: string): boolean {
 
 /** Approved enough to treat leave dates as "booked" for tracking copy. */
 function isLeaveBooked(status: string): boolean {
-  return (
-    status === "PM_Approved" ||
-    status === "Admin_Approved" ||
-    status === "Completed"
-  );
+  return status === "PM_Approved" || status === "Admin_Approved" || status === "Completed";
 }
 
 /**
@@ -54,6 +50,27 @@ export function leaveRequestTracking(
   }
 
   if (!isLeaveBooked(status)) {
+    if (status === "Awaiting_Signed_Performa") {
+      return {
+        requestedDays,
+        tracking: "Awaiting requester — download, sign, and re-upload the performa PDF",
+        daysLeftInLeave: null,
+      };
+    }
+    if (status === "Performa_Submitted") {
+      return {
+        requestedDays,
+        tracking: "Awaiting Super User — final approval after signed performa",
+        daysLeftInLeave: null,
+      };
+    }
+    if (status === "Submitted") {
+      return {
+        requestedDays,
+        tracking: `Awaiting admin review — ${requestedDays} day(s) requested`,
+        daysLeftInLeave: null,
+      };
+    }
     return {
       requestedDays,
       tracking: `Pending — ${requestedDays} day(s) requested`,
