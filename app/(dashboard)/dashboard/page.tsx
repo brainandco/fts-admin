@@ -180,7 +180,7 @@ export default async function DashboardPage() {
         <section className="max-w-3xl rounded-xl border border-indigo-200/90 bg-indigo-50/40 p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-slate-800">Company documents</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Upload internal files and the leave performa PDF template (Super Users and admins with approval access).
+            Upload internal files and the leave performa PDF template.
           </p>
           <Link
             href="/company-documents"

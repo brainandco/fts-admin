@@ -105,12 +105,12 @@ export default async function ApprovalsPage() {
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Approvals</h1>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-                Workflow requests across leave, assets, vehicles, and maintenance. Super Users and Admins see every row.
-                For transfers and returns, use{" "}
+                Workflow requests across leave, assets, vehicles, and maintenance.
+                {/* For transfers and returns, use{" "}
                 <a href="/employee-requests" className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-2 hover:text-indigo-800">
                   Employee requests
                 </a>
-                .
+                . */}
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-3">

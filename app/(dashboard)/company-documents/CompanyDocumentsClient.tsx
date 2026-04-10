@@ -154,7 +154,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
         </form>
       </section>
 
-      <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-6">
+      {/* <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-6">
         <h3 className="text-sm font-semibold text-amber-950">PDF AcroForm field names (text fields)</h3>
         <p className="mt-2 text-xs text-amber-950/90">
           <strong>Labels on the page (English/Arabic) are not enough.</strong> Auto-fill uses each field&apos;s internal{" "}
@@ -190,7 +190,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
           <code className="rounded bg-white/80 px-1">fts_home_*</code>, <code className="rounded bg-white/80 px-1">fts_requestor_sig_*</code>,{" "}
           <code className="rounded bg-white/80 px-1">fts_guarantor_sig_*</code>).
         </p>
-      </section>
+      </section> */}
 
       <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-zinc-900">Library</h2>

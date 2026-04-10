@@ -121,16 +121,17 @@ export default async function EmployeeRequestsPage() {
               <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Employee requests</h1>
               <p className="mt-2 text-sm leading-relaxed text-zinc-600">
                 Monitor leave applications, internal transfers, and asset return submissions. Open a leave row for remarks
-                and workflow actions. Use{" "}
+                and workflow actions. 
+                {/* Use{" "}
                 <Link href="/assets/returns" className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-2 hover:text-indigo-800">
                   Asset returns
                 </Link>{" "}
-                to process pending returns.
+                to process pending returns. */}
               </p>
-              <p className="mt-2 text-sm text-zinc-500">
+              {/* <p className="mt-2 text-sm text-zinc-500">
                 <span className="font-medium text-zinc-700">Leave — days left</span> counts calendar days remaining in the
                 approved window when today falls between the start and end date; otherwise see the tracking column.
-              </p>
+              </p> */}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
