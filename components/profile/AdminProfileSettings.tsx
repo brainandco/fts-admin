@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { UserAvatar } from "./UserAvatar";
 
 type Props = {
@@ -18,6 +18,45 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+
+  const [newEmail, setNewEmail] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [pendingExpires, setPendingExpires] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/profile/email-change/pending")
+      .then((r) => r.json())
+      .then((data: { pending?: boolean; new_email?: string; expires_at?: string }) => {
+        if (data.pending && data.new_email) {
+          setPendingEmail(data.new_email);
+          setPendingExpires(data.expires_at ?? null);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  async function requestEmailChange(e: React.FormEvent) {
+    e.preventDefault();
+    setEmailBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/profile/email-change/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_email: newEmail.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      setMessage({ type: "ok", text: data.message || "Check your new inbox for the verification link." });
+      setPendingEmail(newEmail.trim().toLowerCase());
+      setNewEmail("");
+    } catch (err) {
+      setMessage({ type: "err", text: err instanceof Error ? err.message : "Request failed" });
+    } finally {
+      setEmailBusy(false);
+    }
+  }
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -173,9 +212,46 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
             />
           </div>
           <div>
-            <span className="block text-sm font-medium text-slate-700">Email</span>
+            <span className="block text-sm font-medium text-slate-700">Sign-in email</span>
             <p className="mt-1 text-sm text-slate-600">{email}</p>
-            <p className="mt-1 text-xs text-slate-500">Email is managed by an administrator.</p>
+            <p className="mt-2 text-xs text-slate-500">
+              To use a different address, enter it below. We will send a confirmation link only to that address; your email
+              updates after you open the link. Messages come from the same address as other portal mail (e.g.{" "}
+              <span className="font-mono text-slate-600">noreply@admin.fts-ksa.com</span> when configured in{" "}
+              <code className="rounded bg-slate-100 px-1">RESEND_FROM_EMAIL</code>).
+            </p>
+            {pendingEmail && (
+              <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Pending change to <strong>{pendingEmail}</strong>.
+                {pendingExpires && (
+                  <span className="block text-amber-800/90">
+                    Link expires {new Date(pendingExpires).toLocaleString()}.
+                  </span>
+                )}{" "}
+                Check that inbox and click the verification link.
+              </p>
+            )}
+            <form onSubmit={requestEmailChange} className="mt-3 max-w-md space-y-2">
+              <label htmlFor="new_email" className="block text-sm font-medium text-slate-700">
+                New email
+              </label>
+              <input
+                id="new_email"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                autoComplete="email"
+                placeholder="you@company.com"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+              <button
+                type="submit"
+                disabled={emailBusy || !newEmail.trim()}
+                className="rounded-lg border border-teal-700 bg-white px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50 disabled:opacity-50"
+              >
+                {emailBusy ? "Sending…" : "Send verification email"}
+              </button>
+            </form>
           </div>
           <button
             type="submit"
