@@ -5,6 +5,7 @@ import { ApprovalActions } from "@/components/approvals/ApprovalActions";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { leaveRequestTracking } from "@/lib/employee-requests/leave-metrics";
+import { isAdminPortalLeaveRequest } from "@/lib/approvals/leave-workflow";
 
 function statusHeaderBadgeClass(status: string): string {
   const s = String(status).toLowerCase();
@@ -41,10 +42,15 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
   const adminThenSuperWorkflow =
     approval.approval_type === "leave_request" || approval.approval_type === "asset_request";
 
+  const adminPortalLeave =
+    approval.approval_type === "leave_request" && isAdminPortalLeaveRequest(approval.payload_json);
+
   const allowActions =
     approval.approval_type === "leave_request"
-      ? (approval.status === "Submitted" && isAdminNonSuper) ||
-        (approval.status === "Performa_Submitted" && isSuper)
+      ? adminPortalLeave
+        ? approval.status === "Submitted" && isSuper
+        : (approval.status === "Submitted" && isAdminNonSuper) ||
+          (approval.status === "Performa_Submitted" && isSuper)
       : adminThenSuperWorkflow
         ? (approval.status === "Submitted" && isAdminNonSuper) || (approval.status === "Admin_Approved" && isSuper)
         : canApprove || canReject;
@@ -119,6 +125,7 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
   let leavePerformaTemplateForAdmin: { file_url: string; title: string | null } | null = null;
   if (
     approval.approval_type === "leave_request" &&
+    !adminPortalLeave &&
     approval.status === "Submitted" &&
     isAdminNonSuper
   ) {
@@ -136,6 +143,7 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
 
   const blockApproveWithoutLeavePerformaTemplate =
     approval.approval_type === "leave_request" &&
+    !adminPortalLeave &&
     approval.status === "Submitted" &&
     isAdminNonSuper &&
     !leavePerformaTemplateForAdmin;
@@ -187,7 +195,29 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
         </div>
       ) : null}
 
-      {approval.approval_type === "leave_request" ? (
+      {approval.approval_type === "leave_request" && adminPortalLeave ? (
+        <div className={cardShell}>
+          <div className={`${cardHeader} border-sky-100/80 bg-gradient-to-r from-sky-50/90 to-indigo-50/40`}>
+            <h2 className={cardTitle}>Admin staff leave</h2>
+            <p className={cardSubtitle}>Submitted from the admin portal. A Super User gives the only approval (no performa).</p>
+          </div>
+          <div className="space-y-3 px-5 py-5 text-sm text-zinc-700 sm:px-6">
+            <ul className="list-inside list-disc space-y-2 marker:text-sky-700">
+              <li>
+                <strong className="text-zinc-900">Submitted:</strong> a <strong>Super User</strong> approves or rejects with
+                remarks (final decision).
+              </li>
+            </ul>
+            {approval.status === "Submitted" ? (
+              <p className="rounded-lg bg-sky-100/50 px-3 py-2 text-sky-950">
+                Current step: waiting for <strong>Super User</strong> review.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {approval.approval_type === "leave_request" && !adminPortalLeave ? (
         <div className={cardShell}>
           <div className={`${cardHeader} border-amber-100/80 bg-gradient-to-r from-amber-50/90 to-orange-50/40`}>
             <h2 className={cardTitle}>Leave performa workflow</h2>
@@ -487,6 +517,7 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
         approval={approval}
         allowActions={allowActions}
         blockApproveWithoutLeavePerformaTemplate={blockApproveWithoutLeavePerformaTemplate}
+        adminPortalLeave={adminPortalLeave}
       />
       <EntityHistory entityType="approval" entityId={id} />
     </div>

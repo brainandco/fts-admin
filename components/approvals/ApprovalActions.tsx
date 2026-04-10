@@ -6,8 +6,13 @@ import { InfoModal } from "@/components/ui/InfoModal";
 
 type Approval = { id: string; status: string; approval_type?: string };
 
-function actionableStatuses(approvalType: string | undefined, status: string): boolean {
+function actionableStatuses(
+  approvalType: string | undefined,
+  status: string,
+  adminPortalLeave?: boolean
+): boolean {
   if (approvalType === "leave_request") {
+    if (adminPortalLeave) return status === "Submitted";
     return status === "Submitted" || status === "Performa_Submitted";
   }
   if (approvalType === "asset_request") {
@@ -21,16 +26,19 @@ export function ApprovalActions({
   allowActions = true,
   /** When true, Approve opens a modal instead of calling the API (no leave performa template in Company documents). */
   blockApproveWithoutLeavePerformaTemplate = false,
+  /** Admin portal leave: Super User single-step only (no performa modal). */
+  adminPortalLeave = false,
 }: {
   approval: Approval;
   allowActions?: boolean;
   blockApproveWithoutLeavePerformaTemplate?: boolean;
+  adminPortalLeave?: boolean;
 }) {
   const router = useRouter();
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [noPerformaModalOpen, setNoPerformaModalOpen] = useState(false);
-  const canAct = allowActions && actionableStatuses(approval.approval_type, approval.status);
+  const canAct = allowActions && actionableStatuses(approval.approval_type, approval.status, adminPortalLeave);
 
   async function act(action: "approve" | "reject") {
     if (action === "approve" && blockApproveWithoutLeavePerformaTemplate) {
@@ -69,8 +77,14 @@ export function ApprovalActions({
             Final decision after signed performa: add remarks when you approve or reject (required).
           </p>
         ) : null}
+        {approval.approval_type === "leave_request" && approval.status === "Submitted" && adminPortalLeave ? (
+          <p className="text-sm text-zinc-600">
+            Super User final decision: add remarks when you approve or reject (required). No performa for admin staff leave.
+          </p>
+        ) : null}
         {(approval.approval_type === "leave_request" || approval.approval_type === "asset_request") &&
-        approval.status === "Submitted" ? (
+        approval.status === "Submitted" &&
+        !(approval.approval_type === "leave_request" && adminPortalLeave) ? (
           <p className="text-sm text-zinc-600">Admin review: add remarks when you approve or reject (required).</p>
         ) : null}
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">

@@ -7,6 +7,7 @@ import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { uploadResourcePhotosBuffer } from "@/lib/supabase/upload-resource-photos";
 import { fillLeavePerformaPdf } from "@/lib/leave/fill-leave-performa-pdf";
 import { buildPerformaFillFromPayload } from "@/lib/leave/performa-from-payload";
+import { isAdminPortalLeaveRequest } from "@/lib/approvals/leave-workflow";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,6 +29,48 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   /** --- Leave: admin → filled performa → requester signs → super final --- */
   if (approval.approval_type === "leave_request") {
+    const adminPortalLeave = isAdminPortalLeaveRequest(approval.payload_json);
+
+    /** Admin-portal leave: Super User only, single final approve/reject (no performa). */
+    if (adminPortalLeave && approval.status === "Submitted") {
+      if (!isSuper) {
+        return NextResponse.json(
+          { message: "Only a Super User can approve or reject admin staff leave requests." },
+          { status: 403 }
+        );
+      }
+      if (!String(comment).trim()) {
+        return NextResponse.json({ message: "Super User remarks are required for this leave decision" }, { status: 400 });
+      }
+      const newStatus = action === "approve" ? "Completed" : "PM_Rejected";
+      const updates = {
+        status: newStatus,
+        pm_acted_at: new Date().toISOString(),
+        pm_acted_by: profile?.id,
+        pm_comment: comment,
+      };
+      const { error } = await dataClient.from("approvals").update(updates).eq("id", id);
+      if (error) return NextResponse.json({ message: error.message }, { status: 400 });
+
+      await supabase.from("notifications").insert({
+        recipient_user_id: approval.requester_id,
+        title: "Your leave request was updated",
+        body: newStatus === "Completed" ? "Your leave request was approved." : "Your leave request was rejected.",
+        category: "leave_request",
+        link: "/leave",
+        meta: { approval_id: id, final_status: newStatus },
+      });
+
+      await auditLog({
+        actionType: action === "approve" ? "approval_approved" : "approval_rejected",
+        entityType: "approval",
+        entityId: id,
+        newValue: updates,
+        description: `Admin portal leave — super ${action}`,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
     if (approval.status === "Submitted" && isAdminNonSuper) {
       if (!String(comment).trim()) {
         return NextResponse.json({ message: "Admin remarks are required for leave requests" }, { status: 400 });

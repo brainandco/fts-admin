@@ -68,6 +68,29 @@ export default async function DashboardPage() {
     return q.then((r) => ({ count: r.count }));
   });
 
+  const showLeaveRequestStats =
+    (await can("approvals.view")) || (await can("approvals.approve")) || (await can("approvals.reject"));
+  const leavePendingCount = showLeaveRequestStats
+    ? await safeCount(async () => {
+        const q = supabase
+          .from("approvals")
+          .select("id", { count: "exact", head: true })
+          .eq("approval_type", "leave_request")
+          .in("status", ["Submitted", "Awaiting_Signed_Performa", "Performa_Submitted"]);
+        return q.then((r) => ({ count: r.count }));
+      })
+    : 0;
+  const leaveApprovedCount = showLeaveRequestStats
+    ? await safeCount(async () => {
+        const q = supabase
+          .from("approvals")
+          .select("id", { count: "exact", head: true })
+          .eq("approval_type", "leave_request")
+          .eq("status", "Completed");
+        return q.then((r) => ({ count: r.count }));
+      })
+    : 0;
+
   const upcomingMaintenance = await safeCount(() =>
     supabase
       .from("vehicles")
@@ -112,6 +135,22 @@ export default async function DashboardPage() {
     {
       label: "Operations",
       cards: [
+        ...(showLeaveRequestStats
+          ? [
+              {
+                title: "Leave requests (pending)",
+                value: leavePendingCount,
+                href: "/approvals",
+                accent: "amber" as const,
+              },
+              {
+                title: "Leave requests (approved)",
+                value: leaveApprovedCount,
+                href: "/approvals",
+                accent: "emerald" as const,
+              },
+            ]
+          : []),
         { title: "Tasks in progress", value: tasksInProgress, href: "/tasks", accent: "indigo" },
         { title: "Overdue tasks", value: overdueTasks, href: "/tasks", accent: "rose" },
       ],
