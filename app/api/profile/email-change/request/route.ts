@@ -45,7 +45,8 @@ export async function POST(req: Request) {
 
   const dataClient = await getDataClient();
   const employeeEmails = await getEmployeeEmailSet(dataClient);
-  if (!isPortalAdminByEmail(access.profile.email, employeeEmails)) {
+  // Same rule as dashboard layout: session email must not be an employee-only account.
+  if (!isPortalAdminByEmail(access.user.email, employeeEmails)) {
     return NextResponse.json({ error: "Email change is only available for admin accounts." }, { status: 403 });
   }
 
@@ -70,7 +71,11 @@ export async function POST(req: Request) {
   );
 
   if (upsertErr) {
-    return NextResponse.json({ error: upsertErr.message }, { status: 400 });
+    const hint =
+      /relation|does not exist|42P01/i.test(upsertErr.message)
+        ? " Apply migration 00054_admin_email_change_requests.sql to your Supabase database."
+        : "";
+    return NextResponse.json({ error: upsertErr.message + hint }, { status: 400 });
   }
 
   const verifyUrl = buildAdminEmailChangeVerifyUrl(token);
@@ -82,8 +87,13 @@ export async function POST(req: Request) {
 
   if (!sendResult.sent) {
     await admin.from("admin_email_change_requests").delete().eq("user_id", access.user.id);
+    console.error("[email-change] Resend failed:", sendResult.error);
     return NextResponse.json(
-      { error: sendResult.error ?? "Could not send verification email." },
+      {
+        error:
+          sendResult.error ??
+          "Could not send verification email. Check RESEND_API_KEY and RESEND_FROM_EMAIL on the server (e.g. Vercel env).",
+      },
       { status: 502 }
     );
   }

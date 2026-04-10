@@ -10,11 +10,23 @@ export async function GET() {
   }
 
   const admin = createServerSupabaseAdmin();
-  const { data: row } = await admin
+  const { data: row, error } = await admin
     .from("admin_email_change_requests")
     .select("new_email, expires_at")
     .eq("user_id", access.user.id)
     .maybeSingle();
+
+  if (error) {
+    console.error("[email-change/pending]", error.message);
+    const hint =
+      /relation|does not exist|42P01/i.test(error.message)
+        ? " Apply migration 00054_admin_email_change_requests.sql in Supabase SQL Editor."
+        : "";
+    return NextResponse.json({
+      pending: false,
+      configError: error.message + hint,
+    });
+  }
 
   if (!row || new Date(row.expires_at).getTime() <= Date.now()) {
     if (row) await admin.from("admin_email_change_requests").delete().eq("user_id", access.user.id);

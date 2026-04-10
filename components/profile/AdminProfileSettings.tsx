@@ -23,17 +23,33 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
   const [emailBusy, setEmailBusy] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [pendingExpires, setPendingExpires] = useState<string | null>(null);
+  const [pendingConfigError, setPendingConfigError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function loadPending() {
     fetch("/api/profile/email-change/pending")
       .then((r) => r.json())
-      .then((data: { pending?: boolean; new_email?: string; expires_at?: string }) => {
-        if (data.pending && data.new_email) {
-          setPendingEmail(data.new_email);
-          setPendingExpires(data.expires_at ?? null);
+      .then(
+        (data: {
+          pending?: boolean;
+          new_email?: string;
+          expires_at?: string;
+          configError?: string;
+        }) => {
+          setPendingConfigError(typeof data.configError === "string" ? data.configError : null);
+          if (data.pending && data.new_email) {
+            setPendingEmail(data.new_email);
+            setPendingExpires(data.expires_at ?? null);
+          } else {
+            setPendingEmail(null);
+            setPendingExpires(null);
+          }
         }
-      })
+      )
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    loadPending();
   }, []);
 
   async function requestEmailChange(e: React.FormEvent) {
@@ -49,8 +65,8 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Request failed");
       setMessage({ type: "ok", text: data.message || "Check your new inbox for the verification link." });
-      setPendingEmail(newEmail.trim().toLowerCase());
       setNewEmail("");
+      loadPending();
     } catch (err) {
       setMessage({ type: "err", text: err instanceof Error ? err.message : "Request failed" });
     } finally {
@@ -220,6 +236,11 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
               <span className="font-mono text-slate-600">noreply@admin.fts-ksa.com</span> when configured in{" "}
               <code className="rounded bg-slate-100 px-1">RESEND_FROM_EMAIL</code>).
             </p>
+            {pendingConfigError && (
+              <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                <strong>Email change database:</strong> {pendingConfigError}
+              </p>
+            )}
             {pendingEmail && (
               <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 Pending change to <strong>{pendingEmail}</strong>.
