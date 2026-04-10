@@ -38,6 +38,8 @@ const COMPANY_NAME_TO_ABBREV: [string, string][] = [
   ["acer", "AC"],
   ["dell", "DELL"],
   ["hp", "HP"],
+  ["sony", "SONY"],
+  ["asus", "ASUS"],
 ];
 
 /**
@@ -55,6 +57,8 @@ const ID_SEGMENT_TO_CANONICAL: Record<string, string> = {
   LENOVO: "LEN",
   HP: "HP",
   IPHONE: "IPHONE",
+  SONY: "SONY",
+  ASUS: "ASUS",
 };
 
 /**
@@ -105,6 +109,8 @@ const EXACT_CATEGORY_SCHEME: Record<string, AssetIdScheme> = {
   powerbank: { kind: "prefix", prefix: "ASTPB", start: 9001 },
   "usb hub": { kind: "prefix", prefix: "ASTU", start: 12001 },
   usbhub: { kind: "prefix", prefix: "ASTU", start: 12001 },
+  scanner: { kind: "prefix", prefix: "ASTSC", start: 13001 },
+  spectrum: { kind: "prefix", prefix: "ASTSP", start: 14001 },
   "aramco mobile device": { kind: "prefix", prefix: "ARAMD", start: 11001 },
   "aramco digital": { kind: "prefix", prefix: "ARAD", start: 10001 },
   "aramco digital/device": { kind: "prefix", prefix: "ARAD", start: 10001 },
