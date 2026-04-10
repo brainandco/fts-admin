@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 type User = { id: string; email: string | null; full_name: string | null };
 type DelegationRow = {
@@ -25,17 +25,31 @@ export function DelegationsContent() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [forbidden, setForbidden] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setForbidden("");
+    Promise.all([fetch("/api/delegations"), fetch("/api/delegations/eligible-delegatees")])
+      .then(async ([delegationsRes, usersRes]) => {
+        const delegationsJson = await delegationsRes.json();
+        const usersJson = await usersRes.json();
+        if (delegationsRes.status === 403 || usersRes.status === 403) {
+          setForbidden(delegationsJson.message || usersJson.message || "You do not have access to delegation.");
+          setDelegations([]);
+          setUsers([]);
+          return;
+        }
+        if (delegationsJson.delegations) setDelegations(delegationsJson.delegations);
+        if (usersJson.users) setUsers(usersJson.users);
+      })
+      .catch(() => setLoading(false))
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/delegations").then((r) => r.json()),
-      fetch("/api/delegations/eligible-delegatees").then((r) => r.json()),
-    ]).then(([delegationsRes, usersRes]) => {
-      if (delegationsRes.delegations) setDelegations(delegationsRes.delegations);
-      if (usersRes.users) setUsers(usersRes.users);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+    load();
+  }, [load]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -66,6 +80,11 @@ export function DelegationsContent() {
     setNotes("");
     const listRes = await fetch("/api/delegations");
     const listData = await listRes.json().catch(() => ({}));
+    if (listRes.status === 403) {
+      setForbidden(listData.message || "You do not have access to delegation.");
+      setDelegations([]);
+      return;
+    }
     if (listData.delegations) setDelegations(listData.delegations);
   }
 
@@ -84,10 +103,17 @@ export function DelegationsContent() {
 
   if (loading) return <p className="text-sm text-zinc-500">Loading…</p>;
 
+  if (forbidden) {
+    return <p className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{forbidden}</p>;
+  }
+
   return (
     <div className="space-y-8">
       <section>
         <h2 className="mb-3 text-lg font-medium text-zinc-900">Create delegation</h2>
+        <p className="mb-3 text-xs text-zinc-500">
+          Only admin users appear here. Super Users can delegate to any admin; other admins cannot delegate to a Super User.
+        </p>
         <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-4 rounded border border-zinc-200 bg-white p-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">Delegate to</label>

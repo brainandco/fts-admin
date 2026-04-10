@@ -1,10 +1,23 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  getEmployeeEmailSet,
+  isPortalAdminByEmail,
+  validateDelegationParticipants,
+} from "@/lib/delegations/participants";
+import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET() {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  const dataClient = await getDataClient();
+  const [employeeEmails, profile] = await Promise.all([
+    getEmployeeEmailSet(dataClient),
+    dataClient.from("users_profile").select("email").eq("id", user.id).maybeSingle(),
+  ]);
+  if (!isPortalAdminByEmail(profile?.data?.email, employeeEmails)) {
+    return NextResponse.json({ message: "Delegation is only available to admin users" }, { status: 403 });
+  }
   const { data: delegations } = await supabase
     .from("delegations")
     .select("id, delegator_user_id, delegatee_user_id, from_date, to_date, notes, created_at")
@@ -36,6 +49,23 @@ export async function POST(req: Request) {
   if (delegatee_user_id === user.id) {
     return NextResponse.json({ message: "You cannot delegate to yourself" }, { status: 400 });
   }
+  const dataClient = await getDataClient();
+  const [employeeEmails, delegatorRes, delegateeRes] = await Promise.all([
+    getEmployeeEmailSet(dataClient),
+    dataClient.from("users_profile").select("email, is_super_user").eq("id", user.id).maybeSingle(),
+    dataClient.from("users_profile").select("email, is_super_user").eq("id", delegatee_user_id).maybeSingle(),
+  ]);
+  if (!delegateeRes.data) {
+    return NextResponse.json({ message: "Delegatee not found" }, { status: 400 });
+  }
+  const check = validateDelegationParticipants({
+    delegatorEmail: delegatorRes.data?.email,
+    delegatorIsSuper: delegatorRes.data?.is_super_user ?? false,
+    delegateeEmail: delegateeRes.data.email,
+    delegateeIsSuper: delegateeRes.data.is_super_user ?? false,
+    employeeEmails,
+  });
+  if (!check.ok) return NextResponse.json({ message: check.message }, { status: check.status });
   const { data, error } = await supabase
     .from("delegations")
     .insert({
