@@ -8,6 +8,8 @@ interface ConfirmModalProps {
   cancelLabel?: string;
   variant?: "danger" | "default";
   loading?: boolean;
+  /** Panel max width (Tailwind), default max-w-sm */
+  panelClassName?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -20,6 +22,7 @@ export function ConfirmModal({
   cancelLabel = "Cancel",
   variant = "default",
   loading = false,
+  panelClassName = "max-w-sm",
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -36,7 +39,7 @@ export function ConfirmModal({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl"
+        className={`w-full rounded-lg bg-white p-6 shadow-xl ${panelClassName}`}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-zinc-900">{title}</h3>

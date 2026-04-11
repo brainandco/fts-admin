@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 type ResultRow = {
   employeeId: string;
@@ -30,18 +31,12 @@ export function SendTeamMemberCredentialsButton({
   teamId: string;
   memberCount: number;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
 
-  async function handleClick() {
-    if (
-      memberCount === 0 ||
-      !confirm(
-        `Send Employee Portal credentials by email to each team member (${memberCount})? Each person gets a new temporary password, same as “Resend credentials” on their employee record.`
-      )
-    ) {
-      return;
-    }
+  async function runSend() {
+    if (memberCount === 0) return;
     setResponse(null);
     setLoading(true);
     try {
@@ -57,6 +52,7 @@ export function SendTeamMemberCredentialsButton({
       setResponse(data);
     } finally {
       setLoading(false);
+      setConfirmOpen(false);
     }
   }
 
@@ -66,12 +62,25 @@ export function SendTeamMemberCredentialsButton({
     <div className="space-y-3">
       <button
         type="button"
-        onClick={() => void handleClick()}
+        onClick={() => memberCount > 0 && setConfirmOpen(true)}
         disabled={loading || memberCount === 0}
         className="rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-900 hover:bg-indigo-100 disabled:opacity-50"
       >
         {loading ? "Sending…" : "Send portal credentials to all members"}
       </button>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Send portal credentials to team members?"
+        message={`This will email Employee Portal login details to each current member (${memberCount}). Each person gets a new temporary password—the same behavior as “Resend credentials” on their employee record.`}
+        confirmLabel="Send emails"
+        cancelLabel="Cancel"
+        variant="default"
+        panelClassName="max-w-md"
+        loading={loading}
+        onConfirm={() => void runSend()}
+        onCancel={() => !loading && setConfirmOpen(false)}
+      />
       {response?.message && !response.results && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{response.message}</p>
       )}
