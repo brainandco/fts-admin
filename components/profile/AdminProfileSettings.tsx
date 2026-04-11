@@ -227,53 +227,6 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
               autoComplete="name"
             />
           </div>
-          <div>
-            <span className="block text-sm font-medium text-slate-700">Sign-in email</span>
-            <p className="mt-1 text-sm text-slate-600">{email}</p>
-            <p className="mt-2 text-xs text-slate-500">
-              To use a different address, enter it below. We will send a confirmation link only to that address; your email
-              updates after you open the link. Messages come from the same address as other portal mail (e.g.{" "}
-              <span className="font-mono text-slate-600">noreply@admin.fts-ksa.com</span> when configured in{" "}
-              <code className="rounded bg-slate-100 px-1">RESEND_FROM_EMAIL</code>).
-            </p>
-            {pendingConfigError && (
-              <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
-                <strong>Email change database:</strong> {pendingConfigError}
-              </p>
-            )}
-            {pendingEmail && (
-              <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Pending change to <strong>{pendingEmail}</strong>.
-                {pendingExpires && (
-                  <span className="block text-amber-800/90">
-                    Link expires {new Date(pendingExpires).toLocaleString()}.
-                  </span>
-                )}{" "}
-                Check that inbox and click the verification link.
-              </p>
-            )}
-            <form onSubmit={requestEmailChange} className="mt-3 max-w-md space-y-2">
-              <label htmlFor="new_email" className="block text-sm font-medium text-slate-700">
-                New email
-              </label>
-              <input
-                id="new_email"
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                autoComplete="email"
-                placeholder="you@company.com"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
-              <button
-                type="submit"
-                disabled={emailBusy || !newEmail.trim()}
-                className="rounded-lg border border-teal-700 bg-white px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50 disabled:opacity-50"
-              >
-                {emailBusy ? "Sending…" : "Send verification email"}
-              </button>
-            </form>
-          </div>
           <button
             type="submit"
             disabled={busy}
@@ -282,6 +235,54 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
             Save profile
           </button>
         </form>
+
+        <div className="mt-8 max-w-md border-t border-slate-100 pt-8">
+          <span className="block text-sm font-medium text-slate-700">Sign-in email</span>
+          <p className="mt-1 text-sm text-slate-600">{email}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            To use a different address, enter it below. We will send a confirmation link only to that address; your email
+            updates after you open the link. Messages come from the same address as other portal mail (e.g.{" "}
+            <span className="font-mono text-slate-600">noreply@admin.fts-ksa.com</span> when configured in{" "}
+            <code className="rounded bg-slate-100 px-1">RESEND_FROM_EMAIL</code>).
+          </p>
+          {pendingConfigError && (
+            <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+              <strong>Email change database:</strong> {pendingConfigError}
+            </p>
+          )}
+          {pendingEmail && (
+            <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Pending change to <strong>{pendingEmail}</strong>.
+              {pendingExpires && (
+                <span className="block text-amber-800/90">
+                  Link expires {new Date(pendingExpires).toLocaleString()}.
+                </span>
+              )}{" "}
+              Check that inbox and click the verification link.
+            </p>
+          )}
+          <form onSubmit={requestEmailChange} className="mt-3 space-y-2">
+            <label htmlFor="new_email" className="block text-sm font-medium text-slate-700">
+              New email
+            </label>
+            <input
+              id="new_email"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="you@company.com"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            />
+            <button
+              type="submit"
+              disabled={emailBusy || !newEmail.trim()}
+              className="rounded-lg border border-teal-700 bg-white px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50 disabled:opacity-50"
+            >
+              {emailBusy ? "Sending…" : "Send verification email"}
+            </button>
+          </form>
+        </div>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
