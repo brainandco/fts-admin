@@ -17,6 +17,7 @@ import {
   isLaptopCategory,
   isMobileCategory,
 } from "@/lib/assets/asset-tool-form-options";
+import { FormActions, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
 
 type Employee = { id: string; full_name: string; region_id?: string };
 type Asset = {
@@ -293,7 +294,13 @@ export function AssetForm({
   const showGenericCompanyModel = !showStructuredBrands && !!effectiveCategory;
 
   return (
-    <form onSubmit={submit} className="max-w-lg space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
+    <form onSubmit={submit} className="max-w-3xl">
+      <FormCard>
+        <FormCardSection>
+          <FormSection
+            title="Asset record"
+            description="Choose type and identifiers. Assignment and maintenance workflows use this record after save."
+          >
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Asset ID</label>
         <input
@@ -584,23 +591,30 @@ export function AssetForm({
           </p>
         </div>
       ) : null}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <div className="flex gap-2">
+          </FormSection>
+        </FormCardSection>
+      {error ? (
+        <FormCardSection>
+          <p className="text-sm text-red-600">{error}</p>
+        </FormCardSection>
+      ) : null}
+        <FormActions>
         <button
           type="submit"
           disabled={saving}
-          className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
           {saving ? "Saving…" : existing ? "Update" : "Create"}
         </button>
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
         >
           Cancel
         </button>
-      </div>
+        </FormActions>
+      </FormCard>
     </form>
   );
 }

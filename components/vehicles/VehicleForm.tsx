@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PurchasePhotoUploader } from "@/components/assets/PurchasePhotoUploader";
+import { FormActions, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
 import { MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 type Vehicle = {
@@ -77,10 +78,14 @@ export function VehicleForm({
     router.refresh();
   }
 
-  const inputClass = "w-full rounded border border-zinc-300 px-3 py-2 text-sm";
+  const inputClass =
+    "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
 
   return (
-    <form onSubmit={submit} className="max-w-lg space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
+    <form onSubmit={submit} className="max-w-2xl">
+      <FormCard>
+        <FormCardSection>
+          <FormSection title="Vehicle details" description="Plate, type, and rental info. Region/project assignment is done elsewhere.">
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Vehicle plate no. <span className="text-red-600">*</span></label>
         <input value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} required className={inputClass} />
@@ -136,16 +141,26 @@ export function VehicleForm({
           <option value="Under_Maintenance">Under Maintenance</option>
         </select>
       </div>
+      <div>
+        <span className="mb-2 block text-sm font-medium text-zinc-700">Condition photos</span>
       <PurchasePhotoUploader
         purpose="vehicle-purchase"
         urls={purchaseImageUrls}
         onUrlsChange={setPurchaseImageUrls}
       />
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? "Saving…" : existing ? "Update" : "Create"}</button>
-        <button type="button" onClick={() => router.back()} className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
       </div>
+          </FormSection>
+        </FormCardSection>
+      {error ? (
+        <FormCardSection>
+          <p className="text-sm text-red-600">{error}</p>
+        </FormCardSection>
+      ) : null}
+        <FormActions>
+        <button type="submit" disabled={saving} className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? "Saving…" : existing ? "Update" : "Create"}</button>
+        <button type="button" onClick={() => router.back()} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
+        </FormActions>
+      </FormCard>
     </form>
   );
 }

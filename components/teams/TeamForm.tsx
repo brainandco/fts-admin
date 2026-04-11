@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
 import { ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
+import { FormActions, FormCallout, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
 
 type Employee = { id: string; full_name: string; roles: string[]; region_id: string | null };
 type Team = {
@@ -185,80 +186,98 @@ export function TeamForm({
   }
 
   return (
-    <form onSubmit={submit} className="max-w-md space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
-      <p className="text-sm text-zinc-600">
-        The team&apos;s region and project come from the <strong>DT</strong> (or Self DT) employee record — set those on{" "}
-        <strong>People → Employee region &amp; project assignments</strong>. The Driver/Rigger must be in the{" "}
-        <strong>same primary region</strong> as the DT.
-      </p>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">
-          Name <span className="text-red-600">*</span>
-        </label>
-        <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">
-          Team code <span className="text-red-600">*</span>
-        </label>
-        <input
-          value={teamCode}
-          onChange={(e) => setTeamCode(e.target.value)}
-          required
-          autoComplete="off"
-          placeholder="e.g. T-R01, TEAM_NORTH_1"
-          className="w-full rounded border border-zinc-300 px-3 py-2 font-mono text-sm uppercase placeholder:normal-case placeholder:font-sans"
-        />
-        <p className="mt-1 text-xs text-zinc-500">
-          Unique code for segregating teams (reports, filters). Letters, numbers, underscore, hyphen; 2–32 characters. Stored
-          uppercase.
-        </p>
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">
-          Onboarding date <span className="text-red-600">*</span>
-        </label>
-        <input
-          type="date"
-          value={onboardingDate}
-          onChange={(e) => setOnboardingDate(e.target.value)}
-          required
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">Team type</label>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-1.5 text-sm">
-            <input
-              type="radio"
-              name="teamType"
-              checked={!isSelfDtTeam}
-              onChange={() => {
-                setIsSelfDtTeam(false);
-                setSelfDtEmployeeId("");
-              }}
-            />
-            Standard (DT + Driver/Rigger)
-          </label>
-          <label className="flex items-center gap-1.5 text-sm">
-            <input
-              type="radio"
-              name="teamType"
-              checked={isSelfDtTeam}
-              onChange={() => {
-                setIsSelfDtTeam(true);
-                setDtEmployeeId("");
-                setDriverRiggerEmployeeId("");
-              }}
-            />
-            Self DT (one person)
-          </label>
-        </div>
-      </div>
-      <p className="text-xs text-zinc-500">
-        Only DT, Driver/Rigger, or Self DT can be members. QC, QA, PP, PM, PC, and custom (Other) roles cannot be on a team.
-      </p>
+    <form onSubmit={submit} className="max-w-3xl">
+      <FormCard>
+        <FormCardSection className="!py-5">
+          <FormCallout variant="info" title="Region & project">
+            The team&apos;s region and project come from the <strong>DT</strong> (or Self DT) employee — set them under{" "}
+            <strong>People → Employee region &amp; project assignments</strong>. The Driver/Rigger must be in the{" "}
+            <strong>same primary region</strong> as the DT.
+          </FormCallout>
+        </FormCardSection>
+
+        <FormCardSection>
+          <FormSection
+            title="Team identity"
+            description="Display name and unique code used in reports and filters."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  Name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  Team code <span className="text-red-600">*</span>
+                </label>
+                <input
+                  value={teamCode}
+                  onChange={(e) => setTeamCode(e.target.value)}
+                  required
+                  autoComplete="off"
+                  placeholder="e.g. T-R01, TEAM_NORTH_1"
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm uppercase shadow-sm placeholder:normal-case placeholder:font-sans focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-xs text-zinc-500">2–32 characters; letters, numbers, underscore, hyphen. Stored uppercase.</p>
+              </div>
+            </div>
+            <div className="max-w-xs">
+              <label className="mb-1 block text-sm font-medium text-zinc-700">
+                Onboarding date <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="date"
+                value={onboardingDate}
+                onChange={(e) => setOnboardingDate(e.target.value)}
+                required
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </FormSection>
+        </FormCardSection>
+
+        <FormCardSection>
+          <FormSection
+            title="Membership"
+            description="Only DT, Driver/Rigger, or Self DT can be on a team. QC, QA, PP, PM, PC, and custom (Other) roles cannot be assigned here."
+          >
+            <div>
+              <span className="mb-2 block text-sm font-medium text-zinc-700">Team type</span>
+              <div className="flex flex-wrap gap-6">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="teamType"
+                    checked={!isSelfDtTeam}
+                    onChange={() => {
+                      setIsSelfDtTeam(false);
+                      setSelfDtEmployeeId("");
+                    }}
+                  />
+                  Standard (DT + Driver/Rigger)
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="teamType"
+                    checked={isSelfDtTeam}
+                    onChange={() => {
+                      setIsSelfDtTeam(true);
+                      setDtEmployeeId("");
+                      setDriverRiggerEmployeeId("");
+                    }}
+                  />
+                  Self DT (one person)
+                </label>
+              </div>
+            </div>
       {isSelfDtTeam ? (
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">
@@ -329,15 +348,32 @@ export function TeamForm({
           </div>
         </>
       )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
-          {saving ? "Saving…" : existing ? "Update" : "Create"}
-        </button>
-        <button type="button" onClick={() => router.back()} className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
-          Cancel
-        </button>
-      </div>
+          </FormSection>
+        </FormCardSection>
+
+        {error ? (
+          <FormCardSection>
+            <p className="text-sm text-red-600">{error}</p>
+          </FormCardSection>
+        ) : null}
+
+        <FormActions>
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : existing ? "Update" : "Create"}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            Cancel
+          </button>
+        </FormActions>
+      </FormCard>
     </form>
   );
 }

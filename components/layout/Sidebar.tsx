@@ -205,7 +205,7 @@ export function Sidebar({
         >
           <span className="relative h-8 w-32 shrink-0">
             <Image
-              src="/New%20Folder/black.png"
+              src="/logo.svg"
               alt="Fast Technology Solutions"
               fill
               sizes="128px"

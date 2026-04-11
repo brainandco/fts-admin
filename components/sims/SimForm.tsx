@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FormActions, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
 
 type SimCard = {
   id: string;
@@ -50,15 +51,21 @@ export function SimForm({ existing }: { existing: SimCard }) {
     router.refresh();
   }
 
+  const inputClass =
+    "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
+
   return (
-    <form onSubmit={submit} className="max-w-lg space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <form onSubmit={submit} className="max-w-lg">
+      <FormCard>
+        <FormCardSection>
+          <FormSection title="SIM card" description="Operator, service type, and identifiers. Assignment is handled by Project Managers.">
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Operator</label>
         <input
           value={operator}
           onChange={(e) => setOperator(e.target.value)}
           required
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
           placeholder="e.g. Zain, STC, Mobily"
         />
       </div>
@@ -67,7 +74,7 @@ export function SimForm({ existing }: { existing: SimCard }) {
         <select
           value={serviceType}
           onChange={(e) => setServiceType(e.target.value as "Data" | "Voice" | "Data+Voice")}
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
         >
           <option value="Data">Data</option>
           <option value="Voice">Voice</option>
@@ -80,7 +87,7 @@ export function SimForm({ existing }: { existing: SimCard }) {
           value={simNumber}
           onChange={(e) => setSimNumber(e.target.value)}
           required
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm font-mono"
+          className={`${inputClass} font-mono`}
           placeholder="Unique SIM/ICCID number"
         />
       </div>
@@ -89,7 +96,7 @@ export function SimForm({ existing }: { existing: SimCard }) {
         <input
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
           placeholder="Optional MSISDN"
         />
       </div>
@@ -99,32 +106,39 @@ export function SimForm({ existing }: { existing: SimCard }) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
           placeholder="Optional notes"
         />
       </div>
       {existing ? (
-        <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+        <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
           Current status: <span className="font-medium text-zinc-900">{existing.status}</span> (employee assignment is handled by Project Managers)
         </p>
       ) : null}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <div className="flex gap-2">
+          </FormSection>
+        </FormCardSection>
+      {error ? (
+        <FormCardSection>
+          <p className="text-sm text-red-600">{error}</p>
+        </FormCardSection>
+      ) : null}
+        <FormActions>
         <button
           type="submit"
           disabled={saving}
-          className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
           {saving ? "Saving..." : existing ? "Update" : "Create"}
         </button>
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
         >
           Cancel
         </button>
-      </div>
+        </FormActions>
+      </FormCard>
     </form>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FormActions, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
 
 type User = {
   id: string;
@@ -82,11 +83,17 @@ export function UserForm({
     setRoleIds((prev) => (prev.includes(roleId) ? prev.filter((r) => r !== roleId) : [...prev, roleId]));
   }
 
+  const inputClass =
+    "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
+
   return (
-    <form onSubmit={submit} className="max-w-md space-y-4">
+    <form onSubmit={submit} className="max-w-2xl">
+      <FormCard>
+        <FormCardSection>
+          <FormSection title="Profile" description="Admin user display name and access status.">
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Full name</label>
-        <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+        <input value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputClass} />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Status</label>
@@ -103,13 +110,17 @@ export function UserForm({
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as "ACTIVE" | "DISABLED")}
-            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+            className={inputClass}
           >
             <option value="ACTIVE">Active</option>
             <option value="DISABLED">Disabled</option>
           </select>
         )}
       </div>
+          </FormSection>
+        </FormCardSection>
+        <FormCardSection>
+          <FormSection title="Roles & permissions" description="At least one role when the account is Active.">
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">
           Roles {!rolesLocked && <span className="text-red-600">*</span>}
@@ -139,18 +150,27 @@ export function UserForm({
           </>
         )}
       </div>
+          </FormSection>
+        </FormCardSection>
 
       {isSuperTarget && !canDemoteThisSuper && (
-        <p className="text-xs text-amber-700">Only the super user who assigned this user&apos;s super role can delete or demote them.</p>
+        <FormCardSection>
+          <p className="text-sm text-amber-800">Only the super user who assigned this user&apos;s super role can delete or demote them.</p>
+        </FormCardSection>
       )}
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          <p className="whitespace-pre-wrap">{error}</p>
-        </div>
+        <FormCardSection>
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <p className="whitespace-pre-wrap">{error}</p>
+          </div>
+        </FormCardSection>
       )}
-      <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+        <FormActions>
+      <button type="submit" disabled={saving} className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
         {saving ? "Saving..." : "Update"}
       </button>
+        </FormActions>
+      </FormCard>
     </form>
   );
 }

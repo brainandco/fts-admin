@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { FormActions, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
 
 type ProjectType = "MS" | "Rollout" | "Huawei Minor" | "Other";
 type Project = { id: string; name: string; project_type: string; description: string | null } | null;
@@ -114,14 +115,20 @@ export function ProjectForm({ existing }: { existing: Project }) {
     router.refresh();
   }
 
+  const inputClass =
+    "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
+
   return (
-    <form onSubmit={submit} className="max-w-md space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
+    <form onSubmit={submit} className="max-w-2xl">
+      <FormCard>
+        <FormCardSection>
+          <FormSection title="Classification" description="Operator and project type combine into the display name for new projects.">
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Type</label>
         <select
           value={projectType}
           onChange={(e) => handleTypeChange(e.target.value as ProjectType)}
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
         >
           {TYPES.map((t) => (
             <option key={t} value={t}>{t}</option>
@@ -135,7 +142,7 @@ export function ProjectForm({ existing }: { existing: Project }) {
             value={customType}
             onChange={(e) => { setCustomType(e.target.value); if (!existing) setName(buildName(projectType, operator, e.target.value, customOperator)); }}
             placeholder="e.g. New Project Type"
-            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+            className={inputClass}
           />
         </div>
       )}
@@ -144,7 +151,7 @@ export function ProjectForm({ existing }: { existing: Project }) {
         <select
           value={operator}
           onChange={(e) => handleOperatorChange(e.target.value)}
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
         >
           {operators.map((op) => (
             <option key={op} value={op}>{op}</option>
@@ -161,32 +168,43 @@ export function ProjectForm({ existing }: { existing: Project }) {
             value={customOperator}
             onChange={(e) => { setCustomOperator(e.target.value); if (!existing) setName(buildName(projectType, operator, customType, e.target.value)); }}
             placeholder="e.g. New Operator"
-            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+            className={inputClass}
           />
         </div>
       )}
+          </FormSection>
+        </FormCardSection>
+        <FormCardSection>
+          <FormSection title="Display name & notes" description="The name appears across assignments; description is optional.">
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Name</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
-          className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          className={inputClass}
           placeholder="e.g. STC MS, Zain Rollout"
         />
         <p className="mt-1 text-xs text-zinc-500">Shown when assigning employees, teams, vehicles. You can edit if needed.</p>
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputClass} />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+          </FormSection>
+        </FormCardSection>
+      {error ? (
+        <FormCardSection>
+          <p className="text-sm text-red-600">{error}</p>
+        </FormCardSection>
+      ) : null}
+        <FormActions>
+        <button type="submit" disabled={saving} className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
           {saving ? "Saving…" : existing ? "Update" : "Create"}
         </button>
-        <button type="button" onClick={() => router.back()} className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
-      </div>
+        <button type="button" onClick={() => router.back()} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
+        </FormActions>
+      </FormCard>
     </form>
   );
 }

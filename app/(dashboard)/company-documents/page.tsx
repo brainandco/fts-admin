@@ -21,7 +21,7 @@ export default async function CompanyDocumentsPage() {
       <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-6">
         <h1 className="text-2xl font-semibold text-zinc-900">Company documents</h1>
         <p className="mt-2 text-sm text-zinc-600">
-          Store internal reference files and the leave performa PDF template. Only Super Users and Admins with approval
+          Store internal reference files and the leave performa PDF template.
           access can view this page.
         </p>
         <Link href="/dashboard" className="mt-3 inline-block text-sm text-indigo-700 hover:underline">

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { can } from "@/lib/rbac/permissions";
 import { TeamForm } from "@/components/teams/TeamForm";
+import { FormCallout } from "@/components/ui/FormSection";
 
 export default async function NewTeamPage() {
   if (!(await can("teams.manage"))) redirect("/dashboard");
@@ -31,15 +32,15 @@ export default async function NewTeamPage() {
   );
 
   return (
-    <div>
-      <h1 className="mb-2 text-2xl font-semibold text-zinc-900">New team</h1>
-      <p className="mb-6 text-sm text-zinc-600">
-        Set each member&apos;s region (and project where required) on{" "}
-        <Link href="/employees/region-project-assignments" className="font-medium text-indigo-600 hover:text-indigo-800">
-          Employee region &amp; project assignments
-        </Link>
-        . The team inherits region and project from the DT; Driver/Rigger must match the DT&apos;s region.
-      </p>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold text-zinc-900">New team</h1>
+      <div className="max-w-3xl">
+        <FormCallout variant="info" title="Region &amp; project first">
+          Set each member&apos;s region (and project where required) on{" "}
+          <Link href="/employees/region-project-assignments">Employee region &amp; project assignments</Link>. The team
+          inherits region and project from the DT; Driver/Rigger must match the DT&apos;s region.
+        </FormCallout>
+      </div>
       <TeamForm existing={null} employees={employeesWithRoles} unavailableEmployeeIds={unavailableEmployeeIds} />
     </div>
   );

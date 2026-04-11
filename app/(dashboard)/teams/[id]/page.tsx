@@ -10,6 +10,7 @@ import {
   getTeamTerminationBlockers,
   teamTerminationBlockedMessage,
 } from "@/lib/teams/teamTermination";
+import { FormCallout } from "@/components/ui/FormSection";
 
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -121,20 +122,20 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
           />
         )}
       </div>
-      <section>
-        <h2 className="mb-3 text-lg font-medium text-zinc-900">Edit team</h2>
-        <p className="mb-4 max-w-2xl rounded-lg border border-indigo-100 bg-indigo-50/80 px-4 py-3 text-sm text-indigo-950">
-          You cannot replace a DT or Driver/Rigger while they still have assigned assets, SIMs, or a vehicle. They must return
-          everything via the Employee Portal (QC is notified) before you save a new member. Terminating the team is blocked
-          until the same is true for every member.
-        </p>
-        <p className="mb-4 text-sm text-zinc-600">
-          Region and project on this team follow the <strong>DT</strong> (or Self DT) employee — update them on{" "}
-          <Link href="/employees/region-project-assignments" className="font-medium text-indigo-600 hover:text-indigo-800">
-            Employee region &amp; project assignments
-          </Link>
-          . Driver/Rigger must stay in the same region as the DT when you change members.
-        </p>
+      <section className="space-y-6">
+        <h2 className="text-lg font-medium text-zinc-900">Edit team</h2>
+        <div className="max-w-3xl space-y-4">
+          <FormCallout variant="warning" title="Before you change members">
+            You cannot replace a DT or Driver/Rigger while they still have assigned assets, SIMs, or a vehicle. They must
+            return everything via the Employee Portal (QC is notified) before you save a new member. Terminating the team is
+            blocked until the same is true for every member.
+          </FormCallout>
+          <FormCallout variant="info" title="Region &amp; project">
+            They follow the <strong>DT</strong> (or Self DT) employee — update on{" "}
+            <Link href="/employees/region-project-assignments">Employee region &amp; project assignments</Link>. The
+            Driver/Rigger must stay in the same region as the DT when you change members.
+          </FormCallout>
+        </div>
         <TeamForm existing={team} employees={employeesWithRoles} unavailableEmployeeIds={unavailableEmployeeIds} />
       </section>
       {(dtId || drId) && (

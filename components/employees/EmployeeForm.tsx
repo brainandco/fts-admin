@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { FormActions, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
 import {
   EMPLOYEE_ROLE_GROUPS,
   EMPLOYEE_ROLE_OTHER,
@@ -131,45 +132,68 @@ export function EmployeeForm({
     router.refresh();
   }
 
+  const fieldClass =
+    "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
+
   return (
     <>
-      <form onSubmit={submit} className="max-w-2xl space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <form onSubmit={submit} className="max-w-4xl">
+        <FormCard>
+          <FormCardSection>
+            <FormSection
+              title="Personal & contact"
+              description={
+                <>
+                  Region and formal project are managed on{" "}
+                  <Link href="/employees/region-project-assignments" className="font-medium text-indigo-700 underline">
+                    Employee region &amp; project assignments
+                  </Link>
+                  , not on this form.
+                </>
+              }
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Full name <span className="text-red-600">*</span>
             </label>
-            <input value={fullName} onChange={(e) => setFullName(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} required className={fieldClass} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">Passport number</label>
-            <input value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+            <input value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} className={fieldClass} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Country <span className="text-red-600">*</span>
             </label>
-            <input value={country} onChange={(e) => setCountry(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+            <input value={country} onChange={(e) => setCountry(e.target.value)} required className={fieldClass} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Email <span className="text-red-600">*</span>
             </label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={fieldClass} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Phone number <span className="text-red-600">*</span>
             </label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} required className={fieldClass} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Iqama number <span className="text-red-600">*</span>
             </label>
-            <input value={iqamaNumber} onChange={(e) => setIqamaNumber(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+            <input value={iqamaNumber} onChange={(e) => setIqamaNumber(e.target.value)} required className={fieldClass} />
           </div>
-          <div className="sm:col-span-2">
+              </div>
+            </FormSection>
+          </FormCardSection>
+
+          <FormCardSection>
+            <FormSection title="Role" description="Exactly one role per employee. This drives team eligibility and portal behavior.">
+          <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700" htmlFor="employee_role_select">
               Role <span className="text-red-600">*</span>
             </label>
@@ -213,67 +237,84 @@ export function EmployeeForm({
                 <p className="mt-1 text-xs text-zinc-500">1–120 characters. Shown everywhere the role appears.</p>
               </div>
             ) : null}
-            <div className="mt-2 space-y-1 text-xs text-zinc-500">
-              {EMPLOYEE_ROLE_GROUPS.map((g) => (
-                <p key={g.heading}>
-                  <span className="font-medium text-zinc-600">{g.heading}:</span> {g.description ?? ""}
+            <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-700">
+              <summary className="cursor-pointer font-medium text-slate-800">Role group reference</summary>
+              <div className="mt-2 space-y-1.5 border-t border-slate-200 pt-2">
+                {EMPLOYEE_ROLE_GROUPS.map((g) => (
+                  <p key={g.heading}>
+                    <span className="font-medium text-slate-800">{g.heading}:</span> {g.description ?? ""}
+                  </p>
+                ))}
+                <p>
+                  <span className="font-medium text-slate-800">Other:</span> any title not listed — not used on DT/Driver team
+                  rows.
                 </p>
-              ))}
-              <p>
-                <span className="font-medium text-zinc-600">Other:</span> any title not listed above — not assigned to DT/Driver
-                team rows.
-              </p>
-              <p className="text-zinc-600">One role per employee. Self DT covers both DT and Driver/Rigger on a team.</p>
-            </div>
+                <p>Self DT covers both DT and Driver/Rigger on a team.</p>
+              </div>
+            </details>
           </div>
+            </FormSection>
+          </FormCardSection>
+
+          <FormCardSection>
+            <FormSection title="Employment" description="Onboarding date and active status.">
+              <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Onboarding date <span className="text-red-600">*</span>
             </label>
-            <input type="date" value={onboardingDate} onChange={(e) => setOnboardingDate(e.target.value)} required className="w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
+            <input type="date" value={onboardingDate} onChange={(e) => setOnboardingDate(e.target.value)} required className={fieldClass} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded border border-zinc-300 px-3 py-2 text-sm">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className={fieldClass}>
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
             </select>
           </div>
-          <div className="sm:col-span-2">
+              </div>
+            </FormSection>
+          </FormCardSection>
+
+          <FormCardSection>
+            <FormSection title="Notes" description="Optional free text.">
+          <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">Accommodations</label>
             <textarea
               value={accommodations}
               onChange={(e) => setAccommodations(e.target.value)}
               rows={3}
-              className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+              className={fieldClass}
               placeholder="Accommodation details (free text)"
             />
-            <p className="mt-1 text-xs text-zinc-500">Optional.</p>
           </div>
-        </div>
+            </FormSection>
+          </FormCardSection>
 
         {error && (
-          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            <p>{error}</p>
-            {teamsBlockingDelete.length > 0 ? (
-              <>
-                <p className="mt-2 font-medium">Replace this employee in these teams first:</p>
-                <ul className="mt-1 list-inside list-disc">
-                  {teamsBlockingDelete.map((t) => (
-                    <li key={t.id}>
-                      <Link href={`/teams/${t.id}`} className="text-red-700 underline hover:no-underline">
-                        {t.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : null}
-          </div>
+          <FormCardSection>
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <p>{error}</p>
+              {teamsBlockingDelete.length > 0 ? (
+                <>
+                  <p className="mt-2 font-medium">Replace this employee in these teams first:</p>
+                  <ul className="mt-1 list-inside list-disc">
+                    {teamsBlockingDelete.map((t) => (
+                      <li key={t.id}>
+                        <Link href={`/teams/${t.id}`} className="text-red-700 underline hover:no-underline">
+                          {t.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+            </div>
+          </FormCardSection>
         )}
 
-        <div className="flex gap-2">
-          <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
+        <FormActions>
+          <button type="submit" disabled={saving} className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">
             {saving ? "Saving..." : existing ? "Update" : "Create"}
           </button>
           {existing && canDeleteEmployee && (
@@ -281,15 +322,16 @@ export function EmployeeForm({
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
               disabled={deleting}
-              className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
               {deleting ? "Deleting…" : "Delete"}
             </button>
           )}
-          <button type="button" onClick={() => router.back()} className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+          <button type="button" onClick={() => router.back()} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
             Cancel
           </button>
-        </div>
+        </FormActions>
+        </FormCard>
       </form>
       {existing && canDeleteEmployee && (
         <ConfirmModal
