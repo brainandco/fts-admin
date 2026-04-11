@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { DashboardHeader } from "./DashboardHeader";
 
+const SIDEBAR_COLLAPSED_KEY = "fts-admin-sidebar-collapsed";
+
 type UserProfile = { full_name?: string | null; email?: string | null; avatar_url?: string | null } | null;
 
 export function DashboardChrome({
@@ -12,14 +14,35 @@ export function DashboardChrome({
   permissions,
   userProfile,
   unreadNotifications,
+  positionLabel,
 }: {
   children: React.ReactNode;
   isSuper: boolean;
   permissions: string[];
   userProfile: UserProfile;
   unreadNotifications: number;
+  positionLabel?: string | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1") {
+        setSidebarCollapsed(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -31,13 +54,16 @@ export function DashboardChrome({
   }, [mobileOpen]);
 
   return (
-    <>
+    <div className={sidebarCollapsed ? "fts-sidebar-collapsed" : ""}>
       <Sidebar
         isSuper={isSuper}
         permissions={permissions}
         userProfile={userProfile}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
+        positionLabel={positionLabel}
       />
 
       <button
@@ -59,6 +85,6 @@ export function DashboardChrome({
           <div className="mx-auto w-full max-w-7xl min-w-0">{children}</div>
         </main>
       </div>
-    </>
+    </div>
   );
 }

@@ -32,6 +32,26 @@ export default async function DashboardLayout({
   const permissionList = Array.from(permissions);
   const supabase = await getDataClient();
   const userId = access.user?.id ?? null;
+
+  let positionLabel: string | null = null;
+  if (isSuper) {
+    positionLabel = "Super User";
+  } else if (userId) {
+    const { data: roleRows } = await supabase.from("user_roles").select("roles(name)").eq("user_id", userId);
+    const names: string[] = [];
+    for (const row of roleRows ?? []) {
+      const r = (row as { roles: { name: string } | { name: string }[] | null }).roles;
+      if (!r) continue;
+      if (Array.isArray(r)) {
+        for (const x of r) {
+          if (x?.name) names.push(x.name);
+        }
+      } else if (r.name) {
+        names.push(r.name);
+      }
+    }
+    positionLabel = names.length ? [...new Set(names)].join(" · ") : "Administrator";
+  }
   const { count: unreadNotifications } = userId
     ? await supabase
         .from("notifications")
@@ -55,6 +75,7 @@ export default async function DashboardLayout({
             : null
         }
         unreadNotifications={unreadNotifications ?? 0}
+        positionLabel={positionLabel}
       >
         {children}
       </DashboardChrome>

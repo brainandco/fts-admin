@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT, PERMISSION_EMPLOYEE_MANAGE } from "@/lib/rbac/permission-codes";
+import { AdminNavGlyph, SidebarCollapseGlyph, SidebarSignOutGlyph } from "./admin-nav-glyphs";
 
 /** Optional permission: user needs this permission (or be super) to see the link. superOnly: only super user sees it. */
 type NavLink = {
@@ -133,12 +134,18 @@ export function Sidebar({
   userProfile = null,
   mobileOpen = false,
   onCloseMobile,
+  collapsed = false,
+  onToggleCollapsed,
+  positionLabel = null,
 }: {
   isSuper?: boolean;
   permissions?: string[];
   userProfile?: UserProfile;
   mobileOpen?: boolean;
   onCloseMobile?: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  positionLabel?: string | null;
 }) {
   const pathname = usePathname();
   const permissionSet = useMemo(() => new Set(permissions), [permissions]);
@@ -185,42 +192,104 @@ export function Sidebar({
 
   const displayName = userProfile?.full_name?.trim() || userProfile?.email || "User";
   const displayEmail = userProfile?.email || null;
+  const profileTitle = [displayName, displayEmail, positionLabel].filter(Boolean).join(" · ");
 
   function handleNav() {
     onCloseMobile?.();
   }
 
+  const rail = collapsed;
+
+  function linkActive(href: string) {
+    return pathname === href || pathname.startsWith(href + "/");
+  }
+
   return (
     <aside
-      className={`fixed left-0 top-0 z-40 flex h-full w-56 flex-col border-r border-slate-800 bg-slate-900 shadow-xl shadow-slate-900/30 transition-transform duration-300 ease-out lg:z-20 lg:translate-x-0 ${
-        mobileOpen ? "translate-x-0" : "-translate-x-full"
-      }`}
+      className={`fixed left-0 top-0 z-40 flex h-full w-56 flex-col border-r border-slate-800 bg-slate-900 shadow-xl shadow-slate-900/30 transition-[width] duration-300 ease-out lg:z-20 lg:translate-x-0 ${
+        rail ? "lg:w-16" : "lg:w-56"
+      } ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
     >
-      {/* Logo - same height as header (h-14) */}
-      <div className="flex h-14 shrink-0 items-center border-b border-white/10 bg-black/20 px-4">
+      {/* Logo + collapse (desktop) */}
+      <div
+        className={`flex shrink-0 items-center justify-between gap-1 border-b border-white/10 bg-black/20 px-3 max-lg:h-14 max-lg:min-h-[3.5rem] ${
+          rail ? "lg:min-h-0 lg:flex-col lg:justify-center lg:gap-2 lg:py-3" : "h-14 min-h-[3.5rem]"
+        }`}
+      >
         <Link
           href="/dashboard"
           onClick={handleNav}
-          className="group flex items-center gap-2 font-semibold text-white transition-transform duration-200 hover:scale-[1.02]"
+          className={`group flex min-w-0 items-center font-semibold text-white transition-transform duration-200 hover:scale-[1.02] ${
+            rail ? "lg:w-full lg:justify-center" : "flex-1"
+          }`}
         >
-          <span className="relative h-8 w-32 shrink-0">
+          <span className={`relative shrink-0 ${rail ? "h-8 w-32 max-lg:w-32 lg:h-9 lg:w-9" : "h-8 w-32"}`}>
             <Image
               src="/images/black.svg"
               alt="Fast Technology Solutions"
               fill
               sizes="128px"
-              className="object-contain object-left brightness-0 invert"
+              className="object-contain object-left brightness-0 invert lg:object-center"
               priority
             />
           </span>
         </Link>
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-expanded={!rail}
+          aria-label={rail ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white lg:flex"
+        >
+          <SidebarCollapseGlyph collapsed={rail} />
+        </button>
+      </div>
+
+      {/* Profile — below logo */}
+      <div className={`shrink-0 border-b border-white/10 ${rail ? "lg:px-2 lg:py-2" : "px-3 py-3"}`}>
+        <div
+          className={`flex items-center gap-3 rounded-xl bg-white/5 p-2 ring-1 ring-white/10 ${
+            rail ? "max-lg:flex-row lg:flex-col lg:items-center lg:justify-center lg:gap-1 lg:p-1.5" : ""
+          }`}
+          title={rail ? profileTitle : undefined}
+        >
+          <UserAvatar name={displayName} email={displayEmail} avatarUrl={userProfile?.avatar_url} size="md" />
+          <div className={`min-w-0 flex-1 ${rail ? "max-lg:block lg:hidden" : ""}`}>
+            <p className="truncate text-sm font-medium text-white">{displayName}</p>
+            {displayEmail ? <p className="truncate text-xs text-slate-400">{displayEmail}</p> : null}
+            {positionLabel ? (
+              <p className="mt-0.5 truncate text-[11px] font-medium text-teal-300/95">{positionLabel}</p>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-        {navFiltered.map((entry) => {
+      <nav className="fts-nav-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-3">
+        {navFiltered.map((entry, idx) => {
           if (entry.type === "link") {
-            const active = pathname === entry.item.href || pathname.startsWith(entry.item.href + "/");
+            const active = linkActive(entry.item.href);
+            if (rail) {
+              return (
+                <div key={entry.item.href} className={idx > 0 ? "max-lg:mt-0 lg:mt-1" : ""}>
+                  <Link
+                    href={entry.item.href}
+                    onClick={handleNav}
+                    title={entry.item.label}
+                    className={`mb-0.5 flex justify-center rounded-lg p-2.5 transition-all duration-200 max-lg:mb-0.5 max-lg:block max-lg:px-3 max-lg:py-2.5 max-lg:text-left max-lg:text-sm lg:mx-auto lg:w-10 ${
+                      active
+                        ? "bg-teal-600 text-white shadow-md shadow-teal-900/25 max-lg:font-medium"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <span className="hidden lg:contents">
+                      <AdminNavGlyph href={entry.item.href} className={active ? "text-white" : "text-slate-200"} />
+                    </span>
+                    <span className="lg:hidden">{entry.item.label}</span>
+                  </Link>
+                </div>
+              );
+            }
             return (
               <Link
                 key={entry.item.href}
@@ -239,9 +308,36 @@ export function Sidebar({
           const { key, group } = entry;
           const isOpen = openKeys.has(key);
           const childrenVisible = group.children.filter((c) => canSeeLink(c, isSuper, permissionSet));
-          const hasActiveChild = childrenVisible.some(
-            (c) => pathname === c.href || pathname.startsWith(c.href + "/")
-          );
+          const hasActiveChild = childrenVisible.some((c) => linkActive(c.href));
+
+          if (rail) {
+            return (
+              <div key={key} className={idx > 0 ? "mt-2 border-t border-white/10 pt-2 max-lg:mt-0 max-lg:border-0 max-lg:pt-0 lg:mt-2 lg:border-t lg:border-white/10 lg:pt-2" : ""}>
+                {childrenVisible.map((child) => {
+                  const active = linkActive(child.href);
+                  return (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      onClick={handleNav}
+                      title={child.label}
+                      className={`mb-0.5 flex justify-center rounded-lg p-2.5 transition-all duration-200 max-lg:mb-0.5 max-lg:block max-lg:px-3 max-lg:py-2.5 max-lg:text-left max-lg:text-sm lg:mx-auto lg:w-10 ${
+                        active
+                          ? "bg-teal-600 text-white shadow-md shadow-teal-900/25 max-lg:font-medium"
+                          : "text-slate-300 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className="hidden lg:contents">
+                        <AdminNavGlyph href={child.href} className={active ? "text-white" : "text-slate-200"} />
+                      </span>
+                      <span className="lg:hidden">{child.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          }
+
           return (
             <div key={key} className="mb-1">
               <button
@@ -264,7 +360,7 @@ export function Sidebar({
               {isOpen && (
                 <div className="ml-2 mt-0.5 space-y-0.5 border-l border-cyan-500/30 py-1 pl-2">
                   {childrenVisible.map((child) => {
-                    const active = pathname === child.href || pathname.startsWith(child.href + "/");
+                    const active = linkActive(child.href);
                     return (
                       <Link
                         key={child.href}
@@ -289,25 +385,17 @@ export function Sidebar({
 
       <div className="shrink-0 border-t border-white/10" />
 
-      <div className="shrink-0 px-3 py-4">
-        <div className="flex items-center gap-3 rounded-xl bg-white/5 p-2 ring-1 ring-white/10">
-          <UserAvatar name={displayName} email={displayEmail} avatarUrl={userProfile?.avatar_url} size="md" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-white">{displayName}</p>
-            {displayEmail && <p className="truncate text-xs text-slate-400">{displayEmail}</p>}
-          </div>
-        </div>
-      </div>
-
-      <div className="shrink-0 border-t border-white/10" />
-
       <div className="shrink-0 px-3 py-3">
         <button
           type="button"
           onClick={signOut}
-          className="w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-400 transition-colors duration-200 hover:bg-rose-500/20 hover:text-rose-200"
+          title="Sign out"
+          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-400 transition-colors duration-200 hover:bg-rose-500/20 hover:text-rose-200 ${
+            rail ? "lg:justify-center lg:px-2" : ""
+          }`}
         >
-          Sign out
+          <SidebarSignOutGlyph className={`shrink-0 ${rail ? "max-lg:hidden lg:inline" : "hidden"}`} />
+          <span className={rail ? "max-lg:inline lg:sr-only" : ""}>Sign out</span>
         </button>
       </div>
     </aside>
