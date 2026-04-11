@@ -139,6 +139,12 @@ export function AdminNavGlyph({ href, className }: { href: string; className?: s
           <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5 7.5 12m4.5-9H12" />
         </svg>
       );
+    case "/software-library":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden {...p}>
+          <path d="M20.25 7.5v-.75a2.25 2.25 0 0 0-2.25-2.25h-5.379a2.25 2.25 0 0 1-1.59-.659l-1.122-1.122A2.25 2.25 0 0 0 8.379 2.25H4.5A2.25 2.25 0 0 0 2.25 4.5v15A2.25 2.25 0 0 0 4.5 21.75h15a2.25 2.25 0 0 0 2.25-2.25V9.75a2.25 2.25 0 0 0-2.25-2.25h-5.379a2.25 2.25 0 0 1-1.59-.659L12.06 5.75m0 0 1.122-1.122A2.25 2.25 0 0 0 14.768 3.5h5.482A2.25 2.25 0 0 1 22.5 5.75v.75m-18 0h18" />
+        </svg>
+      );
     case "/company-documents":
       return (
         <svg viewBox="0 0 24 24" aria-hidden {...p}>

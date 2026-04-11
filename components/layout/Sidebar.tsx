@@ -104,6 +104,7 @@ const navStructure: NavEntry[] = [
       label: "System",
       children: [
         { href: "/exports", label: "Exports", permission: "approvals.approve" },
+        { href: "/software-library", label: "Software library", permission: "approvals.approve" },
         { href: "/company-documents", label: "Company documents", permission: "approvals.approve" },
         { href: "/audit", label: "Audit logs", permission: "audit_logs.view_all" },
         { href: "/settings/roles", label: "Roles & permissions", superOnly: true },
