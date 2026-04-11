@@ -1,10 +1,11 @@
 import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { TeamForm } from "@/components/teams/TeamForm";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { TerminateTeamButton } from "@/components/teams/TerminateTeamButton";
+import { SendTeamMemberCredentialsButton } from "@/components/teams/SendTeamMemberCredentialsButton";
 import {
   getTeamTerminationBlockers,
   teamTerminationBlockedMessage,
@@ -27,6 +28,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
 
   const { profile } = await getCurrentUserProfile();
   const isSuper = profile?.is_super_user ?? false;
+  const canManageTeams = await can("teams.manage");
 
   const { data: employees } = await supabase.from("employees").select("id, full_name, region_id").eq("status", "ACTIVE");
   const { data: teams } = await supabase.from("teams").select("id, dt_employee_id, driver_rigger_employee_id");
@@ -179,6 +181,16 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
             {dtId && <li><strong>DT:</strong> {dtEmp?.full_name ?? dtId}</li>}
             {drId && <li><strong>Driver/Rigger:</strong> {drEmp?.full_name ?? drId}</li>}
           </ul>
+          {canManageTeams && (
+            <div className="mt-5 border-t border-zinc-100 pt-5">
+              <h3 className="mb-2 text-sm font-medium text-zinc-800">Employee Portal credentials</h3>
+              <p className="mb-3 text-xs text-zinc-500">
+                Sends the same credential email as on each employee&apos;s page (new temporary password per person). Only
+                current DT and Driver/Rigger on this team receive it.
+              </p>
+              <SendTeamMemberCredentialsButton teamId={id} memberCount={memberIdsForFleet.length} />
+            </div>
+          )}
         </section>
       )}
       {(dtId || drId) && (
