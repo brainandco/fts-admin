@@ -7,35 +7,64 @@ import Link from "next/link";
 export default async function TeamsPage() {
   if (!(await can("teams.manage"))) redirect("/dashboard");
   const supabase = await getDataClient();
-  const { data: teams } = await supabase
+  const { data: teamsRaw } = await supabase
     .from("teams")
-    .select("id, name, team_code, project_id, region_id, dt_employee_id, driver_rigger_employee_id, max_size, onboarding_date, created_at")
+    .select(
+      "id, name, team_code, project_id, region_id, dt_employee_id, driver_rigger_employee_id, max_size, onboarding_date, created_at, projects ( name ), regions ( name )"
+    )
     .order("name");
-  const projectIds = [...new Set((teams ?? []).map((t) => t.project_id))];
-  const regionIds = [...new Set((teams ?? []).map((t) => t.region_id))];
+
+  type TeamWithEmbeds = {
+    id: string;
+    name: string;
+    team_code?: string | null;
+    project_id: string | null;
+    region_id: string | null;
+    dt_employee_id: string | null;
+    driver_rigger_employee_id: string | null;
+    max_size: number | null;
+    onboarding_date: string | null;
+    created_at: string;
+    projects?: { name: string | null } | null;
+    regions?: { name: string | null } | null;
+  };
+
+  const teams = teamsRaw as TeamWithEmbeds[] | null;
+
   const empIds = [...new Set((teams ?? []).flatMap((t) => [t.dt_employee_id, t.driver_rigger_employee_id].filter(Boolean) as string[]))];
-  const { data: projects } = await supabase.from("projects").select("id, name").in("id", projectIds);
-  const { data: regions } = await supabase.from("regions").select("id, name").in("id", regionIds);
   const { data: employees } = await supabase.from("employees").select("id, full_name").in("id", empIds);
-  const projectMap = new Map((projects ?? []).map((p) => [p.id, p.name]));
-  const regionMap = new Map((regions ?? []).map((r) => [r.id, r.name]));
   const employeeMap = new Map((employees ?? []).map((e) => [e.id, e.full_name]));
 
-  const rows = (teams ?? []).map((t) => ({
-    ...t,
-    team_code_display: (t as { team_code?: string | null }).team_code?.trim() || "—",
-    project_name: projectMap.get(t.project_id) ?? t.project_id,
-    region_name: t.region_id ? regionMap.get(t.region_id) ?? "" : "",
-    dt_name: t.dt_employee_id ? employeeMap.get(t.dt_employee_id) ?? "" : "—",
-    driver_rigger_name: t.driver_rigger_employee_id ? employeeMap.get(t.driver_rigger_employee_id) ?? "" : "—",
-  }));
+  function projectDisplayName(t: TeamWithEmbeds): string {
+    const embedded = t.projects?.name?.trim();
+    if (embedded) return embedded;
+    if (!t.project_id) return "—";
+    return "Unknown project";
+  }
+
+  function regionDisplayName(t: TeamWithEmbeds): string {
+    const embedded = t.regions?.name?.trim();
+    if (embedded) return embedded;
+    if (!t.region_id) return "";
+    return "Unknown region";
+  }
+
+  const rows = (teams ?? []).map((t) => {
+    const { projects: _proj, regions: _reg, ...base } = t;
+    return {
+      ...base,
+      team_code_display: t.team_code?.trim() || "—",
+      project_name: projectDisplayName(t),
+      region_name: regionDisplayName(t),
+      dt_name: t.dt_employee_id ? employeeMap.get(t.dt_employee_id) ?? "" : "—",
+      driver_rigger_name: t.driver_rigger_employee_id ? employeeMap.get(t.driver_rigger_employee_id) ?? "" : "—",
+    };
+  });
 
   const totalTeams = teams?.length ?? 0;
   const regionCounts = new Map<string, number>();
   for (const t of teams ?? []) {
-    const label = t.region_id
-      ? regionMap.get(t.region_id) ?? "Unknown region"
-      : "No region";
+    const label = regionDisplayName(t) || "No region";
     regionCounts.set(label, (regionCounts.get(label) ?? 0) + 1);
   }
   const regionCountRows = [...regionCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
