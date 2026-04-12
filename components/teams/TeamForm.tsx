@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
 import { ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
@@ -28,10 +28,13 @@ export function TeamForm({
   existing,
   employees,
   unavailableEmployeeIds,
+  regionNamesById,
 }: {
   existing: Team;
   employees: Employee[];
   unavailableEmployeeIds: string[];
+  /** Region display names for auto TEAM-{REGION}-NN codes (new teams only). */
+  regionNamesById?: Record<string, string>;
 }) {
   const router = useRouter();
   const [name, setName] = useState(existing?.name ?? "");
@@ -50,6 +53,9 @@ export function TeamForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const identityTouchedRef = useRef(false);
+  const regionNamesByIdRef = useRef(regionNamesById);
+  regionNamesByIdRef.current = regionNamesById;
 
   /** Field roles only: not QC/QA/PP/PM/PC or Other/custom roles. */
   const canBeOnTeam = (e: Employee) => !e.roles.some((r) => ROLES_NOT_ALLOWED_ON_TEAM.has(r));
@@ -90,6 +96,47 @@ export function TeamForm({
     const e = selectable.find((x) => x.id === dtEmployeeId);
     return e?.region_id ?? null;
   }, [selectable, dtEmployeeId]);
+
+  /** Region for the new team row (from DT or Self DT) — drives auto name/code. */
+  const effectiveRegionId = useMemo(() => {
+    if (existing) return null;
+    if (isSelfDtTeam) {
+      const e = selectable.find((x) => x.id === selfDtEmployeeId);
+      return e?.region_id ?? null;
+    }
+    const e = selectable.find((x) => x.id === dtEmployeeId);
+    return e?.region_id ?? null;
+  }, [existing, isSelfDtTeam, selfDtEmployeeId, dtEmployeeId, selectable]);
+
+  useEffect(() => {
+    if (existing) return;
+    if (!effectiveRegionId) {
+      if (!identityTouchedRef.current) {
+        setName("");
+        setTeamCode("");
+      }
+      return;
+    }
+    const ac = new AbortController();
+    const qs = new URLSearchParams({ region_id: effectiveRegionId });
+    const rn = regionNamesByIdRef.current?.[effectiveRegionId];
+    if (rn) qs.set("region_name", rn);
+    (async () => {
+      try {
+        const res = await fetch(`/api/teams/next-code?${qs.toString()}`, { signal: ac.signal });
+        const data = (await res.json()) as { code?: string };
+        if (!res.ok) return;
+        if (identityTouchedRef.current) return;
+        const code = typeof data.code === "string" ? data.code : "";
+        if (!code) return;
+        setName(code);
+        setTeamCode(code);
+      } catch {
+        /* aborted or network */
+      }
+    })();
+    return () => ac.abort();
+  }, [existing, effectiveRegionId]);
 
   const driversInDtRegion = useMemo(() => {
     if (!dtRegionId) {
@@ -208,7 +255,10 @@ export function TeamForm({
                 </label>
                 <input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    identityTouchedRef.current = true;
+                    setName(e.target.value);
+                  }}
                   required
                   className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
@@ -219,13 +269,20 @@ export function TeamForm({
                 </label>
                 <input
                   value={teamCode}
-                  onChange={(e) => setTeamCode(e.target.value)}
+                  onChange={(e) => {
+                    identityTouchedRef.current = true;
+                    setTeamCode(e.target.value);
+                  }}
                   required
                   autoComplete="off"
-                  placeholder="e.g. T-R01, TEAM_NORTH_1"
+                  placeholder="e.g. TEAM-EAST-01"
                   className="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm uppercase shadow-sm placeholder:normal-case placeholder:font-sans focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
-                <p className="mt-1 text-xs text-zinc-500">2–32 characters; letters, numbers, underscore, hyphen. Stored uppercase.</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {existing
+                    ? "2–32 characters; letters, numbers, underscore, hyphen. Stored uppercase."
+                    : "Suggested from the DT/Self DT region (e.g. TEAM-EAST-01). Same value as name by default. 2–32 characters; stored uppercase."}
+                </p>
               </div>
             </div>
             <div className="max-w-xs">

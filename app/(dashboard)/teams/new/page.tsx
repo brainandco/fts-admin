@@ -31,6 +31,13 @@ export default async function NewTeamPage() {
     )
   );
 
+  const regionIds = [...new Set(employeesWithRoles.map((e) => e.region_id).filter(Boolean) as string[])];
+  let regionNamesById: Record<string, string> = {};
+  if (regionIds.length > 0) {
+    const { data: regions } = await supabase.from("regions").select("id, name").in("id", regionIds);
+    regionNamesById = Object.fromEntries((regions ?? []).map((r) => [r.id, r.name as string]));
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-zinc-900">New team</h1>
@@ -41,7 +48,12 @@ export default async function NewTeamPage() {
           inherits region and project from the DT; Driver/Rigger must match the DT&apos;s region.
         </FormCallout>
       </div>
-      <TeamForm existing={null} employees={employeesWithRoles} unavailableEmployeeIds={unavailableEmployeeIds} />
+      <TeamForm
+        existing={null}
+        employees={employeesWithRoles}
+        unavailableEmployeeIds={unavailableEmployeeIds}
+        regionNamesById={regionNamesById}
+      />
     </div>
   );
 }
