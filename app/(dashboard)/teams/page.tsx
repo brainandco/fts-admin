@@ -30,9 +30,42 @@ export default async function TeamsPage() {
     driver_rigger_name: t.driver_rigger_employee_id ? employeeMap.get(t.driver_rigger_employee_id) ?? "" : "—",
   }));
 
+  const totalTeams = teams?.length ?? 0;
+  const regionCounts = new Map<string, number>();
+  for (const t of teams ?? []) {
+    const label = t.region_id
+      ? regionMap.get(t.region_id) ?? "Unknown region"
+      : "No region";
+    regionCounts.set(label, (regionCounts.get(label) ?? 0) + 1);
+  }
+  const regionCountRows = [...regionCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Teams</h1>
+
+      <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,220px)_1fr]">
+        <div className="rounded-xl border border-zinc-200/90 bg-white p-5 shadow-sm ring-1 ring-zinc-100">
+          <p className="text-sm font-medium text-zinc-500">Total teams</p>
+          <p className="mt-2 text-3xl font-semibold tabular-nums text-zinc-900">{totalTeams}</p>
+        </div>
+        <div className="rounded-xl border border-zinc-200/90 bg-white p-5 shadow-sm ring-1 ring-zinc-100">
+          <p className="text-sm font-medium text-zinc-500">By region</p>
+          {regionCountRows.length === 0 ? (
+            <p className="mt-2 text-sm text-zinc-500">No teams yet.</p>
+          ) : (
+            <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              {regionCountRows.map(([regionName, count]) => (
+                <li key={regionName} className="tabular-nums">
+                  <span className="text-zinc-700">{regionName}</span>
+                  <span className="ml-1.5 font-semibold text-zinc-900">{count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       <DataTable
         keyField="id"
         data={rows}

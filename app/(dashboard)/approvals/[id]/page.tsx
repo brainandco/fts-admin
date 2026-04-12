@@ -52,7 +52,7 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
         : (approval.status === "Submitted" && isAdminNonSuper) ||
           (approval.status === "Performa_Submitted" && isSuper)
       : adminThenSuperWorkflow
-        ? (approval.status === "Submitted" && isAdminNonSuper) || (approval.status === "Admin_Approved" && isSuper)
+      ? (approval.status === "Submitted" && isAdminNonSuper) || (approval.status === "Admin_Approved" && isSuper)
         : canApprove || canReject;
 
   const { data: requester } = await supabase
@@ -450,7 +450,7 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
             </div>
           ) : null}
         </dl>
-        </div>
+      </div>
       </section>
 
       {approval.approval_type === "leave_request" && (
@@ -462,17 +462,17 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
             <p className={cardSubtitle}>Recent leave approvals for the same person, newest first.</p>
           </div>
           <div className="px-5 py-5 sm:px-6">
-            {!(leaveHistory.data ?? []).length ? (
+          {!(leaveHistory.data ?? []).length ? (
               <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50/50 py-10 text-center">
                 <p className="text-sm font-medium text-zinc-600">No other leave requests found</p>
                 <p className="mt-1 text-xs text-zinc-500">New submissions will show up here.</p>
               </div>
-            ) : (
+          ) : (
               <ul className="space-y-3">
-                {(leaveHistory.data ?? []).map((h) => {
-                  const payload = (h.payload_json as { from_date?: string; to_date?: string; reason?: string }) ?? {};
+              {(leaveHistory.data ?? []).map((h) => {
+                const payload = (h.payload_json as { from_date?: string; to_date?: string; reason?: string }) ?? {};
                   const isCurrent = h.id === id;
-                  return (
+                return (
                     <li
                       key={h.id}
                       className={`relative rounded-xl border p-4 text-sm shadow-sm transition ${
@@ -495,21 +495,21 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
                         >
                           {h.status.replace(/_/g, " ")}
                         </span>
-                      </div>
+                    </div>
                       {payload.reason ? <p className="mt-2 text-zinc-700">Reason: {payload.reason}</p> : null}
                       {h.admin_comment || h.pm_comment ? (
                         <p className="mt-2 border-t border-zinc-200/80 pt-2 text-xs text-zinc-600">
                           <span className="font-medium text-zinc-700">Remarks:</span> {h.admin_comment || h.pm_comment}
                         </p>
-                      ) : null}
+                    ) : null}
                       <p className="mt-2 text-xs tabular-nums text-zinc-400">
                         {new Date(h.created_at).toLocaleString()}
                       </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           </div>
         </section>
       )}
