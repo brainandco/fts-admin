@@ -245,8 +245,116 @@ export function TeamForm({
 
         <FormCardSection>
           <FormSection
+            title="Membership"
+            description="Only DT, Driver/Rigger, or Self DT can be on a team. QC, QA, PP, PM, PC, and custom (Other) roles cannot be assigned here."
+          >
+            <div>
+              <span className="mb-2 block text-sm font-medium text-zinc-700">Team type</span>
+              <div className="flex flex-wrap gap-6">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="teamType"
+                    checked={!isSelfDtTeam}
+                    onChange={() => {
+                      setIsSelfDtTeam(false);
+                      setSelfDtEmployeeId("");
+                    }}
+                  />
+                  Standard (DT + Driver/Rigger)
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="teamType"
+                    checked={isSelfDtTeam}
+                    onChange={() => {
+                      setIsSelfDtTeam(true);
+                      setDtEmployeeId("");
+                      setDriverRiggerEmployeeId("");
+                    }}
+                  />
+                  Self DT (one person)
+                </label>
+              </div>
+            </div>
+            {isSelfDtTeam ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  Self DT employee <span className="text-red-600">*</span>
+                </label>
+                <SearchableSelect
+                  options={toOptions(employeesWithSelfDt)}
+                  value={selfDtSelectedName}
+                  onChange={(_value, option) => {
+                    if (option) setSelfDtEmployeeId(option.id);
+                  }}
+                  placeholder="Type to search Self DT…"
+                  required
+                  className={selectClass}
+                  listClassName="max-h-72"
+                />
+                <p className="mt-1 text-xs text-zinc-500">
+                  One person acts as both DT and Driver/Rigger. They must have a primary region (and formal project if required for
+                  their role) on Employee region &amp; project assignments.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">
+                    DT (1 per team) <span className="text-red-600">*</span>
+                  </label>
+                  <SearchableSelect
+                    options={toOptions(employeesWithDt)}
+                    value={dtSelectedName}
+                    onChange={(_value, option) => {
+                      handleDtSelected(option);
+                    }}
+                    placeholder="Type to search DT…"
+                    required
+                    className={selectClass}
+                    listClassName="max-h-72"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">
+                    New teams: only DTs with a primary region are listed. When editing, the current DT always appears so you can
+                    replace them after fixing region in Employee assignments.
+                  </p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">
+                    Driver/Rigger (1 per team) <span className="text-red-600">*</span>
+                  </label>
+                  <SearchableSelect
+                    options={toOptions(driversInDtRegion)}
+                    value={drSelectedName}
+                    onChange={(_value, option) => {
+                      if (option) setDriverRiggerEmployeeId(option.id);
+                    }}
+                    placeholder={
+                      dtEmployeeId
+                        ? dtRegionId
+                          ? "Type to search Driver/Rigger (same region as DT)…"
+                          : "Selected DT has no region — fix in Employee region & project first."
+                        : "Select a DT first…"
+                    }
+                    required
+                    className={selectClass}
+                    listClassName="max-h-72"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Only Driver/Riggers in the <strong>same region</strong> as the DT are shown.
+                  </p>
+                </div>
+              </>
+            )}
+          </FormSection>
+        </FormCardSection>
+
+        <FormCardSection>
+          <FormSection
             title="Team identity"
-            description="Display name and unique code used in reports and filters."
+            description="Display name and unique code used in reports and filters. Name and code are suggested from the selected member’s region on new teams."
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -297,114 +405,6 @@ export function TeamForm({
                 className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
-          </FormSection>
-        </FormCardSection>
-
-        <FormCardSection>
-          <FormSection
-            title="Membership"
-            description="Only DT, Driver/Rigger, or Self DT can be on a team. QC, QA, PP, PM, PC, and custom (Other) roles cannot be assigned here."
-          >
-            <div>
-              <span className="mb-2 block text-sm font-medium text-zinc-700">Team type</span>
-              <div className="flex flex-wrap gap-6">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="teamType"
-                    checked={!isSelfDtTeam}
-                    onChange={() => {
-                      setIsSelfDtTeam(false);
-                      setSelfDtEmployeeId("");
-                    }}
-                  />
-                  Standard (DT + Driver/Rigger)
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="teamType"
-                    checked={isSelfDtTeam}
-                    onChange={() => {
-                      setIsSelfDtTeam(true);
-                      setDtEmployeeId("");
-                      setDriverRiggerEmployeeId("");
-                    }}
-                  />
-                  Self DT (one person)
-                </label>
-              </div>
-            </div>
-      {isSelfDtTeam ? (
-        <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">
-            Self DT employee <span className="text-red-600">*</span>
-          </label>
-          <SearchableSelect
-            options={toOptions(employeesWithSelfDt)}
-            value={selfDtSelectedName}
-            onChange={(_value, option) => {
-              if (option) setSelfDtEmployeeId(option.id);
-            }}
-            placeholder="Type to search Self DT…"
-            required
-            className={selectClass}
-            listClassName="max-h-72"
-          />
-          <p className="mt-1 text-xs text-zinc-500">
-            One person acts as both DT and Driver/Rigger. They must have a primary region (and formal project if required for
-            their role) on Employee region &amp; project assignments.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">
-              DT (1 per team) <span className="text-red-600">*</span>
-            </label>
-            <SearchableSelect
-              options={toOptions(employeesWithDt)}
-              value={dtSelectedName}
-              onChange={(_value, option) => {
-                handleDtSelected(option);
-              }}
-              placeholder="Type to search DT…"
-              required
-              className={selectClass}
-              listClassName="max-h-72"
-            />
-            <p className="mt-1 text-xs text-zinc-500">
-              New teams: only DTs with a primary region are listed. When editing, the current DT always appears so you can
-              replace them after fixing region in Employee assignments.
-            </p>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">
-              Driver/Rigger (1 per team) <span className="text-red-600">*</span>
-            </label>
-            <SearchableSelect
-              options={toOptions(driversInDtRegion)}
-              value={drSelectedName}
-              onChange={(_value, option) => {
-                if (option) setDriverRiggerEmployeeId(option.id);
-              }}
-              placeholder={
-                dtEmployeeId
-                  ? dtRegionId
-                    ? "Type to search Driver/Rigger (same region as DT)…"
-                    : "Selected DT has no region — fix in Employee region & project first."
-                  : "Select a DT first…"
-              }
-              required
-              className={selectClass}
-              listClassName="max-h-72"
-            />
-            <p className="mt-1 text-xs text-zinc-500">
-              Only Driver/Riggers in the <strong>same region</strong> as the DT are shown.
-            </p>
-          </div>
-        </>
-      )}
           </FormSection>
         </FormCardSection>
 
