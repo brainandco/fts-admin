@@ -8,57 +8,28 @@ import {
 } from "@/lib/data-uniqueness";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
 import { formatEmployeeRoleDisplay, parseImportRoleToken } from "@/lib/employees/employee-role-options";
-
-function parseCSVLine(line: string): string[] {
-  const out: string[] = [];
-  let cur = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      inQuotes = !inQuotes;
-    } else if (inQuotes) {
-      cur += c;
-    } else if (c === ",") {
-      out.push(cur.trim());
-      cur = "";
-    } else {
-      cur += c;
-    }
-  }
-  out.push(cur.trim());
-  return out;
-}
-
-function parseCSV(text: string): { headers: string[]; rows: string[][] } {
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (lines.length === 0) return { headers: [], rows: [] };
-  const headers = parseCSVLine(lines[0]).map((h) =>
-    h.replace(/^"|"$/g, "").trim().toLowerCase().replace(/\s+/g, "_")
-  );
-  const rows = lines.slice(1).map((l) => parseCSVLine(l).map((c) => c.replace(/^"|"$/g, "").trim()));
-  return { headers, rows };
-}
+import { normalizeHeaderDefault, parseImportFile } from "@/lib/import/spreadsheet";
 
 export async function POST(req: Request) {
   if (!(await can("users.create")) && !(await can("employees.manage"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
-  let text: string;
+  let parsed: Awaited<ReturnType<typeof parseImportFile>>;
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ message: "No file provided" }, { status: 400 });
-    text = await file.text();
+    parsed = await parseImportFile(file, normalizeHeaderDefault);
   } catch {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
   }
 
-  const { headers, rows } = parseCSV(text);
+  if (!parsed.ok) {
+    return NextResponse.json({ message: parsed.error, previewRows: [] }, { status: 400 });
+  }
+
+  const { headers, rows } = parsed;
   const col = (row: string[], name: string) => {
     const i = headers.indexOf(name);
     return i >= 0 ? (row[i] ?? "").trim() : "";
@@ -106,7 +77,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         message:
-          "CSV must have headers: full_name, passport_number, country, email, phone, iqama_number, roles (and optionally onboarding_date, status). Assign region and project after import on Employees → Region & project assignments. One role per row: a fixed role (e.g. DT), Other:Label, or any custom text (stored as a custom role).",
+          "The file must have headers: full_name, passport_number, country, email, phone, iqama_number, roles (and optionally onboarding_date, status). Assign region and project after import on Employees → Region & project assignments. One role per row: a fixed role (e.g. DT), Other:Label, or any custom text (stored as a custom role).",
         previewRows: [],
       },
       { status: 400 }
@@ -231,7 +202,7 @@ export async function POST(req: Request) {
   if (invalidCount > 0 && validCount === 0) {
     return NextResponse.json(
       {
-        message: `All ${previewRows.length} rows have errors. Fix the CSV and try again.`,
+        message: `All ${previewRows.length} rows have errors. Fix the file and try again.`,
         previewRows,
       },
       { status: 400 }

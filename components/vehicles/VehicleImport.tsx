@@ -46,7 +46,7 @@ export function VehicleImport() {
 
   async function handleParse() {
     if (!file) {
-      setParseError("Select a CSV file first.");
+      setParseError("Select a CSV or Excel file first.");
       return;
     }
     setParseError("");
@@ -75,7 +75,7 @@ export function VehicleImport() {
   async function handleSave() {
     const validRows = previewRows.filter((r) => !r._error).map((r) => r._payload);
     if (validRows.length === 0) {
-      setParseError("No valid rows to save. Fix errors in the CSV and parse again.");
+      setParseError("No valid rows to save. Fix errors in the file and parse again.");
       return;
     }
     setSaving(true);
@@ -152,7 +152,7 @@ export function VehicleImport() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   className="hidden"
                   onChange={(e) => {
                     setFile(e.target.files?.[0] ?? null);

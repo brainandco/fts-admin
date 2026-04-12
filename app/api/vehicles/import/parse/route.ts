@@ -6,45 +6,26 @@ import {
   fetchVehiclePlatesLowerSet,
   flagCsvDuplicateKeys,
 } from "@/lib/data-uniqueness";
-
-function parseCSVLine(line: string): string[] {
-  const out: string[] = [];
-  let cur = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') inQuotes = !inQuotes;
-    else if (inQuotes) cur += c;
-    else if (c === ",") { out.push(cur.trim()); cur = ""; }
-    else cur += c;
-  }
-  out.push(cur.trim());
-  return out;
-}
-
-function parseCSV(text: string): { headers: string[]; rows: string[][] } {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) return { headers: [], rows: [] };
-  const rawHeaders = parseCSVLine(lines[0]).map((h) => h.replace(/^"|"$/g, "").trim());
-  const headers = rawHeaders.map((h) => h.toLowerCase().replace(/\s+/g, "_").replace(/\./g, ""));
-  const rows = lines.slice(1).map((l) => parseCSVLine(l).map((c) => c.replace(/^"|"$/g, "").trim()));
-  return { headers, rows };
-}
+import { normalizeHeaderVehicle, parseImportFile } from "@/lib/import/spreadsheet";
 
 export async function POST(req: Request) {
   if (!(await can("vehicles.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
-  let text: string;
+  let parsed: Awaited<ReturnType<typeof parseImportFile>>;
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ message: "No file provided" }, { status: 400 });
-    text = await file.text();
+    parsed = await parseImportFile(file, normalizeHeaderVehicle);
   } catch {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
   }
 
-  const { headers, rows } = parseCSV(text);
+  if (!parsed.ok) {
+    return NextResponse.json({ message: parsed.error, previewRows: [] }, { status: 400 });
+  }
+
+  const { headers, rows } = parsed;
   const col = (row: string[], name: string) => {
     const i = headers.indexOf(name);
     return i >= 0 ? (row[i] ?? "").trim() : "";
@@ -53,7 +34,7 @@ export async function POST(req: Request) {
   const hasPlateColumn = headers.includes("plate_number") || headers.includes("vehicle_plate_no");
   if (!hasPlateColumn) {
     return NextResponse.json({
-      message: "CSV must have header plate_number. Optional: vehicle_type, rent_company, make, model, assignment_type. (Legacy alias: vehicle_plate_no.)",
+      message: "The file must have header plate_number. Optional: vehicle_type, rent_company, make, model, assignment_type. (Legacy alias: vehicle_plate_no.)",
       previewRows: [],
     }, { status: 400 });
   }
@@ -141,7 +122,7 @@ export async function POST(req: Request) {
   const invalidCount = previewRows.length - validCount;
   if (invalidCount > 0 && validCount === 0) {
     return NextResponse.json({
-      message: `All ${previewRows.length} rows have errors. Fix the CSV and try again.`,
+      message: `All ${previewRows.length} rows have errors. Fix the file and try again.`,
       previewRows,
     }, { status: 400 });
   }

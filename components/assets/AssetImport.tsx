@@ -56,7 +56,7 @@ export function AssetImport() {
 
   async function handleParse() {
     if (!file) {
-      setParseError("Select a CSV file first.");
+      setParseError("Select a CSV or Excel file first.");
       return;
     }
     setParseError("");
@@ -85,7 +85,7 @@ export function AssetImport() {
   async function handleSave() {
     const validRows = previewRows.filter((r) => !r._error).map((r) => r._payload);
     if (validRows.length === 0) {
-      setParseError("No valid rows to save. Fix errors in the CSV and parse again.");
+      setParseError("No valid rows to save. Fix errors in the file and parse again.");
       return;
     }
     setSaving(true);
@@ -161,7 +161,7 @@ export function AssetImport() {
             </div>
             <div className="max-h-[calc(90vh-8rem)] space-y-4 overflow-y-auto px-6 py-4">
               <p className="text-sm text-zinc-600">
-                CSV columns: <strong>company</strong>, <strong>category</strong> (required — category is any type label).
+                Columns (CSV or Excel): <strong>company</strong>, <strong>category</strong> (required — category is any type label).
                 Optional model, serial, imei_1, imei_2, asset_id, condition, software_connectivity, ram. Large imports are
                 saved in batches on the server (hundreds of rows in a few seconds).
               </p>
@@ -169,7 +169,7 @@ export function AssetImport() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   className="hidden"
                   onChange={(e) => {
                     setFile(e.target.files?.[0] ?? null);

@@ -40,7 +40,7 @@ export function SimImport() {
   const [saveResult, setSaveResult] = useState<{ inserted: number; errors?: { row: number; message: string }[] } | null>(null);
 
   async function parseFile() {
-    if (!file) return setParseError("Select a CSV file first.");
+    if (!file) return setParseError("Select a CSV or Excel file first.");
     setParseError("");
     setMessage("");
     setSaveResult(null);
@@ -132,14 +132,14 @@ export function SimImport() {
             </div>
             <div className="max-h-[calc(90vh-8rem)] space-y-4 overflow-y-auto px-6 py-4">
               <p className="text-sm text-zinc-600">
-                CSV columns required: <strong>operator</strong>, <strong>service_type</strong>, <strong>sim_number</strong>.
+                Columns required (CSV or Excel): <strong>operator</strong>, <strong>service_type</strong>, <strong>sim_number</strong>.
                 Optional: phone_number, notes.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   className="hidden"
                   onChange={(e) => {
                     setFile(e.target.files?.[0] ?? null);

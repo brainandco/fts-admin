@@ -31,7 +31,7 @@ export function AssignImport() {
 
   async function handleParse() {
     if (!file) {
-      setParseError("Select a CSV file first.");
+      setParseError("Select a CSV or Excel file first.");
       return;
     }
     setParseError("");
@@ -131,13 +131,13 @@ export function AssignImport() {
             </div>
             <div className="max-h-[calc(90vh-8rem)] overflow-y-auto px-6 py-4 space-y-4">
               <p className="text-sm text-zinc-600">
-                CSV must have: vehicle_plate_no, name (employee full name). Vehicles must already exist. Assignments will be saved and appear in the Assigned vehicles tab.
+                The file must have: vehicle_plate_no, name (employee full name). Format: CSV or Excel. Vehicles must already exist. Assignments will be saved and appear in the Assigned vehicles tab.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   className="hidden"
                   onChange={(e) => {
                     setFile(e.target.files?.[0] ?? null);

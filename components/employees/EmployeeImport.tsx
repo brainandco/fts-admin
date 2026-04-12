@@ -59,7 +59,7 @@ export function EmployeeImport() {
 
   async function handleParse() {
     if (!file) {
-      setParseError("Select a CSV file first.");
+      setParseError("Select a CSV or Excel file first.");
       return;
     }
     setParseError("");
@@ -88,7 +88,7 @@ export function EmployeeImport() {
   async function handleSave() {
     const validRows = previewRows.filter((r) => !r._error).map((r) => r._payload);
     if (validRows.length === 0) {
-      setParseError("No valid rows to save. Fix errors in the CSV and parse again.");
+      setParseError("No valid rows to save. Fix errors in the file and parse again.");
       return;
     }
     setSaving(true);
@@ -114,7 +114,7 @@ export function EmployeeImport() {
       }
       setSaveResult({ inserted: data.inserted ?? 0, errors: rowErrors });
       setMessage(
-        `${data.inserted ?? 0} employee(s) imported. ${rowErrors.length} row(s) failed — fix the CSV and try again.`
+        `${data.inserted ?? 0} employee(s) imported. ${rowErrors.length} row(s) failed — fix the file and try again.`
       );
     } catch {
       setSaving(false);
@@ -161,7 +161,7 @@ export function EmployeeImport() {
             </div>
             <div className="overflow-y-auto max-h-[calc(90vh-8rem)] px-6 py-4 space-y-4">
               <p className="text-sm text-zinc-600">
-                Upload a CSV with columns: full_name, passport_number, country, email, phone, iqama_number, roles, and optionally onboarding_date, status. Assign region and project after import on{" "}
+                Upload a CSV or Excel file with columns: full_name, passport_number, country, email, phone, iqama_number, roles, and optionally onboarding_date, status. Assign region and project after import on{" "}
                 <span className="font-medium text-zinc-800">Employees → Region &amp; project assignments</span>. In the roles column use one value per row, for example{" "}
                 <code className="rounded bg-zinc-100 px-1">QA</code>, a fixed role like <code className="rounded bg-zinc-100 px-1">DT</code>,{" "}
                 <code className="rounded bg-zinc-100 px-1">Other:Mechanic</code>, or any custom label (stored as a custom role). One role per row.{" "}
@@ -174,7 +174,7 @@ export function EmployeeImport() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   className="hidden"
                   onChange={(e) => {
                     setFile(e.target.files?.[0] ?? null);

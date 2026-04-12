@@ -21,8 +21,9 @@ export default async function SoftwareLibraryPage() {
       <div className="rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 to-cyan-50 p-6">
         <h1 className="text-2xl font-semibold text-zinc-900">Software library</h1>
         <p className="mt-2 text-sm text-zinc-600">
-          Upload installers and tools to Wasabi storage. Files upload directly from the browser (large files supported). Configure
-          your Wasabi bucket CORS to allow PUT from this admin origin if uploads fail with a network error.
+          Upload installers and tools to Wasabi storage (direct browser upload; large files supported). Active entries appear in
+          the employee portal under <span className="font-medium">Software library</span> for anyone who can sign in there.
+          Configure Wasabi bucket CORS for PUT from this admin origin if uploads fail.
         </p>
         <Link href="/dashboard" className="mt-3 inline-block text-sm text-teal-800 hover:underline">
           ← Dashboard
