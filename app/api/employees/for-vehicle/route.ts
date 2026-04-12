@@ -10,6 +10,7 @@ export async function GET() {
   const { data: employees } = await supabase
     .from("employees")
     .select("id, full_name, phone, email, project_id, region_id")
+    .eq("status", "ACTIVE")
     .order("full_name");
 
   const ids = (employees ?? []).map((e) => e.id);

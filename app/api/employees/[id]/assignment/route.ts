@@ -4,6 +4,10 @@ import { can } from "@/lib/rbac/permissions";
 import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT } from "@/lib/rbac/permission-codes";
 import { auditLog } from "@/lib/audit/log";
 import { employeeMayHaveFormalProjectOnRecord } from "@/lib/employees/employee-record-project-roles";
+import {
+  fetchTeamsForEmployee,
+  formatTeamListForMessage,
+} from "@/lib/employees/region-assignment-eligibility";
 
 /**
  * PATCH — requires `employees.assign_region_project` (or Super User). Sets region and formal project for an employee.
@@ -39,6 +43,33 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const supabase = await getDataClient();
   const { data: old, error: fetchErr } = await supabase.from("employees").select("*").eq("id", id).single();
   if (fetchErr || !old) return NextResponse.json({ message: "Not found" }, { status: 404 });
+
+  const status = String((old as { status?: string }).status ?? "ACTIVE");
+  const teamsForEmp = await fetchTeamsForEmployee(supabase, id);
+
+  if (status !== "ACTIVE") {
+    const teamHint =
+      teamsForEmp.length > 0
+        ? ` They are still listed on team(s): ${formatTeamListForMessage(teamsForEmp)}. After reactivation, update or replace them in Teams if they should not remain on a roster.`
+        : "";
+    return NextResponse.json(
+      {
+        message: `Inactive employees cannot have region or project assigned or changed. Reactivate the employee on their profile first.${teamHint}`,
+      },
+      { status: 400 }
+    );
+  }
+
+  if (teamsForEmp.length > 0) {
+    return NextResponse.json(
+      {
+        message: `This employee is on a team (${formatTeamListForMessage(
+          teamsForEmp
+        )}). In Teams, replace or remove them before changing region or project.`,
+      },
+      { status: 400 }
+    );
+  }
 
   const { data: roleRows } = await supabase.from("employee_roles").select("role").eq("employee_id", id);
   const role = (roleRows ?? [])[0]?.role ?? "";

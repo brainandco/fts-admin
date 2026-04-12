@@ -1,18 +1,27 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { employeeMayHaveFormalProjectOnRecord } from "@/lib/employees/employee-record-project-roles";
+
+type TeamRef = { id: string; label: string };
 
 type Row = {
   id: string;
   full_name: string;
   region_id: string | null;
   project_id: string | null;
+  status: string;
+  team_memberships: TeamRef[];
   role: string;
   /** `employee_roles.role` — use for project eligibility, not display `role`. */
   role_code: string;
 };
+
+function canAssignRegionProject(row: Row): boolean {
+  return row.status === "ACTIVE" && row.team_memberships.length === 0;
+}
 
 type Region = { id: string; name: string };
 type Project = { id: string; name: string; region_id: string };
@@ -29,6 +38,10 @@ function initials(name: string): string {
 function rowAttention(row: Row): "ok" | "no_region" {
   if (!row.region_id) return "no_region";
   return "ok";
+}
+
+function rowBlocked(row: Row): boolean {
+  return !canAssignRegionProject(row);
 }
 
 function roleBadgeClass(role: string): string {
@@ -88,6 +101,9 @@ export function EmployeeRegionProjectAssignmentsClient({
   const sortedRows = useMemo(() => {
     const order = { no_region: 0, ok: 1 };
     return [...filtered].sort((a, b) => {
+      const ba = rowBlocked(a) ? 1 : 0;
+      const bb = rowBlocked(b) ? 1 : 0;
+      if (ba !== bb) return ba - bb;
       const da = rowAttention(a);
       const db = rowAttention(b);
       if (order[da] !== order[db]) return order[da] - order[db];
@@ -106,6 +122,20 @@ export function EmployeeRegionProjectAssignmentsClient({
   }, [employees]);
 
   function startEdit(row: Row) {
+    if (!canAssignRegionProject(row)) {
+      if (row.status !== "ACTIVE") {
+        setMessage({
+          type: "err",
+          text: "Inactive employees cannot receive region or project changes. Reactivate them on their employee profile first.",
+        });
+      } else if (row.team_memberships.length > 0) {
+        setMessage({
+          type: "err",
+          text: "This employee is on a team. Replace or remove them in Teams before changing region or project.",
+        });
+      }
+      return;
+    }
     setEditingId(row.id);
     setRegionId(row.region_id ?? "");
     setProjectId(row.project_id ?? "");
@@ -117,7 +147,11 @@ export function EmployeeRegionProjectAssignmentsClient({
     setMessage(null);
   }
 
-  async function save(employeeId: string, roleCode: string) {
+  async function save(employeeId: string, roleCode: string, row: Row) {
+    if (!canAssignRegionProject(row)) {
+      setMessage({ type: "err", text: "Cannot save: employee is inactive or on a team." });
+      return;
+    }
     setSaving(true);
     setMessage(null);
     const mayProject = employeeMayHaveFormalProjectOnRecord(roleCode);
@@ -273,7 +307,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                   return (
                     <tr
                       key={row.id}
-                      className={`transition-colors ${isEditing ? "bg-indigo-50/60" : i % 2 === 0 ? "bg-white" : "bg-zinc-50/40"} hover:bg-indigo-50/30`}
+                      className={`transition-colors ${isEditing ? "bg-indigo-50/60" : i % 2 === 0 ? "bg-white" : "bg-zinc-50/40"} ${rowBlocked(row) ? "opacity-[0.92]" : ""} hover:bg-indigo-50/30`}
                     >
                       <td className="px-4 py-3.5 align-middle">
                         <div className="flex items-center gap-3">
@@ -285,10 +319,41 @@ export function EmployeeRegionProjectAssignmentsClient({
                           </span>
                           <div className="min-w-0">
                             <p className="truncate font-medium text-zinc-900">{row.full_name || "—"}</p>
-                            {att === "no_region" && !isEditing ? (
-                              <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-900">
-                                Needs region
-                              </span>
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              {row.status !== "ACTIVE" ? (
+                                <span className="inline-flex items-center rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-800">
+                                  Inactive
+                                </span>
+                              ) : null}
+                              {row.team_memberships.length > 0 ? (
+                                <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-900">
+                                  On team
+                                </span>
+                              ) : null}
+                              {att === "no_region" && !isEditing && canAssignRegionProject(row) ? (
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-900">
+                                  Needs region
+                                </span>
+                              ) : null}
+                            </div>
+                            {row.team_memberships.length > 0 ? (
+                              <p className="mt-1 max-w-xs text-[11px] leading-snug text-rose-800/90">
+                                {row.status !== "ACTIVE"
+                                  ? "Inactive and still on a team — replace them in Teams after reactivation if needed."
+                                  : "On a team — open Teams to replace or remove this person before changing region or project."}{" "}
+                                {row.team_memberships.map((tm, idx) => (
+                                  <span key={tm.id}>
+                                    {idx > 0 ? " · " : ""}
+                                    <Link href={`/teams/${tm.id}`} className="font-medium underline hover:text-rose-950">
+                                      {tm.label}
+                                    </Link>
+                                  </span>
+                                ))}
+                              </p>
+                            ) : row.status !== "ACTIVE" ? (
+                              <p className="mt-1 max-w-xs text-[11px] text-zinc-500">
+                                Reactivate on the employee profile to assign region or project.
+                              </p>
                             ) : null}
                           </div>
                         </div>
@@ -341,7 +406,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                               <button
                                 type="button"
                                 disabled={saving}
-                                onClick={() => save(row.id, row.role_code)}
+                                onClick={() => save(row.id, row.role_code, row)}
                                 className="inline-flex items-center rounded-lg bg-zinc-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-zinc-800 disabled:opacity-50"
                               >
                                 {saving ? "Saving…" : "Save"}
@@ -387,8 +452,16 @@ export function EmployeeRegionProjectAssignmentsClient({
                           <td className="px-4 py-3.5 text-right align-middle">
                             <button
                               type="button"
+                              disabled={!canAssignRegionProject(row)}
+                              title={
+                                !canAssignRegionProject(row)
+                                  ? row.status !== "ACTIVE"
+                                    ? "Inactive employees cannot be edited here"
+                                    : "Replace or remove from Teams first"
+                                  : undefined
+                              }
                               onClick={() => startEdit(row)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-50 disabled:text-zinc-400"
                             >
                               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                                 <path

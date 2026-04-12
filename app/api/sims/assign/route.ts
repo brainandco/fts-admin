@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
+import { assertEmployeesActiveForAssignment } from "@/lib/employees/active-for-assignment";
 
 export async function POST(req: Request) {
   if (!(await can("assets.manage")) && !(await can("assets.assign"))) {
@@ -15,6 +16,8 @@ export async function POST(req: Request) {
   }
 
   const supabase = await getDataClient();
+  const active = await assertEmployeesActiveForAssignment(supabase, [employeeId]);
+  if (!active.ok) return NextResponse.json({ message: active.message }, { status: 400 });
   const userClient = await createServerSupabaseClient();
   const { data: { user } } = await userClient.auth.getUser();
   const now = new Date().toISOString();

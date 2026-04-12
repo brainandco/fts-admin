@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertEmployeesActiveForAssignment } from "@/lib/employees/active-for-assignment";
 import { ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
 
 /** QC, QA, PP, PM, PC, and support roles are not eligible for DT / Driver-Rigger / Self-DT team slots. */
@@ -8,6 +9,9 @@ export async function assertEmployeesAllowedOnTeam(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const ids = [...new Set(employeeIds.filter((id): id is string => Boolean(id)))];
   if (ids.length === 0) return { ok: true };
+
+  const active = await assertEmployeesActiveForAssignment(supabase, ids);
+  if (!active.ok) return active;
 
   const { data: rows, error } = await supabase
     .from("employee_roles")

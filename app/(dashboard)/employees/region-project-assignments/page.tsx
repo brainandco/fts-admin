@@ -11,8 +11,28 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
   const { profile } = await getCurrentUserProfile();
 
   const supabase = await getDataClient();
-  const { data: employeesRaw } = await supabase.from("employees").select("id, full_name, region_id, project_id").order("full_name");
+  const { data: employeesRaw } = await supabase
+    .from("employees")
+    .select("id, full_name, region_id, project_id, status")
+    .order("full_name");
   const empIds = (employeesRaw ?? []).map((e) => e.id);
+
+  const { data: allTeams } = await supabase
+    .from("teams")
+    .select("id, name, team_code, dt_employee_id, driver_rigger_employee_id");
+  type TeamRef = { id: string; label: string };
+  const teamsByEmployeeId = new Map<string, TeamRef[]>();
+  function pushTeam(empId: string | null, t: { id: string; name: string; team_code: string | null }) {
+    if (!empId) return;
+    const label = String(t.team_code ?? "").trim() || t.name || t.id;
+    const cur = teamsByEmployeeId.get(empId) ?? [];
+    if (!cur.some((x) => x.id === t.id)) cur.push({ id: t.id, label });
+    teamsByEmployeeId.set(empId, cur);
+  }
+  for (const t of allTeams ?? []) {
+    pushTeam(t.dt_employee_id, t);
+    pushTeam(t.driver_rigger_employee_id, t);
+  }
   const { data: roleRows } = await supabase
     .from("employee_roles")
     .select("employee_id, role, role_custom")
@@ -30,6 +50,8 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
     full_name: e.full_name ?? "",
     region_id: e.region_id,
     project_id: e.project_id,
+    status: (e as { status?: string }).status ?? "ACTIVE",
+    team_memberships: teamsByEmployeeId.get(e.id) ?? [],
     role: roleByEmp.get(e.id) ?? "",
     role_code: roleCodeByEmp.get(e.id) ?? "",
   }));
@@ -55,6 +77,14 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
           Assign primary region (where the person works) and, when applicable, a formal project. <span className="font-medium text-zinc-800">Driver/Rigger</span> and{" "}
           <span className="font-medium text-zinc-800">QC</span> are region-only (no project on the record). All other roles — including <span className="font-medium text-zinc-800">DT</span> — may have a project. Projects are not limited by region. For Project Managers, extra regions beyond the primary are set on the employee profile under{" "}
           <span className="font-medium text-zinc-800">PM scope</span>.
+        </p>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
+          <span className="font-medium text-zinc-800">Inactive</span> employees cannot be assigned a region or project here — reactivate them on their employee profile first.
+          Anyone listed on a <span className="font-medium text-zinc-800">team</span> (including as Self DT) must be replaced or removed in{" "}
+          <Link href="/teams" className="font-medium text-indigo-700 hover:underline">
+            Teams
+          </Link>{" "}
+          before their region or project can change.
         </p>
       </header>
       <EmployeeRegionProjectAssignmentsClient employees={employees} regions={regions ?? []} projects={projects ?? []} />
