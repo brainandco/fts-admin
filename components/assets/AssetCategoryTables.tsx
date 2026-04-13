@@ -36,6 +36,7 @@ export function AssetCategoryTables({
   maintenanceRows,
   damagedRows,
   groupByCompany = false,
+  returnToPath,
 }: {
   showImei: boolean;
   /** Super User grants "Execute bulk deletes" on a role; without it, row selection delete is hidden. */
@@ -45,7 +46,10 @@ export function AssetCategoryTables({
   damagedRows: AssetCategoryRow[];
   /** When true, rows must include `company_label`; tables are split under each company (Laptop / Mobile). */
   groupByCompany?: boolean;
+  /** After assigning from asset detail, return here (e.g. `/assets/type/Mobile`). */
+  returnToPath?: string;
 }) {
+  const hrefSuffix = returnToPath ? `?returnTo=${encodeURIComponent(returnToPath)}` : "";
   const imeiCols = showImei
     ? ([{ key: "imei_1", label: "IMEI 1" }, { key: "imei_2", label: "IMEI 2" }] as const)
     : [];
@@ -83,6 +87,7 @@ export function AssetCategoryTables({
           keyField="id"
           data={rows}
           hrefPrefix="/assets/"
+          hrefSuffix={hrefSuffix}
           filterKeys={["status"]}
           searchPlaceholder="Search by name, serial, asset ID…"
           multiSelect={canBulkDelete}
@@ -101,6 +106,7 @@ export function AssetCategoryTables({
               keyField="id"
               data={groupRows}
               hrefPrefix="/assets/"
+              hrefSuffix={hrefSuffix}
               filterKeys={["status"]}
               searchPlaceholder="Search by name, serial, asset ID…"
               multiSelect={canBulkDelete}
@@ -123,6 +129,7 @@ export function AssetCategoryTables({
           keyField="id"
           data={rows}
           hrefPrefix="/assets/"
+          hrefSuffix={hrefSuffix}
           searchPlaceholder="Search by name, serial, asset ID…"
           multiSelect={canBulkDelete}
           bulkDelete={canBulkDelete ? bulk : undefined}
@@ -140,6 +147,7 @@ export function AssetCategoryTables({
               keyField="id"
               data={groupRows}
               hrefPrefix="/assets/"
+              hrefSuffix={hrefSuffix}
               searchPlaceholder="Search by name, serial, asset ID…"
               multiSelect={canBulkDelete}
               bulkDelete={canBulkDelete ? bulk : undefined}

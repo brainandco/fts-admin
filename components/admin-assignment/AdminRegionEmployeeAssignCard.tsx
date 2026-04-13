@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
+import { safeInternalReturnPath } from "@/lib/navigation/safe-internal-path";
 
 type Variant = "asset" | "vehicle" | "sim";
 
@@ -16,6 +17,7 @@ export function AdminRegionEmployeeAssignCard({
   statusLabel,
   canAssign,
   employeeListScope = "region",
+  redirectAfterAssignHref,
 }: {
   variant: Variant;
   resourceId: string;
@@ -25,6 +27,8 @@ export function AdminRegionEmployeeAssignCard({
   canAssign: boolean;
   /** For assets: load all eligible employees; assignment region comes from the employee record / team. */
   employeeListScope?: "region" | "global";
+  /** After a successful asset assign, navigate here (e.g. type listing). Only used for variant asset. */
+  redirectAfterAssignHref?: string | null;
 }) {
   const router = useRouter();
   const isAssetGlobal = variant === "asset" && employeeListScope === "global";
@@ -123,6 +127,11 @@ export function AdminRegionEmployeeAssignCard({
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message || "Assign failed");
+        const target = safeInternalReturnPath(redirectAfterAssignHref ?? null);
+        if (target) {
+          router.push(target);
+          return;
+        }
       } else if (variant === "sim") {
         const res = await fetch(`/api/sims/${resourceId}`, {
           method: "PATCH",

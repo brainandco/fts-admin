@@ -7,9 +7,18 @@ import { EntityHistory } from "@/components/audit/EntityHistory";
 import { can } from "@/lib/rbac/permissions";
 import { AdminRegionEmployeeAssignCard } from "@/components/admin-assignment/AdminRegionEmployeeAssignCard";
 import { ConditionPhotosGallery } from "@/components/assets/ConditionPhotosGallery";
+import { safeInternalReturnPath } from "@/lib/navigation/safe-internal-path";
 
-export default async function AssetDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AssetDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
+  const returnTo = safeInternalReturnPath(sp.returnTo ?? null);
   const supabase = await createServerSupabaseClient();
   const { data: asset } = await supabase.from("assets").select("*").eq("id", id).single();
   if (!asset) notFound();
@@ -31,7 +40,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link href="/assets" className="text-sm text-zinc-500 hover:text-zinc-900">← Assets</Link>
+        <Link href={returnTo ?? "/assets"} className="text-sm text-zinc-500 hover:text-zinc-900">
+          ← {returnTo ? "Back" : "Assets"}
+        </Link>
         <h1 className="text-2xl font-semibold text-zinc-900">{asset.name}</h1>
         <span className="rounded bg-zinc-200 px-2 py-0.5 text-sm text-zinc-700">{asset.status}</span>
         {asset.serial && <span className="text-sm text-zinc-500">Serial: {asset.serial}</span>}
@@ -55,6 +66,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<{ id
         initialRegionId={(asset as { assigned_region_id?: string | null }).assigned_region_id ?? null}
         statusLabel={asset.status}
         canAssign={canAssignAsset}
+        redirectAfterAssignHref={returnTo}
       />
       <ConditionPhotosGallery
         title="Intake / purchase condition photos"

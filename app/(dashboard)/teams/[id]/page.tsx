@@ -229,7 +229,12 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
                             <td className="px-4 py-2 text-zinc-600">{a.category ?? "—"}</td>
                             <td className="px-4 py-2 text-zinc-600">{a.status ?? "—"}</td>
                             <td className="px-4 py-2">
-                              <Link href={`/assets/${a.id}`} className="font-medium text-zinc-900 hover:underline">View →</Link>
+                              <Link
+                                href={`/assets/${a.id}?returnTo=${encodeURIComponent(`/teams/${id}`)}`}
+                                className="font-medium text-zinc-900 hover:underline"
+                              >
+                                View →
+                              </Link>
                             </td>
                           </tr>
                         ))}

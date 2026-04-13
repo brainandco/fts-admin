@@ -78,6 +78,7 @@ export default async function AssetTypePage({ params }: { params: Promise<{ cate
 
   const { category: rawCategory } = await params;
   const category = decodeURIComponent(rawCategory);
+  const returnToPath = `/assets/type/${encodeURIComponent(category)}`;
   const showImei = /mobile/i.test(category);
   const supabase = await getDataClient();
 
@@ -175,6 +176,7 @@ export default async function AssetTypePage({ params }: { params: Promise<{ cate
         maintenanceRows={maintenanceRows as AssetCategoryRow[]}
         damagedRows={damagedRows as AssetCategoryRow[]}
         groupByCompany={groupByCompany}
+        returnToPath={returnToPath}
       />
     </div>
   );

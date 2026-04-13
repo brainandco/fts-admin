@@ -76,7 +76,9 @@ export default async function ReceiptConfirmationsPage() {
   }
 
   function resourceHref(r: (typeof list)[0]): string {
-    if (r.resource_type === "asset") return `/assets/${r.resource_id}`;
+    if (r.resource_type === "asset") {
+      return `/assets/${r.resource_id}?returnTo=${encodeURIComponent("/receipt-confirmations")}`;
+    }
     if (r.resource_type === "sim_card") return `/sims/${r.resource_id}`;
     return `/vehicles/${r.resource_id}`;
   }

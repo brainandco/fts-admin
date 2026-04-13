@@ -105,8 +105,10 @@ interface DataTableProps<T extends Record<string, unknown>> {
   columns: Column<T>[];
   data: T[];
   keyField: keyof T;
-  /** Base path for row links, e.g. "/vehicles/". Link becomes {hrefPrefix}{row[keyField]}. */
+  /** Base path for row links, e.g. "/vehicles/". Link becomes {hrefPrefix}{row[keyField]}{hrefSuffix}. */
   hrefPrefix?: string;
+  /** Appended after id, e.g. `?returnTo=%2Fassets%2Ftype%2FMobile`. */
+  hrefSuffix?: string;
   /** Row actions (View, Edit, Delete, etc.). When provided, an Actions dropdown is shown instead of a plain View link. */
   rowActions?: (row: T) => RowAction<T>[];
   /** When true, user can select one row; same actions are shown in a bar above the table. */
@@ -141,6 +143,7 @@ export function DataTable<T extends Record<string, unknown>>({
   data,
   keyField,
   hrefPrefix,
+  hrefSuffix = "",
   rowActions: rowActionsProp,
   selectable = false,
   selectionLabelKey,
@@ -174,9 +177,14 @@ export function DataTable<T extends Record<string, unknown>>({
   const effectiveRowActions = useMemo((): ((row: T) => RowAction<T>[]) => {
     if (rowActionsProp) return rowActionsProp;
     if (hrefPrefix)
-      return (row: T): RowAction<T>[] => [{ label: "View", href: `${hrefPrefix.endsWith("/") ? hrefPrefix : hrefPrefix + "/"}${row[keyField]}` }];
+      return (row: T): RowAction<T>[] => [
+        {
+          label: "View",
+          href: `${hrefPrefix.endsWith("/") ? hrefPrefix : hrefPrefix + "/"}${row[keyField]}${hrefSuffix}`,
+        },
+      ];
     return () => [];
-  }, [rowActionsProp, hrefPrefix, keyField]);
+  }, [rowActionsProp, hrefPrefix, hrefSuffix, keyField]);
 
   useEffect(() => {
     if (!openActionsKey) return;

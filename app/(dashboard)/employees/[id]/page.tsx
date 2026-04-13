@@ -199,7 +199,10 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                       <td className="px-4 py-3 text-zinc-600">{a.status ?? "—"}</td>
                       <td className="px-4 py-3 text-zinc-600">{a.assigned_by ? assignedByMap.get(a.assigned_by) ?? "—" : "—"}</td>
                       <td className="px-4 py-3">
-                        <Link href={`/assets/${a.id}`} className="font-medium text-zinc-900 hover:underline">
+                        <Link
+                          href={`/assets/${a.id}?returnTo=${encodeURIComponent(`/employees/${id}`)}`}
+                          className="font-medium text-zinc-900 hover:underline"
+                        >
                           View →
                         </Link>
                       </td>
