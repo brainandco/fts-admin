@@ -1,5 +1,6 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
+import { markUsersProfileEmployeePortalOnly } from "@/lib/users/mark-employee-portal-profile";
 import { randomPassword, sendEmployeeCredentials } from "@/lib/email/send-employee-credentials";
 
 export type SendEmployeePortalCredentialsResult =
@@ -43,10 +44,12 @@ export async function sendEmployeePortalCredentials(employeeId: string): Promise
     const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const existingUser = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
 
+    let portalUserId: string | null = null;
     if (existingUser) {
+      portalUserId = existingUser.id;
       await admin.auth.admin.updateUserById(existingUser.id, { password });
     } else {
-      const { error: createErr } = await admin.auth.admin.createUser({
+      const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
@@ -59,7 +62,9 @@ export async function sendEmployeePortalCredentials(employeeId: string): Promise
           message: `Auth user could not be created: ${createErr.message}`,
         };
       }
+      portalUserId = created?.user?.id ?? null;
     }
+    await markUsersProfileEmployeePortalOnly(supabase, portalUserId);
 
     const sendResult = await sendEmployeeCredentials(email, fullName, password);
     const credentialsSent = sendResult.sent;

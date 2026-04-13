@@ -55,6 +55,8 @@ export interface UsersProfile {
   invitation_sent_at?: string | null;
   invitation_expires_at?: string | null;
   invitation_accepted_at?: string | null;
+  /** True for Employee Portal logins; excluded from admin Users list. */
+  employee_portal_only?: boolean;
 }
 
 /** Not used (PM is employee role only; region/project on employee). Kept for type compatibility. */

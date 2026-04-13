@@ -6,6 +6,7 @@ import { auditLog } from "@/lib/audit/log";
 import { randomPassword, sendEmployeeCredentials } from "@/lib/email/send-employee-credentials";
 import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
 import { employeeIdentityConflict } from "@/lib/data-uniqueness";
+import { markUsersProfileEmployeePortalOnly } from "@/lib/users/mark-employee-portal-profile";
 export async function POST(req: Request) {
   if (!(await can("users.create")) && !(await can("employees.manage"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
@@ -73,11 +74,12 @@ export async function POST(req: Request) {
   const password = randomPassword(12);
   try {
     const admin = createServerSupabaseAdmin();
-    const { data: authUser, error: authError } = await admin.auth.admin.createUser({
+    const { data: authWrap, error: authError } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
     });
+    let portalUserId: string | null = authWrap?.user?.id ?? null;
     if (authError) {
       const msg = authError.message.toLowerCase();
       const alreadyExists = msg.includes("already") || msg.includes("exists");
@@ -89,9 +91,11 @@ export async function POST(req: Request) {
       const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
       const existingUser = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
       if (existingUser) {
+        portalUserId = existingUser.id;
         await admin.auth.admin.updateUserById(existingUser.id, { password });
       }
     }
+    await markUsersProfileEmployeePortalOnly(supabase, portalUserId);
     // Send credentials email (same password used for auth)
     const sendResult = await sendEmployeeCredentials(email, full_name, password);
     credentialsSent = sendResult.sent;

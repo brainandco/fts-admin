@@ -1,6 +1,8 @@
-import { getDataClient } from "@/lib/supabase/server";
+import { findAuthUserIdByEmail, isAuthUserNotFoundMessage } from "@/lib/auth/find-auth-user-id-by-email";
 import { auditLog } from "@/lib/audit/log";
 import { getUserDependencies } from "@/lib/user-dependencies";
+import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
+import { getDataClient } from "@/lib/supabase/server";
 
 const SUPER_ROLE_ID = "a0000000-0000-0000-0000-000000000000";
 
@@ -24,6 +26,7 @@ export type DeleteEmployeeResult =
 
 /**
  * Same rules as DELETE /api/employees/[id]. Used by that route and bulk-delete.
+ * Removes linked auth user, user_roles, and users_profile when the employee had portal access.
  */
 export async function deleteEmployeeById(id: string): Promise<DeleteEmployeeResult> {
   const supabase = await getDataClient();
@@ -59,9 +62,32 @@ export async function deleteEmployeeById(id: string): Promise<DeleteEmployeeResu
     };
   }
 
-  const portalProfile = await findPortalProfileByEmployeeEmail(supabase, old.email);
-  if (portalProfile) {
-    if (portalProfile.is_super_user) {
+  const portalProfile = await findPortalProfileByEmployeeEmail(supabase, old.email as string | null);
+  let resolvedUserId: string | null = portalProfile?.id ?? null;
+
+  let admin: ReturnType<typeof createServerSupabaseAdmin> | null = null;
+  const getAdmin = () => {
+    if (!admin) admin = createServerSupabaseAdmin();
+    return admin;
+  };
+
+  const emailStr = typeof old.email === "string" ? old.email.trim() : "";
+  if (!resolvedUserId && emailStr) {
+    try {
+      resolvedUserId = await findAuthUserIdByEmail(getAdmin(), emailStr);
+    } catch {
+      resolvedUserId = null;
+    }
+  }
+
+  if (resolvedUserId) {
+    const { data: profileRow } = await supabase
+      .from("users_profile")
+      .select("id, is_super_user")
+      .eq("id", resolvedUserId)
+      .maybeSingle();
+
+    if (profileRow?.is_super_user) {
       return {
         ok: false,
         status: 400,
@@ -72,7 +98,7 @@ export async function deleteEmployeeById(id: string): Promise<DeleteEmployeeResu
     const { data: superRoleRow } = await supabase
       .from("user_roles")
       .select("role_id")
-      .eq("user_id", portalProfile.id)
+      .eq("user_id", resolvedUserId)
       .eq("role_id", SUPER_ROLE_ID)
       .maybeSingle();
     if (superRoleRow) {
@@ -83,7 +109,7 @@ export async function deleteEmployeeById(id: string): Promise<DeleteEmployeeResu
         code: "EMPLOYEE_HAS_SUPER_ROLE",
       };
     }
-    const deps = await getUserDependencies(supabase, portalProfile.id, { skipApprovals: true });
+    const deps = await getUserDependencies(supabase, resolvedUserId, { skipApprovals: true });
     if (!deps.canDeleteOrDisable) {
       return {
         ok: false,
@@ -95,10 +121,10 @@ export async function deleteEmployeeById(id: string): Promise<DeleteEmployeeResu
     }
   }
 
-  if (portalProfile) {
-    const admin = (await import("@/lib/supabase/admin")).createServerSupabaseAdmin();
-    const { error: authDelErr } = await admin.auth.admin.deleteUser(portalProfile.id);
-    if (authDelErr) {
+  if (resolvedUserId) {
+    await supabase.from("user_roles").delete().eq("user_id", resolvedUserId);
+    const { error: authDelErr } = await getAdmin().auth.admin.deleteUser(resolvedUserId);
+    if (authDelErr && !isAuthUserNotFoundMessage(authDelErr.message)) {
       return {
         ok: false,
         status: 400,
@@ -107,6 +133,7 @@ export async function deleteEmployeeById(id: string): Promise<DeleteEmployeeResu
           "Could not remove this person’s portal login. Resolve the error above, then try deleting the employee again.",
       };
     }
+    await supabase.from("users_profile").delete().eq("id", resolvedUserId);
   }
 
   const { error } = await supabase.from("employees").delete().eq("id", id);
@@ -117,7 +144,7 @@ export async function deleteEmployeeById(id: string): Promise<DeleteEmployeeResu
     entityType: "employee",
     entityId: id,
     oldValue: old,
-    description: portalProfile ? "Employee and linked portal account deleted" : "Employee deleted",
+    description: resolvedUserId ? "Employee and linked portal account removed" : "Employee deleted",
   });
   return { ok: true };
 }

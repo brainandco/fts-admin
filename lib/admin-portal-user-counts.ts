@@ -15,13 +15,14 @@ export async function getEmployeeEmailSet(
  * Optionally restrict by status (e.g. ACTIVE to match dashboard "Admin users").
  */
 export function countAdminPortalProfiles(
-  profiles: { email: string | null; status: string }[],
+  profiles: { email: string | null; status: string; employee_portal_only?: boolean | null }[],
   employeeEmails: Set<string>,
   status?: string
 ): number {
   return profiles.filter((p) => {
     const em = (p.email ?? "").toLowerCase().trim();
     if (!em || employeeEmails.has(em)) return false;
+    if (p.employee_portal_only === true) return false;
     if (status && p.status !== status) return false;
     return true;
   }).length;
@@ -33,7 +34,7 @@ export async function countActiveAdminPortalUsers(
 ): Promise<number> {
   const [empSet, profilesRes] = await Promise.all([
     getEmployeeEmailSet(supabase),
-    supabase.from("users_profile").select("email, status").eq("status", "ACTIVE"),
+    supabase.from("users_profile").select("email, status, employee_portal_only").eq("status", "ACTIVE"),
   ]);
   const profiles = profilesRes.data ?? [];
   return countAdminPortalProfiles(profiles, empSet, "ACTIVE");

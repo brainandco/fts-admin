@@ -19,6 +19,7 @@ type ProfileRow = {
   full_name: string | null;
   status: string;
   is_super_user: boolean | null;
+  employee_portal_only?: boolean | null;
 };
 
 export default async function PeoplePage() {
@@ -63,7 +64,7 @@ export default async function PeoplePage() {
   if (isSuper) {
     const usersRes = await supabase
       .from("users_profile")
-      .select("id, email, full_name, status, is_super_user, created_at")
+      .select("id, email, full_name, status, is_super_user, created_at, employee_portal_only")
       .order("email");
 
     if (usersRes.error) {
@@ -95,6 +96,7 @@ export default async function PeoplePage() {
     const adminOnly = profiles.filter((u) => {
       const em = (u.email ?? "").toLowerCase().trim();
       if (!em || employeeEmails.has(em)) return false;
+      if (u.employee_portal_only === true) return false;
       return u.status === "ACTIVE";
     });
 

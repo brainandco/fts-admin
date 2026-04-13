@@ -65,6 +65,7 @@ export async function POST(req: Request) {
       email: user.email ?? email,
       full_name: full_name || null,
       status: "PENDING_ACCESS",
+      employee_portal_only: false,
       invitation_token: token,
       invitation_sent_at: sentAt.toISOString(),
       invitation_expires_at: expiresAt.toISOString(),

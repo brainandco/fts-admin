@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
-import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
+import { assertAssigneeAllowedInRegion, resolveAssetAssignmentRegion } from "@/lib/admin-assignment/validate-assignee";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 import { assetIdentifierConflictMessage } from "@/lib/data-uniqueness";
 import { formatCompanyDisplayName } from "@/lib/assets/company-display";
@@ -52,15 +52,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const userClient = await createServerSupabaseClient();
     const { data: { user } } = await userClient.auth.getUser();
     if (newEmployeeId) {
-      const regionForValidation =
+      let regionForValidation =
         (typeof body.assignment_region_id === "string" && body.assignment_region_id.trim()) ||
         (old as { assigned_region_id?: string | null }).assigned_region_id ||
         null;
       if (!regionForValidation) {
-        return NextResponse.json(
-          { message: "Set a regional pool on the asset or send assignment_region_id when assigning." },
-          { status: 400 }
-        );
+        const resolved = await resolveAssetAssignmentRegion(supabase, newEmployeeId);
+        if (!resolved.ok) return NextResponse.json({ message: resolved.message }, { status: 400 });
+        regionForValidation = resolved.regionId;
       }
       const check = await assertAssigneeAllowedInRegion(supabase, regionForValidation, "asset", newEmployeeId);
       if (!check.ok) return NextResponse.json({ message: check.message }, { status: 400 });

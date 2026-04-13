@@ -10,6 +10,7 @@ type ProfileRow = {
   status: string;
   is_super_user: boolean | null;
   created_at: string | null;
+  employee_portal_only?: boolean | null;
 };
 
 function roleNamesFromJoinedRow(row: { user_id: string; roles: unknown }): string[] {
@@ -39,7 +40,7 @@ export default async function UsersPage() {
   const [usersRes, employeesRes] = await Promise.all([
     supabase
       .from("users_profile")
-      .select("id, email, full_name, status, is_super_user, created_at")
+      .select("id, email, full_name, status, is_super_user, created_at, employee_portal_only")
       .order("email"),
     supabase.from("employees").select("email"),
   ]);
@@ -88,8 +89,11 @@ export default async function UsersPage() {
     (employeesRes.data ?? []).map((e) => (e.email ?? "").toLowerCase().trim()).filter(Boolean)
   );
 
-  /** Admin-only list: hide emails that belong to a current employee (employee portal). Deleting an employee removes their auth user so they do not appear here; see DELETE /api/employees/[id]. */
-  const adminOnly = profiles.filter((u) => !employeeEmails.has((u.email ?? "").toLowerCase().trim()));
+  /** Admin Users list: exclude employee-portal profiles (flag or roster email) so employees are not treated as admin users. */
+  const adminOnly = profiles.filter((u) => {
+    if (u.employee_portal_only === true) return false;
+    return !employeeEmails.has((u.email ?? "").toLowerCase().trim());
+  });
 
   const rows: UserListRow[] = adminOnly.map((u) => {
     const isSuperFlag = Boolean(u.is_super_user);

@@ -6,36 +6,66 @@ import { SearchableSelect, type SearchableOption } from "@/components/ui/Searcha
 
 type Variant = "asset" | "vehicle" | "sim";
 
-type EmpOpt = { id: string; full_name: string };
+type EmpPick = { id: string; label: string };
 
 export function AdminRegionEmployeeAssignCard({
   variant,
   resourceId,
-  regions,
+  regions = [],
   initialRegionId,
   statusLabel,
   canAssign,
+  employeeListScope = "region",
 }: {
   variant: Variant;
   resourceId: string;
-  regions: { id: string; name: string }[];
+  regions?: { id: string; name: string }[];
   initialRegionId: string | null;
   statusLabel: string;
   canAssign: boolean;
+  /** For assets: load all eligible employees; assignment region comes from the employee record / team. */
+  employeeListScope?: "region" | "global";
 }) {
   const router = useRouter();
+  const isAssetGlobal = variant === "asset" && employeeListScope === "global";
+
   const [regionId, setRegionId] = useState(initialRegionId ?? "");
   useEffect(() => {
     setRegionId(initialRegionId ?? "");
   }, [initialRegionId]);
 
-  const [employees, setEmployees] = useState<EmpOpt[]>([]);
+  const [employees, setEmployees] = useState<EmpPick[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (isAssetGlobal) {
+      let cancelled = false;
+      (async () => {
+        setLoadingEmployees(true);
+        setError("");
+        const res = await fetch("/api/admin/asset-assignees");
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        setLoadingEmployees(false);
+        if (!res.ok) {
+          setError(data.message || "Could not load employees");
+          setEmployees([]);
+          setEmployeeId("");
+          return;
+        }
+        const list = (data.employees ?? []) as { id: string; display_label: string }[];
+        const picks: EmpPick[] = list.map((e) => ({ id: e.id, label: e.display_label }));
+        setEmployees(picks);
+        setEmployeeId(picks[0]?.id ?? "");
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     if (!regionId) {
       setEmployees([]);
       setEmployeeId("");
@@ -56,24 +86,25 @@ export function AdminRegionEmployeeAssignCard({
         setEmployees([]);
         return;
       }
-      const list = (data.employees ?? []) as EmpOpt[];
-      setEmployees(list);
-      setEmployeeId(list[0]?.id ?? "");
+      const list = (data.employees ?? []) as { id: string; full_name: string }[];
+      const picks: EmpPick[] = list.map((e) => ({ id: e.id, label: e.full_name }));
+      setEmployees(picks);
+      setEmployeeId(picks[0]?.id ?? "");
     })();
     return () => {
       cancelled = true;
     };
-  }, [regionId, variant]);
+  }, [regionId, variant, isAssetGlobal]);
 
   const available =
     canAssign &&
     (variant === "sim" ? statusLabel === "Available" : statusLabel === "Available") &&
-    !!regionId &&
+    !!employeeId &&
     employees.length > 0 &&
-    !!employeeId;
+    (isAssetGlobal || !!regionId);
 
   async function onAssign() {
-    if (!available || !regionId) return;
+    if (!available) return;
     setSaving(true);
     setError("");
     try {
@@ -81,10 +112,14 @@ export function AdminRegionEmployeeAssignCard({
         const res = await fetch(`/api/assets/${resourceId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            assigned_to_employee_id: employeeId,
-            assignment_region_id: regionId,
-          }),
+          body: JSON.stringify(
+            isAssetGlobal
+              ? { assigned_to_employee_id: employeeId }
+              : {
+                  assigned_to_employee_id: employeeId,
+                  assignment_region_id: regionId,
+                }
+          ),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message || "Assign failed");
@@ -158,10 +193,16 @@ export function AdminRegionEmployeeAssignCard({
 
   const title =
     variant === "asset"
-      ? "Assign to employee (by region)"
+      ? isAssetGlobal
+        ? "Assign to employee"
+        : "Assign to employee (by region)"
       : variant === "vehicle"
         ? "Assign to driver / rigger (by region)"
         : "Assign SIM (by region)";
+
+  const description = isAssetGlobal
+    ? "Search and select an employee. The asset’s assignment region is set from their profile or team (DT) automatically."
+    : "Choose a region to filter eligible employees, then pick the person. Teams are still used elsewhere for visibility; assignment is always to an individual.";
 
   const assigned =
     variant === "asset"
@@ -179,42 +220,43 @@ export function AdminRegionEmployeeAssignCard({
   const regionLabel = regionId ? regions.find((r) => r.id === regionId)?.name ?? "" : "";
 
   const employeeOptions: SearchableOption[] = useMemo(
-    () => employees.map((e) => ({ id: e.id, label: e.full_name })),
+    () => employees.map((e) => ({ id: e.id, label: e.label })),
     [employees]
   );
-  const employeeLabel = employeeId ? employees.find((e) => e.id === employeeId)?.full_name ?? "" : "";
+  const employeeLabel = employeeId ? employees.find((e) => e.id === employeeId)?.label ?? "" : "";
 
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-6">
       <h2 className="mb-1 text-lg font-medium text-zinc-900">{title}</h2>
-      <p className="mb-4 text-sm text-zinc-600">
-        Choose a region to filter eligible employees, then pick the person. Teams are still used elsewhere for visibility;
-        assignment is always to an individual.
-      </p>
+      <p className="mb-4 text-sm text-zinc-600">{description}</p>
       {!canAssign ? (
         <p className="text-sm text-zinc-500">You do not have permission to assign this resource.</p>
       ) : (
         <>
-          <div className="mb-4 max-w-md">
-            <label className="mb-1 block text-sm font-medium text-zinc-700">Region</label>
-            <SearchableSelect
-              options={regionOptions}
-              value={regionLabel}
-              onChange={(_value, option) => {
-                if (option) setRegionId(option.id);
-              }}
-              placeholder="Type to search or select region…"
-              className={selectClass}
-              listClassName="max-h-60"
-            />
-          </div>
+          {!isAssetGlobal ? (
+            <div className="mb-4 max-w-md">
+              <label className="mb-1 block text-sm font-medium text-zinc-700">Region</label>
+              <SearchableSelect
+                options={regionOptions}
+                value={regionLabel}
+                onChange={(_value, option) => {
+                  if (option) setRegionId(option.id);
+                }}
+                placeholder="Type to search or select region…"
+                className={selectClass}
+                listClassName="max-h-60"
+              />
+            </div>
+          ) : null}
           {loadingEmployees ? (
             <p className="text-sm text-zinc-500">Loading employees…</p>
-          ) : !regionId ? (
+          ) : !isAssetGlobal && !regionId ? (
             <p className="text-sm text-zinc-500">Select a region to load eligible employees.</p>
           ) : employees.length === 0 ? (
             <p className="text-sm text-amber-800">
-              No eligible employees in this region for this assignment type.
+              {isAssetGlobal
+                ? "No eligible employees found for asset assignment (DT / Self DT in a region)."
+                : "No eligible employees in this region for this assignment type."}
             </p>
           ) : (
             <div className="max-w-md">

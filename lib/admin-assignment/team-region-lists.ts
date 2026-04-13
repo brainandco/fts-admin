@@ -193,3 +193,49 @@ export async function buildRegionFlatAssignees(
     .map(([id, full_name]) => ({ id, full_name }))
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
 }
+
+/**
+ * All employees eligible for asset assignment across every region (union of per-region lists).
+ * `display_label` includes a region hint for disambiguation.
+ */
+export async function buildGlobalAssetAssignees(
+  supabase: SupabaseClient
+): Promise<{ id: string; display_label: string }[]> {
+  const { data: allRegions } = await supabase.from("regions").select("id, name").order("name");
+  const regionNames = new Map((allRegions ?? []).map((r) => [r.id as string, r.name as string]));
+  const seen = new Map<string, string>();
+  const idToRegions = new Map<string, Set<string>>();
+
+  for (const r of allRegions ?? []) {
+    const rid = r.id as string;
+    const list = await buildRegionFlatAssignees(supabase, rid, "asset");
+    for (const e of list) {
+      if (!seen.has(e.id)) seen.set(e.id, e.full_name);
+      if (!idToRegions.has(e.id)) idToRegions.set(e.id, new Set());
+      idToRegions.get(e.id)!.add(rid);
+    }
+  }
+
+  const empIds = [...seen.keys()];
+  if (empIds.length === 0) return [];
+
+  const { data: empRows } = await supabase.from("employees").select("id, region_id").in("id", empIds);
+  const empRegion = new Map((empRows ?? []).map((e) => [e.id as string, e.region_id as string | null]));
+
+  const out: { id: string; display_label: string }[] = [];
+  for (const id of empIds) {
+    const full_name = seen.get(id)!;
+    const erid = empRegion.get(id) ?? null;
+    const primaryName = erid ? regionNames.get(erid) : null;
+    const fallbackRegs = [...(idToRegions.get(id) ?? [])]
+      .map((rid) => regionNames.get(rid) ?? rid)
+      .sort((a, b) => a.localeCompare(b));
+    const regionSuffix = primaryName ?? (fallbackRegs.length ? fallbackRegs.join(", ") : "");
+    out.push({
+      id,
+      display_label: regionSuffix ? `${full_name} — ${regionSuffix}` : full_name,
+    });
+  }
+  out.sort((a, b) => a.display_label.localeCompare(b.display_label));
+  return out;
+}
