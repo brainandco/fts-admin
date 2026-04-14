@@ -82,6 +82,11 @@ const navStructure: NavEntry[] = [
       label: "Asset management",
       children: [
         { href: "/assets", label: "Assets", permission: "assets.manage" },
+        {
+          href: "/assets/who-has",
+          label: "Who has assets",
+          permissionAnyOf: ["assets.manage", "assets.assign"],
+        },
         { href: "/sims", label: "SIM cards", permission: "assets.manage" },
         {
           href: "/assets/returns",
@@ -205,6 +210,14 @@ export function Sidebar({
     return pathname === href || pathname.startsWith(href + "/");
   }
 
+  /** Among sibling nav hrefs, only the longest matching prefix is active (e.g. /assets/who-has vs /assets). */
+  function linkActiveAmong(href: string, siblingHrefs: string[]) {
+    const candidates = siblingHrefs.filter((h) => pathname === h || pathname.startsWith(h + "/"));
+    if (candidates.length === 0) return false;
+    const best = candidates.reduce((a, b) => (b.length > a.length ? b : a));
+    return best === href;
+  }
+
   return (
     <aside
       className={`fixed left-0 top-0 z-40 flex h-full w-56 flex-col border-r border-slate-800 bg-slate-900 shadow-xl shadow-slate-900/30 transition-[width] duration-300 ease-out lg:z-20 lg:translate-x-0 ${
@@ -309,13 +322,14 @@ export function Sidebar({
           const { key, group } = entry;
           const isOpen = openKeys.has(key);
           const childrenVisible = group.children.filter((c) => canSeeLink(c, isSuper, permissionSet));
-          const hasActiveChild = childrenVisible.some((c) => linkActive(c.href));
+          const siblingHrefs = childrenVisible.map((c) => c.href);
+          const hasActiveChild = childrenVisible.some((c) => linkActiveAmong(c.href, siblingHrefs));
 
           if (rail) {
             return (
               <div key={key} className={idx > 0 ? "mt-2 border-t border-white/10 pt-2 max-lg:mt-0 max-lg:border-0 max-lg:pt-0 lg:mt-2 lg:border-t lg:border-white/10 lg:pt-2" : ""}>
                 {childrenVisible.map((child) => {
-                  const active = linkActive(child.href);
+                  const active = linkActiveAmong(child.href, siblingHrefs);
                   return (
                     <Link
                       key={child.href}
@@ -361,7 +375,7 @@ export function Sidebar({
               {isOpen && (
                 <div className="ml-2 mt-0.5 space-y-0.5 border-l border-cyan-500/30 py-1 pl-2">
                   {childrenVisible.map((child) => {
-                    const active = linkActive(child.href);
+                    const active = linkActiveAmong(child.href, siblingHrefs);
                     return (
                       <Link
                         key={child.href}
