@@ -127,6 +127,36 @@ export function EmployeeFilesClient({
     if (u) globalThis.open(u, "_blank", "noopener,noreferrer");
   }
 
+  const selectedFolder = folders.find((f) => f.regionId === regionId);
+
+  async function deleteRegionFolder() {
+    if (!selectedFolder) return;
+    if (
+      !confirm(
+        `Delete the entire folder for ${selectedFolder.regionName} (${selectedFolder.pathSegment})?\n\n` +
+          "This permanently removes all files in that region for every employee, deletes the storage prefix, and " +
+          "removes the region slot so you can create it again later. This cannot be undone."
+      )
+    ) {
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await fetch(`/api/employee-file-folders/${selectedFolder.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data as { message?: string }).message || "Delete failed");
+      setMessage("Region folder deleted.");
+      setFiles([]);
+      await loadFolders();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-zinc-200 bg-white p-4">
@@ -179,7 +209,7 @@ export function EmployeeFilesClient({
       <div className="rounded-2xl border border-zinc-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-900">Browse by region</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <label className="text-xs text-zinc-500">Region folder</label>
             <select
               className="rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
@@ -193,8 +223,22 @@ export function EmployeeFilesClient({
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={deleteRegionFolder}
+              disabled={loading || !selectedFolder}
+              className="rounded border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
+            >
+              {loading ? "Working…" : "Delete this region folder"}
+            </button>
           </div>
         </div>
+        {selectedFolder ? (
+          <p className="mt-2 text-xs text-zinc-500">
+            Deleting the folder removes every file under <code className="rounded bg-zinc-100 px-1">employee-files/{selectedFolder.pathSegment}/</code> for all
+            employees in {selectedFolder.regionName}. Employees in this region can upload again only after a new folder is created.
+          </p>
+        ) : null}
         {fileLoading ? (
           <p className="mt-4 text-sm text-zinc-500">Loading files…</p>
         ) : !regionId ? (
