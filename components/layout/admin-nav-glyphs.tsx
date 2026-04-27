@@ -72,6 +72,13 @@ export function AdminNavGlyph({ href, className }: { href: string; className?: s
           <circle cx="18" cy="12" r="2" />
         </svg>
       );
+    case "/employee-files":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden {...p}>
+          <path d="M4 7h4l2-2h4l2 2h4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" />
+          <path d="M9 12h6M12 9v6" />
+        </svg>
+      );
     case "/delegate":
       return (
         <svg viewBox="0 0 24 24" aria-hidden {...p}>

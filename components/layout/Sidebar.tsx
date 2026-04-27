@@ -5,7 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { UserAvatar } from "@/components/profile/UserAvatar";
-import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT, PERMISSION_EMPLOYEE_MANAGE } from "@/lib/rbac/permission-codes";
+import {
+  PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT,
+  PERMISSION_EMPLOYEE_FILES_MANAGE,
+  PERMISSION_EMPLOYEE_MANAGE,
+} from "@/lib/rbac/permission-codes";
 import { AdminNavGlyph, SidebarCollapseGlyph, SidebarSignOutGlyph } from "./admin-nav-glyphs";
 
 /** Optional permission: user needs this permission (or be super) to see the link. superOnly: only super user sees it. */
@@ -54,6 +58,7 @@ const navStructure: NavEntry[] = [
           label: "Employee region & project",
           permission: PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT,
         },
+        { href: "/employee-files", label: "Employee files (Wasabi)", permission: PERMISSION_EMPLOYEE_FILES_MANAGE },
         { href: "/delegate", label: "Delegate" },
       ],
     },
