@@ -3,7 +3,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getDataClient } from "@/lib/supabase/server";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
-import { getWasabiEmployeeFilesBucket, getWasabiS3Client } from "@/lib/wasabi/s3-client";
+import { getWasabiEmployeeFilesBucket, getWasabiEmployeeFilesS3Client } from "@/lib/wasabi/s3-client";
 import { NextResponse } from "next/server";
 
 const EXPIRES = 300;
@@ -30,7 +30,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ message: "File is not available" }, { status: 400 });
   }
 
-  const s3 = getWasabiS3Client();
+  const s3 = getWasabiEmployeeFilesS3Client();
   const bucket = getWasabiEmployeeFilesBucket();
   const cmd = new GetObjectCommand({
     Bucket: bucket,

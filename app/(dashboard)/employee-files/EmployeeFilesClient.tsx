@@ -103,7 +103,7 @@ export function EmployeeFilesClient({
       });
       const data = await res.json();
       if (!res.ok) throw new Error((data as { message?: string }).message || "Create failed");
-      setMessage("Region folder created in Wasabi.");
+      setMessage("Region folder created.");
       setCreateRegionId("");
       setCreatePath("");
       await loadFolders();
@@ -130,7 +130,7 @@ export function EmployeeFilesClient({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-zinc-900">Create region folder in Wasabi</h2>
+        <h2 className="text-sm font-semibold text-zinc-900">Create region folder</h2>
         <p className="mt-1 text-xs text-zinc-500">
           Each region can have one folder (S3 prefix under <code className="rounded bg-zinc-100 px-1">employee-files/…</code>).
         </p>

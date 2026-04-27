@@ -4,7 +4,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
 import { buildRegionKeepObjectKey, slugifyRegionPathSegment } from "@/lib/employee-files/storage";
-import { getWasabiEmployeeFilesBucket, getWasabiS3Client } from "@/lib/wasabi/s3-client";
+import { getWasabiEmployeeFilesBucket, getWasabiEmployeeFilesS3Client } from "@/lib/wasabi/s3-client";
 import { NextResponse } from "next/server";
 
 /** GET — all region folders with region name. */
@@ -119,7 +119,7 @@ export async function POST(req: Request) {
 
   const keepKey = buildRegionKeepObjectKey(pathSegment);
   const bucket = getWasabiEmployeeFilesBucket();
-  const s3 = getWasabiS3Client();
+  const s3 = getWasabiEmployeeFilesS3Client();
   try {
     await s3.send(
       new PutObjectCommand({
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
     );
   } catch (e) {
     await supabase.from("employee_file_region_folders").delete().eq("id", ins.id);
-    const msg = e instanceof Error ? e.message : "Wasabi write failed";
+    const msg = e instanceof Error ? e.message : "Storage write failed";
     return NextResponse.json({ message: msg }, { status: 500 });
   }
 

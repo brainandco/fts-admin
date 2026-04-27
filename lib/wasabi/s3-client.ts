@@ -32,11 +32,39 @@ export function getWasabiMaxUploadBytes(): number {
   return 15 * 1024 * 1024 * 1024;
 }
 
-/** Employee personal files bucket (e.g. fts-employee-files-prod). Falls back to WASABI_BUCKET. */
+/**
+ * Bucket for per-employee uploads only. Must be set; does not use WASABI_BUCKET.
+ * Use the same name as the dedicated employee-files bucket in Wasabi (e.g. fts-employee-files-prod).
+ */
 export function getWasabiEmployeeFilesBucket(): string {
   const b = process.env.WASABI_EMPLOYEE_FILES_BUCKET?.trim();
-  if (b) return b;
-  return getWasabiBucket();
+  if (!b) {
+    throw new Error("WASABI_EMPLOYEE_FILES_BUCKET is not set (employee file storage).");
+  }
+  return b;
+}
+
+/**
+ * S3 client for the employee file bucket only — use the dedicated Wasabi/IAM user (separate from software library).
+ * Set: WASABI_EMPLOYEE_FILES_ACCESS_KEY, WASABI_EMPLOYEE_FILES_SECRET_ACCESS_KEY,
+ * WASABI_EMPLOYEE_FILES_REGION, WASABI_EMPLOYEE_FILES_ENDPOINT, and WASABI_EMPLOYEE_FILES_BUCKET.
+ */
+export function getWasabiEmployeeFilesS3Client(): S3Client {
+  const accessKeyId = process.env.WASABI_EMPLOYEE_FILES_ACCESS_KEY;
+  const secretAccessKey = process.env.WASABI_EMPLOYEE_FILES_SECRET_ACCESS_KEY;
+  const region = process.env.WASABI_EMPLOYEE_FILES_REGION;
+  const endpoint = process.env.WASABI_EMPLOYEE_FILES_ENDPOINT;
+  if (!accessKeyId || !secretAccessKey || !region || !endpoint) {
+    throw new Error(
+      "Employee file storage: set WASABI_EMPLOYEE_FILES_ACCESS_KEY, WASABI_EMPLOYEE_FILES_SECRET_ACCESS_KEY, WASABI_EMPLOYEE_FILES_REGION, and WASABI_EMPLOYEE_FILES_ENDPOINT (dedicated user for fts-employee-files-prod)."
+    );
+  }
+  return new S3Client({
+    region,
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+  });
 }
 
 /** S3 key prefix (no leading/trailing slash). Default: employee-files */

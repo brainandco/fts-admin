@@ -40,14 +40,14 @@ export default async function EmployeeFilesPage() {
           Dashboard
         </Link>
         <span>/</span>
-        <span className="text-zinc-900">Employee files (Wasabi)</span>
+        <span className="text-zinc-900">Employee files</span>
       </nav>
       <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-5 sm:p-6">
-        <h1 className="text-2xl font-semibold text-zinc-900">Employee files in Wasabi</h1>
+        <h1 className="text-2xl font-semibold text-zinc-900">Employee files</h1>
         <p className="mt-1 text-sm text-zinc-600">
-          Create a storage folder for each region (object prefix under bucket <code className="text-xs">fts-employee-files-prod</code> or{" "}
-          <code className="text-xs">WASABI_EMPLOYEE_FILES_BUCKET</code>). Employees only see and manage their own uploads; here you
-          can browse and download by region.
+          Create a storage folder for each region (separate key prefix under the employee file bucket in{" "}
+          <code className="text-xs">WASABI_EMPLOYEE_FILES_BUCKET</code>). Employees only see and manage their own uploads; here
+          you can browse and download by region.
         </p>
       </div>
       <EmployeeFilesClient regions={regions ?? []} initialFolders={initialFolders} />
