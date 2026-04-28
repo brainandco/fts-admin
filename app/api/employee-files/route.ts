@@ -18,7 +18,6 @@ export async function GET(req: Request) {
     .from("employee_personal_files")
     .select("id, file_name, mime_type, byte_size, upload_status, created_at, employee_id")
     .eq("region_id", regionId)
-    .eq("upload_status", "active")
     .order("created_at", { ascending: false });
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 400 });
@@ -35,6 +34,7 @@ export async function GET(req: Request) {
       fileName: f.file_name,
       mimeType: f.mime_type,
       byteSize: f.byte_size,
+      uploadStatus: f.upload_status,
       createdAt: f.created_at,
       employeeId: f.employee_id,
       employeeName: e?.full_name ?? "—",

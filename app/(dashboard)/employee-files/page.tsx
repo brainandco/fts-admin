@@ -45,9 +45,9 @@ export default async function EmployeeFilesPage() {
       <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-5 sm:p-6">
         <h1 className="text-2xl font-semibold text-zinc-900">Employee files</h1>
         <p className="mt-1 text-sm text-zinc-600">
-          Create a storage folder for each region (separate key prefix under the employee file bucket in{" "}
-          <code className="text-xs">WASABI_EMPLOYEE_FILES_BUCKET</code>). Employees only see and manage their own uploads; here
-          you can browse and download by region.
+          Create a storage folder for each region (key prefix under <code className="text-xs">WASABI_EMPLOYEE_FILES_BUCKET</code>).
+          You can list, upload (for a selected employee), download, and delete files by region, or remove an entire region folder.
+          In the employee portal, each person only sees their own files.
         </p>
       </div>
       <EmployeeFilesClient regions={regions ?? []} initialFolders={initialFolders} />
