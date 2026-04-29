@@ -1,4 +1,5 @@
 import { getDataClient } from "@/lib/supabase/server";
+import { employeeNameFolderSlug } from "@/lib/employee-files/storage";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
 import { NextResponse } from "next/server";
@@ -28,6 +29,7 @@ export async function GET(req: Request) {
       id: e.id,
       fullName: e.full_name ?? "—",
       email: e.email,
+      folderSlug: employeeNameFolderSlug(e.full_name ?? null, e.id),
     })),
   });
 }

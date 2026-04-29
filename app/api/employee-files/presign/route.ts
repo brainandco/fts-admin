@@ -4,7 +4,12 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getDataClient } from "@/lib/supabase/server";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
-import { buildEmployeeFileStorageKey, isAllowedEmployeeFileName, safeEmployeeFileName } from "@/lib/employee-files/storage";
+import {
+  buildEmployeeFileStorageKey,
+  isAllowedEmployeeFileName,
+  normalizeRelativePathUnderEmployee,
+  safeEmployeeFileName,
+} from "@/lib/employee-files/storage";
 import { getWasabiEmployeeFilesBucket, getWasabiEmployeeFileMaxBytes, getWasabiEmployeeFilesS3Client } from "@/lib/wasabi/s3-client";
 import { NextResponse } from "next/server";
 
@@ -16,7 +21,15 @@ type Body = {
   fileName?: string;
   contentType?: string;
   byteSize?: number | null;
+  relativePath?: string | null;
+  uploadDate?: string | null;
 };
+
+function parseUploadDate(iso: string | null | undefined): Date | undefined {
+  if (!iso || typeof iso !== "string") return undefined;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
 
 export async function POST(req: Request) {
   if (!(await can(PERMISSION_EMPLOYEE_FILES_MANAGE))) {
@@ -39,7 +52,10 @@ export async function POST(req: Request) {
   const fileName = safeEmployeeFileName(String(body.fileName ?? ""));
   if (!isAllowedEmployeeFileName(fileName)) {
     return NextResponse.json(
-      { message: "File type not allowed. Use office or data types (e.g. pdf, doc, docx, xlsx, csv, ppt)." },
+      {
+        message:
+          "File type not allowed. Use office or data types (e.g. pdf, doc, docx, xlsx, csv, ppt, zip, rar).",
+      },
       { status: 400 }
     );
   }
@@ -50,10 +66,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: `File exceeds maximum size (${maxB} bytes)` }, { status: 400 });
   }
 
+  const relRaw = body.relativePath;
+  const relativePath = relRaw != null && String(relRaw).trim() !== "" ? normalizeRelativePathUnderEmployee(String(relRaw)) : null;
+  if (relRaw != null && String(relRaw).trim() !== "" && !relativePath) {
+    return NextResponse.json({ message: "Invalid relativePath" }, { status: 400 });
+  }
+
+  const uploadDate = parseUploadDate(body.uploadDate ?? undefined);
+
   const supabase = await getDataClient();
   const { data: emp, error: empErr } = await supabase
     .from("employees")
-    .select("id, region_id, status")
+    .select("id, region_id, status, full_name")
     .eq("id", employeeId)
     .maybeSingle();
   if (empErr || !emp || emp.status !== "ACTIVE") {
@@ -73,7 +97,10 @@ export async function POST(req: Request) {
   }
 
   const fileId = randomUUID();
-  const storageKey = buildEmployeeFileStorageKey(folder.path_segment, emp.id, fileId, fileName);
+  const storageKey = buildEmployeeFileStorageKey(folder.path_segment, emp.full_name ?? null, emp.id, fileId, fileName, {
+    relativePath,
+    uploadDate,
+  });
 
   const { error: insErr } = await supabase.from("employee_personal_files").insert({
     id: fileId,
