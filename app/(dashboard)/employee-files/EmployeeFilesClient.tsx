@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, type InputHTMLAttributes } from "react";
-import { adminUploadFilesBatch } from "@/lib/employee-files/batch-upload-client";
+import { useCallback, useEffect, useRef, useState, type InputHTMLAttributes } from "react";
+import { AdminUploadModal, type UploadModalRow } from "@/components/employee-files/AdminUploadModal";
+import { adminUploadFilesBatch, type AdminUploadItem } from "@/lib/employee-files/batch-upload-client";
+import { EMPLOYEE_UPLOAD_ALLOWED_EXTENSIONS_HELP } from "@/lib/employee-files/storage";
+import { filterEmployeeUploadItems, type SkippedUpload } from "@/lib/employee-files/upload-filter";
 
 type Region = { id: string; name: string; code: string | null };
 type Folder = {
@@ -71,6 +74,78 @@ function sanitizeSubfolderName(raw: string): string | null {
   return cleaned || null;
 }
 
+function folderLabelFromPickedFiles(files: File[]): string | undefined {
+  const f = files[0] as File & { webkitRelativePath?: string };
+  const wr = f?.webkitRelativePath;
+  if (!wr) return undefined;
+  const seg = wr.split("/")[0];
+  return seg || undefined;
+}
+
+function buildFolderUploadItemsAdmin(picked: File[], base: string): AdminUploadItem[] {
+  return picked.map((f) => {
+    const wr = (f as File & { webkitRelativePath?: string }).webkitRelativePath;
+    const sub = wr && wr.includes("/") ? wr.slice(0, wr.lastIndexOf("/")) : "";
+    const combined = [base, sub.replace(/\\/g, "/")].filter(Boolean).join("/");
+    return { file: f, ...(combined ? { relativePath: combined } : {}) };
+  });
+}
+
+function buildAdminUploadRows(items: AdminUploadItem[], kind: "files" | "folder", pathLabel: string): UploadModalRow[] {
+  const destLabel = pathLabel.trim() || todayEmployeeSubpath();
+  return items.map((it, i) => {
+    const rel = it.relativePath?.trim();
+    const pathDisplay = kind === "folder" && rel ? `${rel}/${it.file.name}` : destLabel;
+    return {
+      id: String(i),
+      displayName: it.file.name,
+      storagePath: pathDisplay,
+      status: "queued",
+      bytesLoaded: 0,
+      bytesTotal: Math.max(0, it.file.size),
+    };
+  });
+}
+
+function overallUploadPercent(rows: UploadModalRow[]): number {
+  let sumWt = 0;
+  let sumDone = 0;
+  for (const r of rows) {
+    const w = Math.max(1, r.bytesTotal);
+    sumWt += w;
+    if (r.status === "done" || r.status === "failed") sumDone += w;
+    else if (r.status === "uploading") sumDone += Math.min(Math.max(0, r.bytesLoaded), r.bytesTotal);
+  }
+  return sumWt > 0 ? (100 * sumDone) / sumWt : 0;
+}
+
+function mergeFailedIntoRows(
+  rows: UploadModalRow[],
+  failed: { name: string; message: string }[],
+  baseline: UploadModalRow[]
+): UploadModalRow[] {
+  if (!failed.length) return rows;
+  const byName = new Map(failed.map((f) => [f.name, f.message]));
+  return rows.map((r, i) => {
+    if (r.status === "failed" && r.errorMessage) return r;
+    const msg = byName.get(r.displayName) ?? byName.get(baseline[i]?.displayName ?? "");
+    if (msg) return { ...r, status: "failed" as const, errorMessage: msg };
+    return r;
+  });
+}
+
+type UploadSessionState = {
+  step: "review" | "upload" | "done";
+  kind: "files" | "folder";
+  folderName?: string;
+  items: AdminUploadItem[];
+  skipped: SkippedUpload[];
+  rows: UploadModalRow[];
+  busy: boolean;
+  pageError?: string;
+  summary?: { uploaded: number; failed: number; skipped: number };
+};
+
 export function EmployeeFilesClient({
   regions,
   initialFolders,
@@ -101,6 +176,10 @@ export function EmployeeFilesClient({
 
   const [adminNewSubfolder, setAdminNewSubfolder] = useState("");
   const [adminUploadPathOverride, setAdminUploadPathOverride] = useState("");
+  const [uploadSession, setUploadSession] = useState<UploadSessionState | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const uploadInFlightRef = useRef(false);
 
   const loadFolders = useCallback(async () => {
     const res = await fetch("/api/employee-file-folders");
@@ -175,6 +254,9 @@ export function EmployeeFilesClient({
   const uploadRelativeBase =
     !browseAtRegionRoot && browseEmployeeId && uploadEmployeeId === browseEmployeeId ? browsePath : "";
   const effectiveAdminUploadPath = adminUploadPathOverride.trim() || uploadRelativeBase;
+
+  const uploadFlowBusy = uploadSession !== null && uploadSession.step === "upload" && uploadSession.busy;
+  const pickerLocked = uploadBusy || uploadFlowBusy || uploadSession !== null;
 
   useEffect(() => {
     if (regionId) void loadFiles(regionId);
@@ -266,77 +348,118 @@ export function EmployeeFilesClient({
     if (u) globalThis.open(u, "_blank", "noopener,noreferrer");
   }
 
-  async function adminUploadMany(files: File[], relativePath?: string) {
-    if (!regionId || !uploadEmployeeId) {
-      setError("Select a region and employee.");
-      return;
-    }
-    setUploadBusy(true);
-    setError("");
-    setMessage("");
-    try {
-      const def = relativePath?.trim();
-      const { uploaded, failed } = await adminUploadFilesBatch(
-        files.filter((f) => f.size).map((f) => ({ file: f })),
-        {
-          regionId,
-          employeeId: uploadEmployeeId,
-          ...(def ? { defaultRelativePath: def } : {}),
-        }
-      );
-      setMessage(
-        uploaded > 0
-          ? `${uploaded} file(s) uploaded.${failed.length ? ` ${failed.length} failed.` : ""}`
-          : failed.length
-            ? "Upload failed."
-            : "Nothing to upload."
-      );
-      if (failed.length) {
-        setError(failed.slice(0, 6).map((x) => `${x.name}: ${x.message}`).join(" · "));
-      }
-      if (regionId) await loadFiles(regionId);
-      await loadBrowse();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
-    } finally {
-      setUploadBusy(false);
-    }
+  function uploadDestinationLabel(): string {
+    const emp =
+      assignees.find((a) => a.id === uploadEmployeeId)?.fullName ?? (uploadEmployeeId ? "Employee" : "—");
+    const path =
+      effectiveAdminUploadPath.trim() ||
+      uploadRelativeBase ||
+      (uploadEmployeeId ? todayEmployeeSubpath() : "");
+    return `${selectedRegionLabel} → ${emp} → ${path || "(default dated folder)"}`;
   }
 
-  async function adminUploadFolderFromDisk(list: FileList | null) {
-    if (!list?.length) return;
+  function closeUploadModal() {
+    if (uploadSession?.step === "upload" && uploadSession.busy) return;
+    uploadInFlightRef.current = false;
+    setUploadSession(null);
+  }
+
+  async function runUploadFromModal() {
+    if (uploadInFlightRef.current) return;
+    if (!uploadSession || uploadSession.step !== "review" || uploadSession.items.length === 0) return;
     if (!regionId || !uploadEmployeeId) {
       setError("Select a region and employee.");
       return;
     }
-    const base = effectiveAdminUploadPath;
-    setUploadBusy(true);
+    uploadInFlightRef.current = true;
+    const { items, skipped, kind } = uploadSession;
+    const rowsSnapshot = uploadSession.rows;
+    setUploadSession({ ...uploadSession, step: "upload", busy: true, pageError: undefined });
     setError("");
     setMessage("");
+    setUploadBusy(true);
     try {
-      const items = Array.from(list)
-        .filter((f) => f.size)
-        .map((f) => {
-          const wr = (f as File & { webkitRelativePath?: string }).webkitRelativePath;
-          const sub = wr && wr.includes("/") ? wr.slice(0, wr.lastIndexOf("/")) : "";
-          const combined = [base, sub.replace(/\\/g, "/")].filter(Boolean).join("/");
-          return { file: f, ...(combined ? { relativePath: combined } : {}) };
-        });
-      const { uploaded, failed } = await adminUploadFilesBatch(items, {
+      const defaultRel =
+        kind === "files"
+          ? effectiveAdminUploadPath.trim() || uploadRelativeBase.trim() || undefined
+          : undefined;
+      const result = await adminUploadFilesBatch(items, {
         regionId,
         employeeId: uploadEmployeeId,
+        ...(defaultRel ? { defaultRelativePath: defaultRel } : {}),
+        callbacks: {
+          onFileStatus: (index, status, message) => {
+            const nextStatus: UploadModalRow["status"] =
+              status === "uploading" ? "uploading" : status === "done" ? "done" : "failed";
+            setUploadSession((prev) => {
+              if (!prev) return prev;
+              const rows = prev.rows.map((r) =>
+                r.id === String(index) ? { ...r, status: nextStatus, errorMessage: message } : r
+              );
+              return { ...prev, rows };
+            });
+          },
+          onFileProgress: (index, loaded, total) => {
+            setUploadSession((prev) => {
+              if (!prev) return prev;
+              const rows = prev.rows.map((r) =>
+                r.id === String(index)
+                  ? { ...r, bytesLoaded: loaded, bytesTotal: total > 0 ? total : r.bytesTotal }
+                  : r
+              );
+              return { ...prev, rows };
+            });
+          },
+        },
       });
+
       setMessage(
-        `${uploaded} file(s) uploaded from folder.${failed.length ? ` ${failed.length} failed.` : ""}`
+        `Uploaded ${result.uploaded} file(s).${skipped.length ? ` ${skipped.length} skipped before upload.` : ""}${result.failed.length ? ` ${result.failed.length} failed.` : ""}`
       );
-      if (failed.length) {
-        setError(failed.slice(0, 6).map((x) => `${x.name}: ${x.message}`).join(" · "));
+      if (result.failed.length) {
+        setError(result.failed.slice(0, 6).map((x) => `${x.name}: ${x.message}`).join(" · "));
       }
+
+      setUploadSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              step: "done",
+              busy: false,
+              rows: mergeFailedIntoRows(prev.rows, result.failed, rowsSnapshot),
+              summary: {
+                uploaded: result.uploaded,
+                failed: result.failed.length,
+                skipped: skipped.length,
+              },
+              pageError: result.failed.length
+                ? result.failed
+                    .slice(0, 4)
+                    .map((x) => `${x.name}: ${x.message}`)
+                    .join(" · ")
+                : undefined,
+            }
+          : prev
+      );
+
       if (regionId) await loadFiles(regionId);
       await loadBrowse();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      setError(msg);
+      setUploadSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              step: "done",
+              busy: false,
+              pageError: msg,
+              summary: { uploaded: 0, failed: items.length, skipped: skipped.length },
+            }
+          : prev
+      );
     } finally {
+      uploadInFlightRef.current = false;
       setUploadBusy(false);
     }
   }
@@ -537,7 +660,7 @@ export function EmployeeFilesClient({
               <button
                 type="button"
                 onClick={() => void refreshWorkspace()}
-                disabled={!regionId || !selectedFolder || fileLoading || browseLoading}
+                disabled={!regionId || !selectedFolder || fileLoading || browseLoading || pickerLocked}
                 className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
               >
                 Refresh lists
@@ -640,7 +763,7 @@ export function EmployeeFilesClient({
                 {!browseAtRegionRoot && browseEmployeeId ? (
                   <button
                     type="button"
-                    disabled={uploadBusy}
+                    disabled={uploadBusy || pickerLocked}
                     onClick={() => setBrowsePath(todayEmployeeSubpath())}
                     className="mt-2 rounded-md border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-800 hover:bg-indigo-50 disabled:opacity-50"
                   >
@@ -732,6 +855,10 @@ export function EmployeeFilesClient({
                   Otherwise pick the employee below — uploads use today&apos;s date folders automatically if no path is set.
                 </p>
 
+                <p className="mt-2 rounded-md border border-zinc-200 bg-zinc-100/80 px-3 py-2 text-[11px] text-zinc-700">
+                  <span className="font-medium text-zinc-900">Allowed types:</span> {EMPLOYEE_UPLOAD_ALLOWED_EXTENSIONS_HELP}
+                </p>
+
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <label className="mb-1 block text-xs font-medium text-zinc-700">Employee you are helping</label>
@@ -745,7 +872,7 @@ export function EmployeeFilesClient({
                         setBrowseAtRegionRoot(false);
                         setBrowsePath("");
                       }}
-                      disabled={uploadBusy || assignees.length === 0}
+                      disabled={uploadBusy || assignees.length === 0 || pickerLocked}
                     >
                       {assignees.length === 0 ? <option value="">No active employees in this region</option> : null}
                       {assignees.map((e) => (
@@ -757,33 +884,103 @@ export function EmployeeFilesClient({
                     </select>
                   </div>
 
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="sr-only"
+                    disabled={pickerLocked || !uploadEmployeeId}
+                    onChange={(e) => {
+                      if (!regionId || !uploadEmployeeId) {
+                        setError("Select a region and employee.");
+                        return;
+                      }
+                      const picked = e.target.files ? Array.from(e.target.files) : [];
+                      e.target.value = "";
+                      if (!picked.length) return;
+                      const raw = picked.map((f) => ({ file: f }));
+                      const { allowed, skipped } = filterEmployeeUploadItems(raw);
+                      const pathLabel =
+                        effectiveAdminUploadPath.trim() ||
+                        uploadRelativeBase.trim() ||
+                        (uploadEmployeeId ? todayEmployeeSubpath() : "");
+                      const rows = buildAdminUploadRows(allowed, "files", pathLabel);
+                      setUploadSession({
+                        step: "review",
+                        kind: "files",
+                        items: allowed,
+                        skipped,
+                        rows,
+                        busy: false,
+                      });
+                    }}
+                  />
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    multiple
+                    className="sr-only"
+                    disabled={pickerLocked || !uploadEmployeeId}
+                    {...({ webkitdirectory: "" } as InputHTMLAttributes<HTMLInputElement>)}
+                    onChange={(e) => {
+                      if (!regionId || !uploadEmployeeId) {
+                        setError("Select a region and employee.");
+                        return;
+                      }
+                      const picked = e.target.files ? Array.from(e.target.files) : [];
+                      e.target.value = "";
+                      if (!picked.length) return;
+                      const base = effectiveAdminUploadPath.trim() || uploadRelativeBase;
+                      const items = buildFolderUploadItemsAdmin(picked, base);
+                      const { allowed, skipped } = filterEmployeeUploadItems(items);
+                      const pathLabel =
+                        effectiveAdminUploadPath.trim() ||
+                        uploadRelativeBase.trim() ||
+                        (uploadEmployeeId ? todayEmployeeSubpath() : "");
+                      const rows = buildAdminUploadRows(allowed, "folder", pathLabel);
+                      setUploadSession({
+                        step: "review",
+                        kind: "folder",
+                        folderName: folderLabelFromPickedFiles(picked),
+                        items: allowed,
+                        skipped,
+                        rows,
+                        busy: false,
+                      });
+                    }}
+                  />
+
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">Files</label>
-                    <input
-                      type="file"
-                      multiple
-                      disabled={uploadBusy || !uploadEmployeeId}
-                      onChange={(e) => {
-                        const list = e.target.files;
-                        e.target.value = "";
-                        if (list?.length) void adminUploadMany(Array.from(list), effectiveAdminUploadPath || undefined);
-                      }}
-                      className="block w-full text-sm text-zinc-800 file:mr-2 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
-                    />
+                    <span className="mb-1 block text-xs font-medium text-zinc-700">Files</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={pickerLocked || !uploadEmployeeId}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                      >
+                        Choose files
+                      </button>
+                      <span className="text-[11px] text-zinc-500">
+                        Pick files, then confirm in the dialog (fixes empty selection after upload).
+                      </span>
+                    </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-zinc-700">Folder from disk</label>
-                    <input
-                      type="file"
-                      multiple
-                      disabled={uploadBusy || !uploadEmployeeId}
-                      {...({ webkitdirectory: "" } as InputHTMLAttributes<HTMLInputElement>)}
-                      onChange={(e) => {
-                        void adminUploadFolderFromDisk(e.target.files);
-                        e.target.value = "";
-                      }}
-                      className="block w-full text-sm text-zinc-800 file:mr-2 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
-                    />
+                    <span className="mb-1 block text-xs font-medium text-zinc-700">Folder from disk</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={pickerLocked || !uploadEmployeeId}
+                        onClick={() => folderInputRef.current?.click()}
+                        className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                      >
+                        Choose folder
+                      </button>
+                      <span className="text-[11px] text-zinc-500">
+                        Browser may ask to confirm folder upload; then confirm in the dialog.
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -797,7 +994,7 @@ export function EmployeeFilesClient({
                     type="text"
                     className="mt-2 w-full max-w-lg rounded-md border border-zinc-300 px-3 py-2 text-sm"
                     placeholder="e.g. Apr-2026/28-Apr-2026/Reports"
-                    disabled={uploadBusy}
+                    disabled={uploadBusy || pickerLocked}
                     value={adminUploadPathOverride}
                     onChange={(e) => setAdminUploadPathOverride(e.target.value)}
                   />
@@ -815,13 +1012,13 @@ export function EmployeeFilesClient({
                       value={adminNewSubfolder}
                       onChange={(e) => setAdminNewSubfolder(e.target.value)}
                       placeholder="e.g. Reports"
-                      disabled={uploadBusy || browseAtRegionRoot || !uploadEmployeeId}
+                      disabled={uploadBusy || browseAtRegionRoot || !uploadEmployeeId || pickerLocked}
                       className="min-w-[200px] flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm"
                     />
                     <button
                       type="button"
                       onClick={() => void createEmployeeSubfolder()}
-                      disabled={uploadBusy || browseAtRegionRoot || !uploadEmployeeId}
+                      disabled={uploadBusy || browseAtRegionRoot || !uploadEmployeeId || pickerLocked}
                       className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                     >
                       Create folder
@@ -905,6 +1102,28 @@ export function EmployeeFilesClient({
           )}
         </div>
       </div>
+
+      {uploadSession ? (
+        <AdminUploadModal
+          open
+          step={uploadSession.step}
+          kind={uploadSession.kind}
+          folderName={uploadSession.folderName}
+          employeeLabel={(() => {
+            const e = assignees.find((a) => a.id === uploadEmployeeId);
+            return e ? `${e.fullName}${e.email ? ` (${e.email})` : ""}` : undefined;
+          })()}
+          targetLocationLabel={uploadDestinationLabel()}
+          skipped={uploadSession.skipped}
+          rows={uploadSession.rows}
+          busy={uploadSession.busy}
+          overallPercent={overallUploadPercent(uploadSession.rows)}
+          summary={uploadSession.summary}
+          pageError={uploadSession.pageError}
+          onClose={closeUploadModal}
+          onStartUpload={() => void runUploadFromModal()}
+        />
+      ) : null}
     </div>
   );
 }
