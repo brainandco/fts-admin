@@ -105,12 +105,31 @@ export async function GET(req: Request) {
     return NextResponse.json({ message: msg }, { status: 500 });
   }
 
-  const { data: rows } = await supabase
-    .from("employee_personal_files")
-    .select("id, file_name, mime_type, byte_size, upload_status, created_at, storage_key")
-    .eq("employee_id", emp.id);
+  const fileKeys = entries
+    .filter((e) => e.type === "file")
+    .map((e) => (e as { type: "file"; key: string }).key);
 
-  const byKey = new Map((rows ?? []).map((r) => [r.storage_key as string, r]));
+  const rows: {
+    id: string;
+    file_name: string;
+    mime_type: string | null;
+    byte_size: number | null;
+    upload_status: string;
+    created_at: string;
+    storage_key: string;
+  }[] = [];
+  const KEY_CHUNK = 80;
+  for (let i = 0; i < fileKeys.length; i += KEY_CHUNK) {
+    const slice = fileKeys.slice(i, i + KEY_CHUNK);
+    const { data: chunk } = await supabase
+      .from("employee_personal_files")
+      .select("id, file_name, mime_type, byte_size, upload_status, created_at, storage_key")
+      .eq("employee_id", emp.id)
+      .in("storage_key", slice);
+    rows.push(...(chunk ?? []));
+  }
+
+  const byKey = new Map(rows.map((r) => [r.storage_key as string, r]));
 
   const folders = entries.filter((e) => e.type === "folder").map((e) => ({
     type: "folder" as const,

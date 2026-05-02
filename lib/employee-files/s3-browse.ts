@@ -4,6 +4,8 @@ export type BrowseEntry =
   | { type: "folder"; name: string; prefix: string }
   | { type: "file"; name: string; key: string; size: number | null; lastModified: string | null };
 
+const LIST_PAGE_MAX_KEYS = 1000;
+
 export async function browsePrefix(s3: S3Client, bucket: string, prefix: string): Promise<BrowseEntry[]> {
   const p = prefix.replace(/\/*$/, "/");
   const out: BrowseEntry[] = [];
@@ -12,6 +14,7 @@ export async function browsePrefix(s3: S3Client, bucket: string, prefix: string)
       Bucket: bucket,
       Prefix: p,
       Delimiter: "/",
+      MaxKeys: LIST_PAGE_MAX_KEYS,
     })
   );
   for (const cp of list.CommonPrefixes ?? []) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type InputHTMLAttributes } from "react";
+import { adminUploadFilesBatch } from "@/lib/employee-files/batch-upload-client";
 
 type Region = { id: string; name: string; code: string | null };
 type Folder = {
@@ -48,6 +49,28 @@ function formatBytes(n: number | null): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function monthYearFolder(d: Date): string {
+  const m = d.toLocaleString("en-US", { month: "short" });
+  return `${m}-${d.getFullYear()}`;
+}
+
+function dayMonthYearFolder(d: Date): string {
+  const m = d.toLocaleString("en-US", { month: "short" });
+  return `${d.getDate()}-${m}-${d.getFullYear()}`;
+}
+
+function todayEmployeeSubpath(): string {
+  const d = new Date();
+  return `${monthYearFolder(d)}/${dayMonthYearFolder(d)}`;
+}
+
+function sanitizeSubfolderName(raw: string): string | null {
+  const t = raw.trim();
+  if (!t || t.includes("/") || t.includes("\\") || t === "." || t === "..") return null;
+  const cleaned = t.replace(/[^\w.\-()+ @&$=!*,?:;]/g, "_").slice(0, 120);
+  return cleaned || null;
+}
+
 export function EmployeeFilesClient({
   regions,
   initialFolders,
@@ -76,7 +99,7 @@ export function EmployeeFilesClient({
   const [browseFiles, setBrowseFiles] = useState<BrowseFile[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
 
-  const [adminFolderPath, setAdminFolderPath] = useState("");
+  const [adminNewSubfolder, setAdminNewSubfolder] = useState("");
   const [adminUploadPathOverride, setAdminUploadPathOverride] = useState("");
 
   const loadFolders = useCallback(async () => {
@@ -146,6 +169,12 @@ export function EmployeeFilesClient({
 
   const regionsWithoutFolder = regions.filter((r) => !folders.some((f) => f.regionId === r.id));
   const selectedFolder = folders.find((f) => f.regionId === regionId);
+  const selectedRegionLabel = selectedFolder?.regionName ?? regions.find((r) => r.id === regionId)?.name ?? "—";
+  const currentEmployeeLabel = assignees.find((a) => a.id === uploadEmployeeId)?.fullName ?? null;
+
+  const uploadRelativeBase =
+    !browseAtRegionRoot && browseEmployeeId && uploadEmployeeId === browseEmployeeId ? browsePath : "";
+  const effectiveAdminUploadPath = adminUploadPathOverride.trim() || uploadRelativeBase;
 
   useEffect(() => {
     if (regionId) void loadFiles(regionId);
@@ -155,7 +184,13 @@ export function EmployeeFilesClient({
     setBrowseAtRegionRoot(true);
     setBrowseEmployeeId(null);
     setBrowsePath("");
+    setMessage("");
+    setError("");
   }, [regionId]);
+
+  useEffect(() => {
+    setAdminUploadPathOverride("");
+  }, [browsePath, browseAtRegionRoot, browseEmployeeId, uploadEmployeeId]);
 
   useEffect(() => {
     if (!regionId || !selectedFolder) return;
@@ -188,9 +223,9 @@ export function EmployeeFilesClient({
     };
   }, [regionId]);
 
-  async function createFolder() {
+  async function createRegionStorageFolder() {
     if (!createRegionId) {
-      setError("Select a region");
+      setError("Select a region.");
       return;
     }
     setLoading(true);
@@ -207,7 +242,7 @@ export function EmployeeFilesClient({
       });
       const data = await res.json();
       if (!res.ok) throw new Error((data as { message?: string }).message || "Create failed");
-      setMessage("Region folder created.");
+      setMessage("Storage folder created for that region.");
       setCreateRegionId("");
       setCreatePath("");
       await loadFolders();
@@ -231,45 +266,73 @@ export function EmployeeFilesClient({
     if (u) globalThis.open(u, "_blank", "noopener,noreferrer");
   }
 
-  async function adminUpload(f: File, relativePath?: string) {
+  async function adminUploadMany(files: File[], relativePath?: string) {
     if (!regionId || !uploadEmployeeId) {
       setError("Select a region and employee.");
-      return;
-    }
-    if (!f.size) {
-      setError("Empty file");
       return;
     }
     setUploadBusy(true);
     setError("");
     setMessage("");
     try {
-      const pres = await fetch("/api/employee-files/presign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const def = relativePath?.trim();
+      const { uploaded, failed } = await adminUploadFilesBatch(
+        files.filter((f) => f.size).map((f) => ({ file: f })),
+        {
           regionId,
           employeeId: uploadEmployeeId,
-          fileName: f.name,
-          contentType: f.type || "application/octet-stream",
-          byteSize: f.size,
-          ...(relativePath?.trim() ? { relativePath: relativePath.trim() } : {}),
-        }),
+          ...(def ? { defaultRelativePath: def } : {}),
+        }
+      );
+      setMessage(
+        uploaded > 0
+          ? `${uploaded} file(s) uploaded.${failed.length ? ` ${failed.length} failed.` : ""}`
+          : failed.length
+            ? "Upload failed."
+            : "Nothing to upload."
+      );
+      if (failed.length) {
+        setError(failed.slice(0, 6).map((x) => `${x.name}: ${x.message}`).join(" · "));
+      }
+      if (regionId) await loadFiles(regionId);
+      await loadBrowse();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
+  async function adminUploadFolderFromDisk(list: FileList | null) {
+    if (!list?.length) return;
+    if (!regionId || !uploadEmployeeId) {
+      setError("Select a region and employee.");
+      return;
+    }
+    const base = effectiveAdminUploadPath;
+    setUploadBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const items = Array.from(list)
+        .filter((f) => f.size)
+        .map((f) => {
+          const wr = (f as File & { webkitRelativePath?: string }).webkitRelativePath;
+          const sub = wr && wr.includes("/") ? wr.slice(0, wr.lastIndexOf("/")) : "";
+          const combined = [base, sub.replace(/\\/g, "/")].filter(Boolean).join("/");
+          return { file: f, ...(combined ? { relativePath: combined } : {}) };
+        });
+      const { uploaded, failed } = await adminUploadFilesBatch(items, {
+        regionId,
+        employeeId: uploadEmployeeId,
       });
-      const pr = await pres.json();
-      if (!pres.ok) throw new Error((pr as { message?: string }).message || "Presign failed");
-      const h = (pr as { headers?: { "Content-Type"?: string } }).headers;
-      const put = await fetch((pr as { uploadUrl: string }).uploadUrl, {
-        method: "PUT",
-        body: f,
-        headers: { "Content-Type": h?.["Content-Type"] || f.type || "application/octet-stream" },
-      });
-      if (!put.ok) throw new Error("Upload to storage failed");
-      const comp = await fetch(`/api/employee-files/${(pr as { id: string }).id}/complete`, { method: "POST" });
-      const cj = await comp.json();
-      if (!comp.ok) throw new Error((cj as { message?: string }).message || "Complete failed");
-      setMessage("File uploaded.");
-      await loadFiles(regionId);
+      setMessage(
+        `${uploaded} file(s) uploaded from folder.${failed.length ? ` ${failed.length} failed.` : ""}`
+      );
+      if (failed.length) {
+        setError(failed.slice(0, 6).map((x) => `${x.name}: ${x.message}`).join(" · "));
+      }
+      if (regionId) await loadFiles(regionId);
       await loadBrowse();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
@@ -300,9 +363,8 @@ export function EmployeeFilesClient({
     if (!selectedFolder) return;
     if (
       !confirm(
-        `Delete the entire folder for ${selectedFolder.regionName} (${selectedFolder.pathSegment})?\n\n` +
-          "This permanently removes all files in that region for every employee, deletes the storage prefix, and " +
-          "removes the region slot so you can create it again later. This cannot be undone."
+        `Delete the entire storage folder for ${selectedFolder.regionName} (${selectedFolder.pathSegment})?\n\n` +
+          "This permanently removes all employee files in that region in Wasabi and clears the region slot. This cannot be undone."
       )
     ) {
       return;
@@ -314,7 +376,7 @@ export function EmployeeFilesClient({
       const res = await fetch(`/api/employee-file-folders/${selectedFolder.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error((data as { message?: string }).message || "Delete failed");
-      setMessage("Region folder deleted.");
+      setMessage("Region storage folder removed.");
       setFiles([]);
       await loadFolders();
     } catch (e) {
@@ -324,11 +386,17 @@ export function EmployeeFilesClient({
     }
   }
 
-  async function createEmployeeFolderMarker() {
-    if (!regionId || !uploadEmployeeId || !adminFolderPath.trim()) {
-      setError("Select region, employee, and enter a folder path.");
+  async function createEmployeeSubfolder() {
+    if (browseAtRegionRoot || !uploadEmployeeId) {
+      setError("Choose an employee from the list, then open their folder (click a name under Region) before creating a subfolder.");
       return;
     }
+    const segment = sanitizeSubfolderName(adminNewSubfolder);
+    if (!segment) {
+      setError("Enter one folder name only (no slashes), e.g. Reports or Invoices.");
+      return;
+    }
+    const relativePath = browsePath ? `${browsePath}/${segment}` : segment;
     setUploadBusy(true);
     setError("");
     try {
@@ -338,13 +406,13 @@ export function EmployeeFilesClient({
         body: JSON.stringify({
           regionId,
           employeeId: uploadEmployeeId,
-          relativePath: adminFolderPath.trim(),
+          relativePath,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error((data as { message?: string }).message || "Create folder failed");
-      setMessage("Folder marker created.");
-      setAdminFolderPath("");
+      setMessage(`Folder “${segment}” created.`);
+      setAdminNewSubfolder("");
       await loadBrowse();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Create folder failed");
@@ -358,7 +426,7 @@ export function EmployeeFilesClient({
   function enterEmployeeFromSlug(folderName: string) {
     const emp = assignees.find((a) => a.folderSlug === folderName);
     if (!emp) {
-      setError("Could not match folder to an employee in this region.");
+      setError("Could not match that folder to an employee in this region.");
       return;
     }
     setBrowseAtRegionRoot(false);
@@ -367,368 +435,475 @@ export function EmployeeFilesClient({
     setBrowsePath("");
   }
 
-  const uploadRelativeBase =
-    !browseAtRegionRoot && browseEmployeeId && uploadEmployeeId === browseEmployeeId ? browsePath : "";
-  const effectiveAdminUploadPath = adminUploadPathOverride.trim() || uploadRelativeBase;
+  async function refreshWorkspace() {
+    setFileLoading(true);
+    try {
+      if (regionId) await loadFiles(regionId);
+      await loadBrowse();
+      setMessage("Refreshed.");
+    } finally {
+      setFileLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-zinc-900">Create region folder</h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          Each region can have one folder (S3 prefix under <code className="rounded bg-zinc-100 px-1">employee-files/…</code>).
-          Files then follow Region → Employee name → Month-Year → Day-Month-Year → files.
-        </p>
-        <div className="mt-3 flex flex-wrap items-end gap-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">Region</label>
-            <select
-              className="rounded border border-zinc-300 bg-white px-2 py-2 text-sm"
-              value={createRegionId}
-              onChange={(e) => setCreateRegionId(e.target.value)}
-            >
-              <option value="">Select…</option>
-              {regionsWithoutFolder.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                  {r.code ? ` · ${r.code}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">Path segment (optional)</label>
-            <input
-              className="w-56 rounded border border-zinc-300 bg-white px-2 py-2 text-sm"
-              value={createPath}
-              onChange={(e) => setCreatePath(e.target.value)}
-              placeholder="e.g. east-est"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={createFolder}
-            disabled={loading || regionsWithoutFolder.length === 0}
-            className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {loading ? "Creating…" : "Create folder"}
-          </button>
-        </div>
-        {regionsWithoutFolder.length === 0 && (
-          <p className="mt-2 text-sm text-amber-700">Every region already has a folder, or there are no regions in the system.</p>
-        )}
-        {message && <p className="mt-2 text-sm text-emerald-600">{message}</p>}
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      </div>
+      {error ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</div>
+      ) : null}
+      {message && !error ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</div>
+      ) : null}
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-900">Browse & manage</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs text-zinc-500">Region folder</label>
-            <select
-              className="rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-              value={regionId}
-              onChange={(e) => setRegionId(e.target.value)}
-            >
-              {folders.length === 0 ? <option value="">No folders</option> : null}
-              {folders.map((f) => (
-                <option key={f.id} value={f.regionId}>
-                  {f.regionName} ({f.pathSegment})
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={deleteRegionFolder}
-              disabled={loading || !selectedFolder}
-              className="rounded border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
-            >
-              {loading ? "Working…" : "Delete this region folder"}
-            </button>
-          </div>
-        </div>
-        {selectedFolder ? (
-          <p className="mt-2 text-xs text-zinc-500">
-            Deleting the folder removes every file under{" "}
-            <code className="rounded bg-zinc-100 px-1">employee-files/{selectedFolder.pathSegment}/</code> for all employees in{" "}
-            {selectedFolder.regionName}.
-          </p>
-        ) : null}
-
-        {regionId && selectedFolder ? (
-          <div className="mt-4 space-y-4">
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
-              <h3 className="text-sm font-semibold text-zinc-900">Wasabi browser</h3>
-              <p className="mt-1 text-xs text-zinc-600">
-                Start at <strong>region</strong> to open each employee folder, then Month-Year → Day → files. Choosing an
-                employee in the dropdown moves upload/browsing to that employee.
-              </p>
-              <nav className="mt-3 flex flex-wrap items-center gap-1 text-xs text-zinc-600">
-                <button
-                  type="button"
-                  className="font-medium text-indigo-600 hover:underline"
-                  onClick={() => {
-                    setBrowseAtRegionRoot(true);
-                    setBrowseEmployeeId(null);
-                    setBrowsePath("");
-                  }}
+      {regionsWithoutFolder.length > 0 ? (
+        <details className="group rounded-2xl border border-zinc-200 bg-white open:shadow-sm">
+          <summary className="cursor-pointer list-none rounded-2xl px-4 py-3 text-sm font-semibold text-zinc-900 marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-2">
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">Setup</span>
+              Add storage for a region that does not have one yet
+            </span>
+          </summary>
+          <div className="border-t border-zinc-100 px-4 pb-4 pt-2">
+            <p className="text-xs text-zinc-600">
+              One Wasabi prefix per region. After this, employees in that region can use My files in the employee portal.
+            </p>
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-600">Region</label>
+                <select
+                  className="min-w-[200px] rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm"
+                  value={createRegionId}
+                  onChange={(e) => setCreateRegionId(e.target.value)}
                 >
-                  Region
-                </button>
+                  <option value="">Choose region…</option>
+                  {regionsWithoutFolder.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                      {r.code ? ` · ${r.code}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-600">URL path segment (optional)</label>
+                <input
+                  className="w-52 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm"
+                  value={createPath}
+                  onChange={(e) => setCreatePath(e.target.value)}
+                  placeholder="e.g. east-1"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={createRegionStorageFolder}
+                disabled={loading || regionsWithoutFolder.length === 0}
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {loading ? "Creating…" : "Create region storage"}
+              </button>
+            </div>
+          </div>
+        </details>
+      ) : null}
+
+      <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="border-b border-zinc-100 bg-zinc-50/80 px-4 py-3 sm:px-5">
+          <h2 className="text-base font-semibold text-zinc-900">Manage employee files</h2>
+          <p className="mt-1 text-xs text-zinc-600">
+            Pick a region → browse employees and folders in Wasabi → upload or add folders for someone. Layout matches the
+            portal: Region → employee → Month-Year → day → files.
+          </p>
+        </div>
+
+        <div className="space-y-4 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Region</label>
+              <select
+                className="w-full max-w-md rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm font-medium text-zinc-900 shadow-sm"
+                value={regionId}
+                onChange={(e) => setRegionId(e.target.value)}
+              >
+                {folders.length === 0 ? <option value="">No regions with storage yet</option> : null}
+                {folders.map((f) => (
+                  <option key={f.id} value={f.regionId}>
+                    {f.regionName}
+                    {f.regionCode ? ` (${f.regionCode})` : ""} — {f.pathSegment}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void refreshWorkspace()}
+                disabled={!regionId || !selectedFolder || fileLoading || browseLoading}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Refresh lists
+              </button>
+              <button
+                type="button"
+                onClick={deleteRegionFolder}
+                disabled={loading || !selectedFolder}
+                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
+              >
+                Remove region storage…
+              </button>
+            </div>
+          </div>
+
+          {!regionId || !selectedFolder ? (
+            <p className="text-sm text-amber-800">Create a region storage folder above (or pick another region) to continue.</p>
+          ) : (
+            <>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2.5 text-xs text-emerald-950 sm:text-sm">
+                <span className="font-semibold">You are working in: </span>
+                <span className="font-mono">{selectedRegionLabel}</span>
                 {!browseAtRegionRoot && browseEmployeeId ? (
                   <>
-                    <span className="text-zinc-400">/</span>
+                    {" → "}
+                    <span className="font-medium">{currentEmployeeLabel ?? "Employee"}</span>
+                    {browsePath ? (
+                      <>
+                        {" → "}
+                        <span className="font-mono break-all">{browsePath}</span>
+                      </>
+                    ) : (
+                      <span className="text-emerald-800"> (employee root)</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-emerald-800"> — all employees in this region (click a folder to open someone)</span>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-zinc-900">Storage browser</h3>
+                  {!browseAtRegionRoot ? (
                     <button
                       type="button"
-                      className="font-medium text-indigo-600 hover:underline"
                       onClick={() => {
+                        setBrowseAtRegionRoot(true);
+                        setBrowseEmployeeId(null);
                         setBrowsePath("");
                       }}
+                      className="text-xs font-medium text-indigo-700 underline decoration-indigo-300 hover:text-indigo-900"
                     >
-                      {assignees.find((a) => a.id === browseEmployeeId)?.fullName ?? "Employee"}
+                      ← Back to all employees in region
                     </button>
-                  </>
-                ) : null}
-                {breadcrumbParts.map((part, i) => {
-                  const prefix = breadcrumbParts.slice(0, i + 1).join("/");
-                  return (
-                    <span key={prefix} className="flex items-center gap-1">
+                  ) : null}
+                </div>
+
+                <nav className="mt-2 flex flex-wrap items-center gap-1 text-xs text-zinc-600">
+                  <button
+                    type="button"
+                    className="font-medium text-indigo-600 hover:underline"
+                    onClick={() => {
+                      setBrowseAtRegionRoot(true);
+                      setBrowseEmployeeId(null);
+                      setBrowsePath("");
+                    }}
+                  >
+                    Region
+                  </button>
+                  {!browseAtRegionRoot && browseEmployeeId ? (
+                    <>
                       <span className="text-zinc-400">/</span>
                       <button
                         type="button"
-                        className="hover:text-indigo-600 hover:underline"
-                        onClick={() => setBrowsePath(prefix)}
+                        className="font-medium text-indigo-600 hover:underline"
+                        onClick={() => setBrowsePath("")}
                       >
-                        {part}
+                        {currentEmployeeLabel ?? "Employee"}
                       </button>
-                    </span>
-                  );
-                })}
-              </nav>
+                    </>
+                  ) : null}
+                  {breadcrumbParts.map((part, i) => {
+                    const prefix = breadcrumbParts.slice(0, i + 1).join("/");
+                    return (
+                      <span key={prefix} className="flex items-center gap-1">
+                        <span className="text-zinc-400">/</span>
+                        <button
+                          type="button"
+                          className="hover:text-indigo-600 hover:underline"
+                          onClick={() => setBrowsePath(prefix)}
+                        >
+                          {part}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </nav>
 
-              {browseLoading ? (
-                <p className="mt-3 text-sm text-zinc-500">Loading…</p>
-              ) : (
-                <div className="mt-3 overflow-x-auto rounded-lg border border-white bg-white">
-                  <table className="w-full min-w-[520px] text-sm">
-                    <thead>
-                      <tr className="border-b border-zinc-200 bg-zinc-50">
-                        <th className="px-3 py-2 text-left font-medium text-zinc-800">Name</th>
-                        <th className="px-3 py-2 text-left font-medium text-zinc-800">Size</th>
-                        <th className="px-3 py-2 text-right font-medium text-zinc-800">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {browseFolders.map((f) => (
-                        <tr key={`folder-${f.path}`} className="border-b border-zinc-100">
-                          <td className="px-3 py-2">
-                            <button
-                              type="button"
-                              className="font-medium text-indigo-600 hover:underline"
-                              onClick={() =>
-                                browseAtRegionRoot ? enterEmployeeFromSlug(f.name) : setBrowsePath(f.path)
-                              }
-                            >
-                              {f.name}/
-                            </button>
-                          </td>
-                          <td className="px-3 py-2 text-zinc-500">—</td>
-                          <td className="px-3 py-2 text-right text-zinc-400">—</td>
+                {!browseAtRegionRoot && browseEmployeeId ? (
+                  <button
+                    type="button"
+                    disabled={uploadBusy}
+                    onClick={() => setBrowsePath(todayEmployeeSubpath())}
+                    className="mt-2 rounded-md border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-800 hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    Jump to today&apos;s date folder
+                  </button>
+                ) : null}
+
+                {browseLoading ? (
+                  <p className="mt-3 text-sm text-zinc-500">Loading…</p>
+                ) : (
+                  <div className="mt-3 overflow-x-auto rounded-lg border border-white bg-white">
+                    <table className="w-full min-w-[520px] text-sm">
+                      <thead>
+                        <tr className="border-b border-zinc-200 bg-zinc-50">
+                          <th className="px-3 py-2 text-left font-medium text-zinc-800">Name</th>
+                          <th className="px-3 py-2 text-left font-medium text-zinc-800">Size</th>
+                          <th className="px-3 py-2 text-right font-medium text-zinc-800">Actions</th>
                         </tr>
-                      ))}
-                      {browseFiles.map((f) => (
-                        <tr key={f.key} className="border-b border-zinc-100">
-                          <td className="px-3 py-2 font-medium text-zinc-900">{f.name}</td>
-                          <td className="px-3 py-2 text-zinc-600">{formatBytes(f.size)}</td>
-                          <td className="px-3 py-2 text-right">
-                            {f.db?.id && f.db.upload_status === "active" ? (
+                      </thead>
+                      <tbody>
+                        {browseFolders.map((f) => (
+                          <tr key={`folder-${f.path}`} className="border-b border-zinc-100">
+                            <td className="px-3 py-2">
                               <button
                                 type="button"
-                                onClick={() => download(f.db!.id)}
-                                className="text-indigo-600 hover:underline"
+                                className="font-medium text-indigo-600 hover:underline"
+                                onClick={() =>
+                                  browseAtRegionRoot ? enterEmployeeFromSlug(f.name) : setBrowsePath(f.path)
+                                }
                               >
-                                Download
+                                {f.name}/
                               </button>
-                            ) : (
-                              <span className="text-xs text-zinc-400">—</span>
-                            )}
-                            {f.db?.id ? (
-                              <>
-                                {" · "}
+                            </td>
+                            <td className="px-3 py-2 text-zinc-500">—</td>
+                            <td className="px-3 py-2 text-right text-zinc-400">—</td>
+                          </tr>
+                        ))}
+                        {browseFiles.map((f) => (
+                          <tr key={f.key} className="border-b border-zinc-100">
+                            <td className="px-3 py-2 font-medium text-zinc-900">{f.name}</td>
+                            <td className="px-3 py-2 text-zinc-600">{formatBytes(f.size)}</td>
+                            <td className="px-3 py-2 text-right">
+                              {f.db?.id && f.db.upload_status === "active" ? (
                                 <button
                                   type="button"
-                                  onClick={() => deleteFile(f.db!.id, f.db!.file_name)}
-                                  disabled={uploadBusy}
-                                  className="text-rose-600 hover:underline disabled:opacity-50"
+                                  onClick={() => download(f.db!.id)}
+                                  className="text-indigo-600 hover:underline"
                                 >
-                                  Delete
+                                  Download
                                 </button>
-                              </>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ))}
-                      {browseFolders.length === 0 && browseFiles.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="px-3 py-6 text-center text-zinc-500">
-                            {browseAtRegionRoot
-                              ? "No employee folders yet (uploads create employee paths)."
-                              : "Nothing in this folder."}
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                              ) : (
+                                <span className="text-xs text-zinc-400">—</span>
+                              )}
+                              {f.db?.id ? (
+                                <>
+                                  {" · "}
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteFile(f.db!.id, f.db!.file_name)}
+                                    disabled={uploadBusy}
+                                    className="text-rose-600 hover:underline disabled:opacity-50"
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
+                        {browseFolders.length === 0 && browseFiles.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="px-3 py-6 text-center text-zinc-500">
+                              {browseAtRegionRoot
+                                ? "No employee folders yet. When someone uploads, their folder appears here."
+                                : "This folder is empty."}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
-              <h3 className="text-sm font-semibold text-zinc-900">Upload for an employee</h3>
-              <p className="mt-1 text-xs text-zinc-600">
-                Files use Region → Employee → Month-Year/Day unless you set an optional path. Current browse path is applied
-                when it matches the selected employee.
-              </p>
-              <div className="mt-3 flex flex-wrap items-end gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">Employee</label>
-                  <select
-                    className="min-w-[220px] rounded border border-zinc-300 bg-white px-2 py-2 text-sm"
-                    value={uploadEmployeeId}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setUploadEmployeeId(v);
-                      setBrowseEmployeeId(v);
-                      setBrowseAtRegionRoot(false);
-                      setBrowsePath("");
-                    }}
-                    disabled={uploadBusy || assignees.length === 0}
-                  >
-                    {assignees.length === 0 ? <option value="">No active employees in region</option> : null}
-                    {assignees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.fullName}
-                        {e.email ? ` (${e.email})` : ""}
-                      </option>
-                    ))}
-                  </select>
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
+                <h3 className="text-sm font-semibold text-zinc-900">Upload & new folder</h3>
+                <p className="mt-1 text-xs text-zinc-600">
+                  Files go into the <strong>green path</strong> when the selected employee matches the one you are browsing.
+                  Otherwise pick the employee below — uploads use today&apos;s date folders automatically if no path is set.
+                </p>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-medium text-zinc-700">Employee you are helping</label>
+                    <select
+                      className="w-full max-w-lg rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm"
+                      value={uploadEmployeeId}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setUploadEmployeeId(v);
+                        setBrowseEmployeeId(v);
+                        setBrowseAtRegionRoot(false);
+                        setBrowsePath("");
+                      }}
+                      disabled={uploadBusy || assignees.length === 0}
+                    >
+                      {assignees.length === 0 ? <option value="">No active employees in this region</option> : null}
+                      {assignees.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.fullName}
+                          {e.email ? ` — ${e.email}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-zinc-700">Files</label>
+                    <input
+                      type="file"
+                      multiple
+                      disabled={uploadBusy || !uploadEmployeeId}
+                      onChange={(e) => {
+                        const list = e.target.files;
+                        e.target.value = "";
+                        if (list?.length) void adminUploadMany(Array.from(list), effectiveAdminUploadPath || undefined);
+                      }}
+                      className="block w-full text-sm text-zinc-800 file:mr-2 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-zinc-700">Folder from disk</label>
+                    <input
+                      type="file"
+                      multiple
+                      disabled={uploadBusy || !uploadEmployeeId}
+                      {...({ webkitdirectory: "" } as InputHTMLAttributes<HTMLInputElement>)}
+                      onChange={(e) => {
+                        void adminUploadFolderFromDisk(e.target.files);
+                        e.target.value = "";
+                      }}
+                      className="block w-full text-sm text-zinc-800 file:mr-2 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">Path under employee (optional)</label>
+
+                <details className="mt-3 rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-medium text-zinc-700">Advanced: override upload path</summary>
+                  <p className="mt-2 text-[11px] text-zinc-500">
+                    Leave empty to use the browser path (green bar) when it matches the selected employee, or today&apos;s
+                    dated folder when at employee root.
+                  </p>
                   <input
                     type="text"
-                    className="min-w-[220px] rounded border border-zinc-300 bg-white px-2 py-2 text-sm"
-                    placeholder={uploadRelativeBase || "Apr-2026/28-Apr-2026"}
+                    className="mt-2 w-full max-w-lg rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    placeholder="e.g. Apr-2026/28-Apr-2026/Reports"
                     disabled={uploadBusy}
                     value={adminUploadPathOverride}
                     onChange={(e) => setAdminUploadPathOverride(e.target.value)}
                   />
-                  <p className="mt-0.5 text-[11px] text-zinc-500">
-                    Defaults to current browse path when empty.
+                </details>
+
+                <div className="mt-4 border-t border-zinc-200 pt-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">New subfolder (inside green path)</h4>
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    One name only, no slashes — created under the folder you have open for that employee (same as employee
+                    portal).
                   </p>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">File</label>
-                  <input
-                    type="file"
-                    disabled={uploadBusy || !uploadEmployeeId}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      if (file) void adminUpload(file, effectiveAdminUploadPath || undefined);
-                    }}
-                    className="block text-sm text-zinc-800 file:mr-2 file:rounded file:border-0 file:bg-zinc-900 file:px-2 file:py-1.5 file:text-xs file:font-medium file:text-white"
-                  />
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <input
+                      type="text"
+                      value={adminNewSubfolder}
+                      onChange={(e) => setAdminNewSubfolder(e.target.value)}
+                      placeholder="e.g. Reports"
+                      disabled={uploadBusy || browseAtRegionRoot || !uploadEmployeeId}
+                      className="min-w-[200px] flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void createEmployeeSubfolder()}
+                      disabled={uploadBusy || browseAtRegionRoot || !uploadEmployeeId}
+                      className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      Create folder
+                    </button>
+                  </div>
+                  {browseAtRegionRoot ? (
+                    <p className="mt-2 text-xs text-amber-800">
+                      Open an employee first: click a name in the table above, or choose someone in the dropdown and use
+                      &quot;Jump to today&apos;s date folder&quot; to enter their tree.
+                    </p>
+                  ) : null}
                 </div>
               </div>
-            </div>
 
-            <div className="rounded-xl border border-zinc-200 bg-white p-4">
-              <h3 className="text-sm font-semibold text-zinc-900">Create folder (employee)</h3>
-              <p className="mt-1 text-xs text-zinc-500">Adds a <code className="rounded bg-zinc-100 px-1">.keep</code> marker under the selected employee.</p>
-              <div className="mt-2 flex flex-wrap items-end gap-2">
-                <input
-                  type="text"
-                  value={adminFolderPath}
-                  onChange={(e) => setAdminFolderPath(e.target.value)}
-                  placeholder="Apr-2026/28-Apr-2026/Custom"
-                  disabled={uploadBusy || !uploadEmployeeId}
-                  className="min-w-[260px] flex-1 rounded border border-zinc-300 px-3 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => void createEmployeeFolderMarker()}
-                  disabled={uploadBusy || !uploadEmployeeId}
-                  className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  Create folder
-                </button>
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-zinc-900">All files in this region (searchable list)</h3>
+                {fileLoading ? (
+                  <p className="text-sm text-zinc-500">Loading…</p>
+                ) : files.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-center text-sm text-zinc-500">
+                    No file records for this region yet.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-zinc-200">
+                    <table className="w-full min-w-[820px] text-sm">
+                      <thead>
+                        <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          <th className="px-3 py-2.5">File</th>
+                          <th className="px-3 py-2.5">Employee</th>
+                          <th className="px-3 py-2.5">Status</th>
+                          <th className="px-3 py-2.5">Size</th>
+                          <th className="px-3 py-2.5">Uploaded</th>
+                          <th className="px-3 py-2.5 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {files.map((f) => (
+                          <tr key={f.id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50/60">
+                            <td className="px-3 py-2.5 font-medium text-zinc-900">{f.fileName}</td>
+                            <td className="px-3 py-2.5 text-zinc-700">
+                              {f.employeeName}
+                              {f.employeeEmail ? (
+                                <span className="mt-0.5 block text-xs text-zinc-500">{f.employeeEmail}</span>
+                              ) : null}
+                            </td>
+                            <td className="px-3 py-2.5 text-zinc-600 capitalize">
+                              {(f.uploadStatus ?? "").replace(/_/g, " ") || "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-zinc-600">{formatBytes(f.byteSize)}</td>
+                            <td className="px-3 py-2.5 text-zinc-600">{new Date(f.createdAt).toLocaleString()}</td>
+                            <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                              {f.uploadStatus === "active" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => download(f.id)}
+                                  className="font-medium text-indigo-600 hover:underline"
+                                >
+                                  Download
+                                </button>
+                              ) : (
+                                <span className="text-xs text-zinc-400">—</span>
+                              )}
+                              {" · "}
+                              <button
+                                type="button"
+                                onClick={() => deleteFile(f.id, f.fileName)}
+                                disabled={uploadBusy}
+                                className="font-medium text-rose-600 hover:underline disabled:opacity-50"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-        ) : null}
-
-        {fileLoading ? (
-          <p className="mt-4 text-sm text-zinc-500">Loading files…</p>
-        ) : !regionId ? (
-          <p className="mt-4 text-sm text-zinc-500">Create a region folder first.</p>
-        ) : files.length === 0 ? (
-          <p className="mt-4 text-sm text-zinc-500">No file metadata rows for this region yet.</p>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-left text-xs font-medium uppercase text-zinc-500">
-                  <th className="py-2 pr-2">File</th>
-                  <th className="py-2 pr-2">Employee</th>
-                  <th className="py-2 pr-2">Status</th>
-                  <th className="py-2 pr-2">Size</th>
-                  <th className="py-2 pr-2">Uploaded</th>
-                  <th className="py-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {files.map((f) => (
-                  <tr key={f.id} className="border-b border-zinc-100">
-                    <td className="py-2.5 pr-2 font-medium text-zinc-900">{f.fileName}</td>
-                    <td className="py-2.5 pr-2 text-zinc-700">
-                      {f.employeeName}
-                      {f.employeeEmail ? <span className="mt-0.5 block text-xs text-zinc-500">{f.employeeEmail}</span> : null}
-                    </td>
-                    <td className="py-2.5 pr-2 text-zinc-600 capitalize">
-                      {(f.uploadStatus ?? "").replace(/_/g, " ") || "—"}
-                    </td>
-                    <td className="py-2.5 pr-2 text-zinc-600">{formatBytes(f.byteSize)}</td>
-                    <td className="py-2.5 pr-2 text-zinc-600">{new Date(f.createdAt).toLocaleString()}</td>
-                    <td className="py-2.5 text-right whitespace-nowrap">
-                      {f.uploadStatus === "active" ? (
-                        <button
-                          type="button"
-                          onClick={() => download(f.id)}
-                          className="font-medium text-indigo-600 hover:underline"
-                        >
-                          Download
-                        </button>
-                      ) : (
-                        <span className="text-xs text-zinc-400">—</span>
-                      )}
-                      {" · "}
-                      <button
-                        type="button"
-                        onClick={() => deleteFile(f.id, f.fileName)}
-                        disabled={uploadBusy}
-                        className="font-medium text-rose-600 hover:underline disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

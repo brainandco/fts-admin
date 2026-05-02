@@ -44,10 +44,9 @@ export default async function EmployeeFilesPage() {
       </nav>
       <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-5 sm:p-6">
         <h1 className="text-2xl font-semibold text-zinc-900">Employee files</h1>
-        <p className="mt-1 text-sm text-zinc-600">
-          Create a storage folder for each region (key prefix under <code className="text-xs">WASABI_EMPLOYEE_FILES_BUCKET</code>).
-          You can list, upload (for a selected employee), download, and delete files by region, or remove an entire region folder.
-          In the employee portal, each person only sees their own files.
+        <p className="mt-2 text-sm text-zinc-600">
+          Use the workspace below to turn on storage per region, then browse Wasabi the same way employees see it: pick a
+          region, open someone&apos;s folder, go to dates or custom folders, and upload or tidy files on their behalf.
         </p>
       </div>
       <EmployeeFilesClient regions={regions ?? []} initialFolders={initialFolders} />
