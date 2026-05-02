@@ -38,6 +38,56 @@ export async function listAllObjectKeysUnderPrefix(
   return { keys, truncated: false };
 }
 
+/**
+ * BFS over virtual folders (CommonPrefixes) under an absolute S3 prefix.
+ * Returns paths relative to `absRootPrefix` (no leading slash, no trailing slash on segments).
+ * Finds empty site folders that never appear in a flat object listing.
+ */
+export async function listRelativeFolderPathsBfs(
+  s3: S3Client,
+  bucket: string,
+  absRootPrefix: string,
+  maxFolders: number
+): Promise<{ relativePaths: string[]; truncated: boolean }> {
+  const root = absRootPrefix.replace(/\/*$/, "/");
+  const seen = new Set<string>();
+  const relativePaths: string[] = [];
+  const queue: string[] = [root];
+  let truncated = false;
+
+  outer: while (queue.length > 0 && relativePaths.length < maxFolders) {
+    const prefix = queue.shift()!;
+    let continuationToken: string | undefined;
+    do {
+      const list = await s3.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          Delimiter: "/",
+          MaxKeys: LIST_PAGE_MAX_KEYS,
+          ContinuationToken: continuationToken,
+        })
+      );
+      for (const cp of list.CommonPrefixes ?? []) {
+        const full = cp.Prefix ?? "";
+        if (!full.startsWith(root)) continue;
+        const rel = full.slice(root.length).replace(/\/+$/, "");
+        if (!rel || seen.has(rel)) continue;
+        seen.add(rel);
+        relativePaths.push(rel);
+        if (relativePaths.length >= maxFolders) {
+          truncated = true;
+          break outer;
+        }
+        queue.push(full);
+      }
+      continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+    } while (continuationToken);
+  }
+
+  return { relativePaths, truncated };
+}
+
 export async function browsePrefix(s3: S3Client, bucket: string, prefix: string): Promise<BrowseEntry[]> {
   const p = prefix.replace(/\/*$/, "/");
   const out: BrowseEntry[] = [];

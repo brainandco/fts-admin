@@ -2,12 +2,13 @@ import { getDataClient } from "@/lib/supabase/server";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
 import { buildEmployeeRootPrefix } from "@/lib/employee-files/storage";
-import { listAllObjectKeysUnderPrefix } from "@/lib/employee-files/s3-browse";
+import { listAllObjectKeysUnderPrefix, listRelativeFolderPathsBfs } from "@/lib/employee-files/s3-browse";
 import { matchSiteFolderPaths, stripEmployeeRootFromKey } from "@/lib/employee-files/site-folder-search";
 import { getWasabiEmployeeFilesBucket, getWasabiEmployeeFilesS3Client } from "@/lib/wasabi/s3-client";
 import { NextResponse } from "next/server";
 
 const MAX_KEYS_PER_EMPLOYEE = 12_000;
+const MAX_FOLDERS_BFS_PER_EMPLOYEE = 8_000;
 const MAX_RESULTS = 250;
 
 type SiteSearchHit = {
@@ -70,13 +71,17 @@ export async function GET(req: Request) {
     if (hits.length >= MAX_RESULTS) break;
     const root = buildEmployeeRootPrefix(regionSeg, emp.full_name ?? null, emp.id);
     let listRes: { keys: string[]; truncated: boolean };
+    let bfsRes: { relativePaths: string[]; truncated: boolean };
     try {
-      listRes = await listAllObjectKeysUnderPrefix(s3, bucket, root, MAX_KEYS_PER_EMPLOYEE);
+      [listRes, bfsRes] = await Promise.all([
+        listAllObjectKeysUnderPrefix(s3, bucket, root, MAX_KEYS_PER_EMPLOYEE),
+        listRelativeFolderPathsBfs(s3, bucket, root, MAX_FOLDERS_BFS_PER_EMPLOYEE),
+      ]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "List failed";
       return NextResponse.json({ message: msg }, { status: 500 });
     }
-    if (listRes.truncated) globalTruncated = true;
+    if (listRes.truncated || bfsRes.truncated) globalTruncated = true;
 
     const relatives: string[] = [];
     for (const key of listRes.keys) {
@@ -84,7 +89,12 @@ export async function GET(req: Request) {
       if (rel) relatives.push(rel);
     }
 
-    const matches = matchSiteFolderPaths(relatives, q);
+    const matchesFromKeys = matchSiteFolderPaths(relatives, q);
+    const matchesFromFolders = matchSiteFolderPaths(bfsRes.relativePaths, q);
+    const matches = new Map(matchesFromKeys);
+    for (const [folderPath, meta] of matchesFromFolders) {
+      if (!matches.has(folderPath)) matches.set(folderPath, meta);
+    }
     for (const [folderPath, { siteSegment }] of matches) {
       if (hits.length >= MAX_RESULTS) break;
       const parts = folderPath.split("/").filter(Boolean);

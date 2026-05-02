@@ -199,6 +199,7 @@ export function EmployeeFilesClient({
   const [siteSearchResults, setSiteSearchResults] = useState<SiteSearchHit[]>([]);
   const [siteSearchTruncated, setSiteSearchTruncated] = useState(false);
   const [siteSearchError, setSiteSearchError] = useState("");
+  const [siteSearchHasRun, setSiteSearchHasRun] = useState(false);
 
   const loadFolders = useCallback(async () => {
     const res = await fetch("/api/employee-file-folders");
@@ -290,6 +291,7 @@ export function EmployeeFilesClient({
     setSiteSearchResults([]);
     setSiteSearchTruncated(false);
     setSiteSearchError("");
+    setSiteSearchHasRun(false);
   }, [regionId]);
 
   useEffect(() => {
@@ -602,6 +604,7 @@ export function EmployeeFilesClient({
     }
     setSiteSearchLoading(true);
     setSiteSearchError("");
+    setSiteSearchHasRun(false);
     try {
       const res = await fetch(
         `/api/employee-files/site-search?regionId=${encodeURIComponent(regionId)}&q=${encodeURIComponent(q)}`
@@ -614,12 +617,51 @@ export function EmployeeFilesClient({
       if (!res.ok) throw new Error(data.message || "Search failed");
       setSiteSearchResults(data.results ?? []);
       setSiteSearchTruncated(!!data.truncated);
+      setSiteSearchHasRun(true);
     } catch (e) {
       setSiteSearchError(e instanceof Error ? e.message : "Search failed");
       setSiteSearchResults([]);
       setSiteSearchTruncated(false);
+      setSiteSearchHasRun(false);
     } finally {
       setSiteSearchLoading(false);
+    }
+  }
+
+  const browsePathDepth = browsePath.split("/").filter(Boolean).length;
+  const showSiteZipOnChildFolders =
+    !browseAtRegionRoot && browseEmployeeId != null && browsePathDepth >= 1;
+
+  function triggerSiteFolderZipDownload(siteFolderPath: string) {
+    if (!regionId || !browseEmployeeId) return;
+    const u = new URL("/api/employee-files/site-folder-zip", window.location.origin);
+    u.searchParams.set("regionId", regionId);
+    u.searchParams.set("employeeId", browseEmployeeId);
+    u.searchParams.set("sitePath", siteFolderPath);
+    window.location.href = u.toString();
+  }
+
+  async function copySiteFolderDownloadLink(siteFolderPath: string) {
+    if (!regionId || !browseEmployeeId) return;
+    setMessage("");
+    setError("");
+    try {
+      const res = await fetch("/api/employee-files/site-folder-zip/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          regionId,
+          employeeId: browseEmployeeId,
+          sitePath: siteFolderPath,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string; url?: string };
+      if (!res.ok) throw new Error(data.message || "Could not create link");
+      if (!data.url) throw new Error("Bad response");
+      await navigator.clipboard.writeText(data.url);
+      setMessage("Download link copied. Recipients can open it in a browser to download the zip (no portal login).");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Copy failed");
     }
   }
 
@@ -733,7 +775,7 @@ export function EmployeeFilesClient({
                 disabled={loading || !selectedFolder}
                 className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
               >
-                Remove region storage…
+                Remove region storage
               </button>
             </div>
           </div>
@@ -746,7 +788,8 @@ export function EmployeeFilesClient({
               <p className="text-[11px] leading-relaxed text-zinc-600">
                 Searches every active employee in this region for paths like{" "}
                 <span className="font-mono">Month-Year / Day / … / Site ID</span>. The same Site ID can appear on different
-                dates — each match is listed separately with employee and folder path.
+                dates — each match is listed separately with employee and folder path. Results stay here while you open a
+                row in the browser below.
               </p>
               <div className="mt-2 flex flex-wrap items-end gap-2">
                 <input
@@ -770,6 +813,12 @@ export function EmployeeFilesClient({
                 </button>
               </div>
               {siteSearchError ? <p className="mt-2 text-sm text-red-600">{siteSearchError}</p> : null}
+              {siteSearchHasRun && !siteSearchLoading && !siteSearchError && siteSearchResults.length === 0 ? (
+                <p className="mt-2 text-sm text-zinc-600">
+                  No matching folder names under any employee in this region. Empty site folders are included in the index;
+                  try the exact Site ID spelling.
+                </p>
+              ) : null}
               {siteSearchResults.length > 0 ? (
                 <div className="mt-3 overflow-x-auto rounded-lg border border-white bg-white shadow-sm">
                   <table className="w-full min-w-[720px] text-left text-sm">
@@ -948,7 +997,31 @@ export function EmployeeFilesClient({
                               </button>
                             </td>
                             <td className="px-3 py-2 text-zinc-500">—</td>
-                            <td className="px-3 py-2 text-right text-zinc-400">—</td>
+                            <td className="px-3 py-2 text-right">
+                              {showSiteZipOnChildFolders ? (
+                                <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs">
+                                  <button
+                                    type="button"
+                                    disabled={pickerLocked}
+                                    onClick={() => triggerSiteFolderZipDownload(f.path)}
+                                    className="font-medium text-indigo-600 hover:underline disabled:opacity-50"
+                                  >
+                                    Download zip
+                                  </button>
+                                  <span className="text-zinc-300">|</span>
+                                  <button
+                                    type="button"
+                                    disabled={pickerLocked}
+                                    onClick={() => void copySiteFolderDownloadLink(f.path)}
+                                    className="font-medium text-indigo-600 hover:underline disabled:opacity-50"
+                                  >
+                                    Copy download link
+                                  </button>
+                                </span>
+                              ) : (
+                                <span className="text-zinc-400">—</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                         {browseFiles.map((f) => (
