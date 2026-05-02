@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 export function VehicleUnassignButton({ vehicleId, label }: { vehicleId: string; label: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [failMessage, setFailMessage] = useState<string | null>(null);
 
   async function handleConfirm() {
     setLoading(true);
@@ -20,7 +22,7 @@ export function VehicleUnassignButton({ vehicleId, label }: { vehicleId: string;
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setLoading(false);
-        alert(data.message || "Failed to unassign");
+        setFailMessage(data.message || "Failed to unassign");
         return;
       }
       setOpen(false);
@@ -28,7 +30,7 @@ export function VehicleUnassignButton({ vehicleId, label }: { vehicleId: string;
       router.refresh();
     } catch {
       setLoading(false);
-      alert("Failed to unassign");
+      setFailMessage("Failed to unassign");
     }
   }
 
@@ -51,6 +53,13 @@ export function VehicleUnassignButton({ vehicleId, label }: { vehicleId: string;
         loading={loading}
         onConfirm={handleConfirm}
         onCancel={() => !loading && setOpen(false)}
+      />
+      <InfoModal
+        open={!!failMessage}
+        title="Could not unassign"
+        message={failMessage ?? ""}
+        variant="danger"
+        onClose={() => setFailMessage(null)}
       />
     </>
   );

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type InputHTMLAttributes } from "react";
 import { AdminUploadModal, type UploadModalRow } from "@/components/employee-files/AdminUploadModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { adminUploadFilesBatch, type AdminUploadItem } from "@/lib/employee-files/batch-upload-client";
 import { EMPLOYEE_UPLOAD_ALLOWED_EXTENSIONS_HELP } from "@/lib/employee-files/storage";
 import { filterEmployeeUploadItems, type SkippedUpload } from "@/lib/employee-files/upload-filter";
@@ -180,6 +181,8 @@ export function EmployeeFilesClient({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const uploadInFlightRef = useRef(false);
+  const [pendingDeleteFile, setPendingDeleteFile] = useState<{ id: string; label: string } | null>(null);
+  const [deleteRegionModalOpen, setDeleteRegionModalOpen] = useState(false);
 
   const loadFolders = useCallback(async () => {
     const res = await fetch("/api/employee-file-folders");
@@ -464,14 +467,20 @@ export function EmployeeFilesClient({
     }
   }
 
-  async function deleteFile(fileId: string, label: string) {
-    if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+  function requestDeleteFile(fileId: string, label: string) {
+    setPendingDeleteFile({ id: fileId, label });
+  }
+
+  async function executeDeleteFile() {
+    const pending = pendingDeleteFile;
+    if (!pending) return;
     setUploadBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/employee-files/${fileId}`, { method: "DELETE" });
+      const res = await fetch(`/api/employee-files/${pending.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error((data as { message?: string }).message || "Delete failed");
+      setPendingDeleteFile(null);
       setMessage("File deleted.");
       if (regionId) await loadFiles(regionId);
       await loadBrowse();
@@ -482,16 +491,8 @@ export function EmployeeFilesClient({
     }
   }
 
-  async function deleteRegionFolder() {
+  async function executeDeleteRegionFolder() {
     if (!selectedFolder) return;
-    if (
-      !confirm(
-        `Delete the entire storage folder for ${selectedFolder.regionName} (${selectedFolder.pathSegment})?\n\n` +
-          "This permanently removes all employee files in that region in Wasabi and clears the region slot. This cannot be undone."
-      )
-    ) {
-      return;
-    }
     setLoading(true);
     setError("");
     setMessage("");
@@ -499,6 +500,7 @@ export function EmployeeFilesClient({
       const res = await fetch(`/api/employee-file-folders/${selectedFolder.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error((data as { message?: string }).message || "Delete failed");
+      setDeleteRegionModalOpen(false);
       setMessage("Region storage folder removed.");
       setFiles([]);
       await loadFolders();
@@ -667,7 +669,7 @@ export function EmployeeFilesClient({
               </button>
               <button
                 type="button"
-                onClick={deleteRegionFolder}
+                onClick={() => setDeleteRegionModalOpen(true)}
                 disabled={loading || !selectedFolder}
                 className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-900 hover:bg-rose-100 disabled:opacity-50"
               >
@@ -822,7 +824,7 @@ export function EmployeeFilesClient({
                                   {" · "}
                                   <button
                                     type="button"
-                                    onClick={() => deleteFile(f.db!.id, f.db!.file_name)}
+                                    onClick={() => requestDeleteFile(f.db!.id, f.name || f.db!.file_name)}
                                     disabled={uploadBusy}
                                     className="text-rose-600 hover:underline disabled:opacity-50"
                                   >
@@ -1084,7 +1086,7 @@ export function EmployeeFilesClient({
                               {" · "}
                               <button
                                 type="button"
-                                onClick={() => deleteFile(f.id, f.fileName)}
+                                onClick={() => requestDeleteFile(f.id, f.fileName)}
                                 disabled={uploadBusy}
                                 className="font-medium text-rose-600 hover:underline disabled:opacity-50"
                               >
@@ -1124,6 +1126,40 @@ export function EmployeeFilesClient({
           onStartUpload={() => void runUploadFromModal()}
         />
       ) : null}
+
+      <ConfirmModal
+        open={!!pendingDeleteFile}
+        title="Delete this file?"
+        message={
+          pendingDeleteFile
+            ? `Delete “${pendingDeleteFile.label}”? This removes the file from storage and cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={uploadBusy && !!pendingDeleteFile}
+        panelClassName="max-w-md"
+        onCancel={() => !uploadBusy && setPendingDeleteFile(null)}
+        onConfirm={() => void executeDeleteFile()}
+      />
+
+      <ConfirmModal
+        open={deleteRegionModalOpen && !!selectedFolder}
+        title="Remove region storage?"
+        message={
+          selectedFolder
+            ? `Delete the entire storage folder for ${selectedFolder.regionName} (${selectedFolder.pathSegment})? This permanently removes all employee files in that region in Wasabi and clears the region slot. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Remove storage"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={loading}
+        panelClassName="max-w-lg"
+        onCancel={() => !loading && setDeleteRegionModalOpen(false)}
+        onConfirm={() => void executeDeleteRegionFolder()}
+      />
     </div>
   );
 }

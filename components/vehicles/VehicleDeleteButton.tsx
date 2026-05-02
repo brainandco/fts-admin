@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 export function VehicleDeleteButton({ vehicleId, label }: { vehicleId: string; label: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [failMessage, setFailMessage] = useState<string | null>(null);
 
   async function handleConfirm() {
     setDeleting(true);
@@ -16,7 +18,7 @@ export function VehicleDeleteButton({ vehicleId, label }: { vehicleId: string; l
       const data = await res.json();
       if (!res.ok) {
         setDeleting(false);
-        alert(data.message || "Failed to delete vehicle");
+        setFailMessage(data.message || "Failed to delete vehicle");
         return;
       }
       setOpen(false);
@@ -24,7 +26,7 @@ export function VehicleDeleteButton({ vehicleId, label }: { vehicleId: string; l
       router.refresh();
     } catch {
       setDeleting(false);
-      alert("Failed to delete vehicle");
+      setFailMessage("Failed to delete vehicle");
     }
   }
 
@@ -47,6 +49,13 @@ export function VehicleDeleteButton({ vehicleId, label }: { vehicleId: string; l
         loading={deleting}
         onConfirm={handleConfirm}
         onCancel={() => !deleting && setOpen(false)}
+      />
+      <InfoModal
+        open={!!failMessage}
+        title="Could not delete"
+        message={failMessage ?? ""}
+        variant="danger"
+        onClose={() => setFailMessage(null)}
       />
     </>
   );

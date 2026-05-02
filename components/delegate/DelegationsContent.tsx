@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 type User = { id: string; email: string | null; full_name: string | null };
 type DelegationRow = {
@@ -21,6 +23,9 @@ export function DelegationsContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [infoModal, setInfoModal] = useState<{ title: string; message: string } | null>(null);
   const [delegateeId, setDelegateeId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -88,14 +93,24 @@ export function DelegationsContent() {
     if (listData.delegations) setDelegations(listData.delegations);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Remove this delegation?")) return;
-    const res = await fetch(`/api/delegations/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setDelegations((prev) => prev.filter((d) => d.id !== id));
-    } else {
-      const data = await res.json().catch(() => ({}));
-      alert(data.message || "Failed to delete");
+  async function confirmDeleteDelegation() {
+    const p = pendingDelete;
+    if (!p) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/delegations/${p.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setPendingDelete(null);
+        setDelegations((prev) => prev.filter((d) => d.id !== p.id));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setInfoModal({
+          title: "Could not remove",
+          message: typeof data.message === "string" ? data.message : "Failed to delete",
+        });
+      }
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -175,7 +190,18 @@ export function DelegationsContent() {
                       </td>
                       <td className="px-4 py-2 text-zinc-600">{d.notes || "—"}</td>
                       <td className="px-4 py-2">
-                        <button type="button" onClick={() => handleDelete(d.id)} className="text-red-600 hover:underline text-sm">Remove</button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingDelete({
+                              id: d.id,
+                              label: d.delegatee.full_name || d.delegatee.email || "this delegatee",
+                            })
+                          }
+                          className="text-sm text-red-600 hover:underline"
+                        >
+                          Remove
+                        </button>
                       </td>
                     </tr>
                   );
@@ -185,6 +211,30 @@ export function DelegationsContent() {
           </table>
         </div>
       </section>
+
+      <ConfirmModal
+        open={!!pendingDelete}
+        title="Remove delegation?"
+        message={
+          pendingDelete
+            ? `Remove delegation to ${pendingDelete.label}? They will lose acting access for the configured period.`
+            : ""
+        }
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+        onCancel={() => !deleteLoading && setPendingDelete(null)}
+        onConfirm={() => void confirmDeleteDelegation()}
+      />
+
+      <InfoModal
+        open={!!infoModal}
+        title={infoModal?.title ?? ""}
+        message={infoModal?.message ?? ""}
+        variant="danger"
+        onClose={() => setInfoModal(null)}
+      />
     </div>
   );
 }

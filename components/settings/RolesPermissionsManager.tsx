@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 type Role = { id: string; name: string; description: string | null };
 type Permission = { id: string; code: string; name: string | null; module: string | null };
@@ -23,6 +24,7 @@ export function RolesPermissionsManager() {
   const [savingAssign, setSavingAssign] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "role"; id: string; name: string } | { type: "perm"; id: string; code: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteFailModal, setDeleteFailModal] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -142,7 +144,7 @@ export function RolesPermissionsManager() {
       await load();
       router.refresh();
     } catch (e) {
-      alert((e as Error).message);
+      setDeleteFailModal((e as Error).message);
     } finally {
       setDeleting(false);
     }
@@ -324,6 +326,14 @@ export function RolesPermissionsManager() {
         onConfirm={doDelete}
         onCancel={() => !deleting && setDeleteTarget(null)}
       />
+
+      <InfoModal
+        open={!!deleteFailModal}
+        title="Delete failed"
+        message={deleteFailModal ?? ""}
+        variant="danger"
+        onClose={() => setDeleteFailModal(null)}
+      />
     </div>
   );
 }
@@ -342,15 +352,17 @@ function RoleForm({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
+    setSaveError("");
     try {
       await onSave(name.trim(), description.trim());
     } catch (err) {
-      alert((err as Error).message);
+      setSaveError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -368,6 +380,7 @@ function RoleForm({
           <label className="block text-sm text-zinc-600">Description</label>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
         </div>
+        {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
         <div className="flex gap-2">
           <button type="button" onClick={onCancel} className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
           <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
@@ -394,15 +407,17 @@ function PermissionForm({
   const [name, setName] = useState(initialName);
   const [module, setModule] = useState(initialModule);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!code.trim()) return;
     setSaving(true);
+    setSaveError("");
     try {
       await onSave(code.trim(), name.trim(), module.trim());
     } catch (err) {
-      alert((err as Error).message);
+      setSaveError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -424,6 +439,7 @@ function PermissionForm({
           <label className="block text-sm text-zinc-600">Module</label>
           <input value={module} onChange={(e) => setModule(e.target.value)} className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm" />
         </div>
+        {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
         <div className="flex gap-2">
           <button type="button" onClick={onCancel} className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
           <button type="submit" disabled={saving} className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>

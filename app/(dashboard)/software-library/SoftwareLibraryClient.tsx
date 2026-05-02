@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 export type SoftwareRow = {
   id: string;
@@ -32,6 +33,7 @@ export function SoftwareLibraryClient({ initialItems }: { initialItems: Software
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
@@ -124,8 +126,9 @@ export function SoftwareLibraryClient({ initialItems }: { initialItems: Software
     }
   }
 
-  async function removeItem(id: string) {
-    if (!confirm("Delete this entry and remove the file from storage?")) return;
+  async function confirmRemoveItem() {
+    const id = deleteConfirmId;
+    if (!id) return;
     setDeletingId(id);
     setError("");
     try {
@@ -135,6 +138,7 @@ export function SoftwareLibraryClient({ initialItems }: { initialItems: Software
         setError(typeof data.message === "string" ? data.message : "Delete failed");
         return;
       }
+      setDeleteConfirmId(null);
       await refresh();
       router.refresh();
     } finally {
@@ -250,7 +254,7 @@ export function SoftwareLibraryClient({ initialItems }: { initialItems: Software
                     <td className="py-3">
                       <button
                         type="button"
-                        onClick={() => removeItem(row.id)}
+                        onClick={() => setDeleteConfirmId(row.id)}
                         disabled={deletingId === row.id}
                         className="text-sm text-rose-700 hover:underline disabled:opacity-50"
                       >
@@ -264,6 +268,18 @@ export function SoftwareLibraryClient({ initialItems }: { initialItems: Software
           </table>
         </div>
       </section>
+
+      <ConfirmModal
+        open={!!deleteConfirmId}
+        title="Delete software entry?"
+        message="This removes the catalog entry and deletes the file from storage. This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={!!deletingId}
+        onCancel={() => !deletingId && setDeleteConfirmId(null)}
+        onConfirm={() => void confirmRemoveItem()}
+      />
     </div>
   );
 }

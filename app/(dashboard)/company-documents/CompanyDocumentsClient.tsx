@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 type DocRow = {
   id: string;
@@ -24,6 +25,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
@@ -64,8 +66,9 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
     }
   }
 
-  async function removeDoc(id: string) {
-    if (!confirm("Delete this document?")) return;
+  async function confirmRemoveDoc() {
+    const id = deleteConfirmId;
+    if (!id) return;
     setDeletingId(id);
     setError("");
     try {
@@ -75,6 +78,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
         setError(typeof data.message === "string" ? data.message : "Delete failed");
         return;
       }
+      setDeleteConfirmId(null);
       await refresh();
       router.refresh();
     } finally {
@@ -217,7 +221,7 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeDoc(d.id)}
+                  onClick={() => setDeleteConfirmId(d.id)}
                   disabled={deletingId === d.id}
                   className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
                 >
@@ -228,6 +232,18 @@ export function CompanyDocumentsClient({ initialDocs }: { initialDocs: DocRow[] 
           </ul>
         )}
       </section>
+
+      <ConfirmModal
+        open={!!deleteConfirmId}
+        title="Delete this document?"
+        message="This removes the document record and deletes the file from storage. This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={!!deletingId}
+        onCancel={() => !deletingId && setDeleteConfirmId(null)}
+        onConfirm={() => void confirmRemoveDoc()}
+      />
     </div>
   );
 }

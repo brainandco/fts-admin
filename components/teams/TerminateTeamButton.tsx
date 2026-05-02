@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 export function TerminateTeamButton({
   teamId,
@@ -16,18 +18,23 @@ export function TerminateTeamButton({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [failMessage, setFailMessage] = useState<string | null>(null);
 
   async function handleTerminate() {
     setLoading(true);
-    const res = await fetch(`/api/teams/${teamId}`, { method: "DELETE" });
-    setLoading(false);
-    if (res.ok) {
-      router.push("/teams");
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      alert(data.message || "Failed to terminate team");
+    try {
+      const res = await fetch(`/api/teams/${teamId}`, { method: "DELETE" });
+      if (res.ok) {
+        setConfirmOpen(false);
+        router.push("/teams");
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setFailMessage(data.message || "Failed to terminate team");
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -49,37 +56,33 @@ export function TerminateTeamButton({
     );
   }
 
-  if (confirming) {
-    return (
-      <span className="flex items-center gap-2">
-        <span className="text-sm text-zinc-600">Terminate &quot;{teamName}&quot;?</span>
-        <button
-          type="button"
-          onClick={handleTerminate}
-          disabled={loading}
-          className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-        >
-          {loading ? "…" : "Yes, terminate"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setConfirming(false)}
-          disabled={loading}
-          className="rounded border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-        >
-          Cancel
-        </button>
-      </span>
-    );
-  }
-
   return (
-    <button
-      type="button"
-      onClick={() => setConfirming(true)}
-      className="rounded border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
-    >
-      Terminate team
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        className="rounded border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+      >
+        Terminate team
+      </button>
+      <ConfirmModal
+        open={confirmOpen}
+        title="Terminate team?"
+        message={`Terminate “${teamName}”? This removes the team and related data. This cannot be undone.`}
+        confirmLabel="Yes, terminate"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={loading}
+        onConfirm={() => void handleTerminate()}
+        onCancel={() => !loading && setConfirmOpen(false)}
+      />
+      <InfoModal
+        open={!!failMessage}
+        title="Could not terminate"
+        message={failMessage ?? ""}
+        variant="danger"
+        onClose={() => setFailMessage(null)}
+      />
+    </>
   );
 }

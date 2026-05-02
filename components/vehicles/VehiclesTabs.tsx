@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { DataTable, RowAction } from "@/components/ui/DataTable";
 import { VehicleImport } from "@/components/vehicles/VehicleImport";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { InfoModal } from "@/components/ui/InfoModal";
 
 type VehicleRow = Record<string, unknown> & {
   id: string;
@@ -55,6 +56,7 @@ export function VehiclesTabs({
   const [tab, setTab] = useState<"all" | "assigned">("all");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [failMessage, setFailMessage] = useState<string | null>(null);
   const router = useRouter();
 
   const handleDeleteConfirm = async () => {
@@ -65,7 +67,7 @@ export function VehiclesTabs({
       const data = await res.json();
       if (!res.ok) {
         setDeleting(false);
-        alert(data.message || "Failed to delete vehicle");
+        setFailMessage(data.message || "Failed to delete vehicle");
         return;
       }
       setDeleteTarget(null);
@@ -73,7 +75,7 @@ export function VehiclesTabs({
       router.refresh();
     } catch {
       setDeleting(false);
-      alert("Failed to delete vehicle");
+      setFailMessage("Failed to delete vehicle");
     }
   };
 
@@ -188,6 +190,13 @@ export function VehiclesTabs({
         loading={deleting}
         onConfirm={handleDeleteConfirm}
         onCancel={() => !deleting && setDeleteTarget(null)}
+      />
+      <InfoModal
+        open={!!failMessage}
+        title="Could not delete"
+        message={failMessage ?? ""}
+        variant="danger"
+        onClose={() => setFailMessage(null)}
       />
     </div>
   );
