@@ -6,6 +6,38 @@ export type BrowseEntry =
 
 const LIST_PAGE_MAX_KEYS = 1000;
 
+/** Flat list of object keys under prefix (no delimiter), paginated. Stops at maxKeys. */
+export async function listAllObjectKeysUnderPrefix(
+  s3: S3Client,
+  bucket: string,
+  prefix: string,
+  maxKeys: number
+): Promise<{ keys: string[]; truncated: boolean }> {
+  const p = prefix.replace(/\/*$/, "/");
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const list = await s3.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: p,
+        MaxKeys: LIST_PAGE_MAX_KEYS,
+        ContinuationToken: continuationToken,
+      })
+    );
+    for (const obj of list.Contents ?? []) {
+      const key = obj.Key;
+      if (!key || key.endsWith("/.keep")) continue;
+      keys.push(key);
+      if (keys.length >= maxKeys) {
+        return { keys, truncated: true };
+      }
+    }
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return { keys, truncated: false };
+}
+
 export async function browsePrefix(s3: S3Client, bucket: string, prefix: string): Promise<BrowseEntry[]> {
   const p = prefix.replace(/\/*$/, "/");
   const out: BrowseEntry[] = [];

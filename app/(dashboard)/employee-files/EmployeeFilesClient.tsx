@@ -29,6 +29,16 @@ type FileRow = {
 
 type Assignee = { id: string; fullName: string; email: string | null; folderSlug: string };
 
+type SiteSearchHit = {
+  employeeId: string;
+  employeeName: string;
+  employeeEmail: string | null;
+  siteFolderName: string;
+  pathUnderEmployee: string;
+  parentPathBeforeSite: string;
+  fileCountInSubtree: number;
+};
+
 type BrowseFolder = { type: "folder"; name: string; path: string };
 type BrowseFile = {
   type: "file";
@@ -184,6 +194,12 @@ export function EmployeeFilesClient({
   const [pendingDeleteFile, setPendingDeleteFile] = useState<{ id: string; label: string } | null>(null);
   const [deleteRegionModalOpen, setDeleteRegionModalOpen] = useState(false);
 
+  const [siteSearchQuery, setSiteSearchQuery] = useState("");
+  const [siteSearchLoading, setSiteSearchLoading] = useState(false);
+  const [siteSearchResults, setSiteSearchResults] = useState<SiteSearchHit[]>([]);
+  const [siteSearchTruncated, setSiteSearchTruncated] = useState(false);
+  const [siteSearchError, setSiteSearchError] = useState("");
+
   const loadFolders = useCallback(async () => {
     const res = await fetch("/api/employee-file-folders");
     const data = await res.json();
@@ -271,6 +287,9 @@ export function EmployeeFilesClient({
     setBrowsePath("");
     setMessage("");
     setError("");
+    setSiteSearchResults([]);
+    setSiteSearchTruncated(false);
+    setSiteSearchError("");
   }, [regionId]);
 
   useEffect(() => {
@@ -571,6 +590,47 @@ export function EmployeeFilesClient({
     }
   }
 
+  async function runSiteSearch() {
+    if (!regionId || !selectedFolder) {
+      setSiteSearchError("Select a region with storage first.");
+      return;
+    }
+    const q = siteSearchQuery.trim();
+    if (q.length < 2) {
+      setSiteSearchError("Enter at least 2 characters (e.g. a Site ID folder name).");
+      return;
+    }
+    setSiteSearchLoading(true);
+    setSiteSearchError("");
+    try {
+      const res = await fetch(
+        `/api/employee-files/site-search?regionId=${encodeURIComponent(regionId)}&q=${encodeURIComponent(q)}`
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        results?: SiteSearchHit[];
+        truncated?: boolean;
+      };
+      if (!res.ok) throw new Error(data.message || "Search failed");
+      setSiteSearchResults(data.results ?? []);
+      setSiteSearchTruncated(!!data.truncated);
+    } catch (e) {
+      setSiteSearchError(e instanceof Error ? e.message : "Search failed");
+      setSiteSearchResults([]);
+      setSiteSearchTruncated(false);
+    } finally {
+      setSiteSearchLoading(false);
+    }
+  }
+
+  function openSiteSearchHit(hit: SiteSearchHit) {
+    setBrowseAtRegionRoot(false);
+    setBrowseEmployeeId(hit.employeeId);
+    setUploadEmployeeId(hit.employeeId);
+    setBrowsePath(hit.pathUnderEmployee);
+    setMessage(`Opened: ${hit.employeeName} → ${hit.pathUnderEmployee}`);
+  }
+
   return (
     <div className="space-y-6">
       {error ? (
@@ -677,6 +737,94 @@ export function EmployeeFilesClient({
               </button>
             </div>
           </div>
+
+          {regionId && selectedFolder ? (
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-3 py-3 sm:px-4">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-indigo-900/80">
+                Global search (site / folder name in region)
+              </label>
+              <p className="text-[11px] leading-relaxed text-zinc-600">
+                Searches every active employee in this region for paths like{" "}
+                <span className="font-mono">Month-Year / Day / … / Site ID</span>. The same Site ID can appear on different
+                dates — each match is listed separately with employee and folder path.
+              </p>
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <input
+                  type="search"
+                  className="min-w-[200px] flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm"
+                  placeholder="e.g. ZJZ766"
+                  value={siteSearchQuery}
+                  onChange={(e) => setSiteSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void runSiteSearch();
+                  }}
+                  disabled={pickerLocked}
+                />
+                <button
+                  type="button"
+                  onClick={() => void runSiteSearch()}
+                  disabled={pickerLocked || siteSearchLoading}
+                  className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-800 disabled:opacity-50"
+                >
+                  {siteSearchLoading ? "Searching…" : "Search"}
+                </button>
+              </div>
+              {siteSearchError ? <p className="mt-2 text-sm text-red-600">{siteSearchError}</p> : null}
+              {siteSearchResults.length > 0 ? (
+                <div className="mt-3 overflow-x-auto rounded-lg border border-white bg-white shadow-sm">
+                  <table className="w-full min-w-[720px] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        <th className="px-3 py-2">Employee</th>
+                        <th className="px-3 py-2">Matched folder</th>
+                        <th className="px-3 py-2">Path under employee</th>
+                        <th className="px-3 py-2">Objects</th>
+                        <th className="px-3 py-2 text-right">Open</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {siteSearchResults.map((hit) => (
+                        <tr key={`${hit.employeeId}-${hit.pathUnderEmployee}`} className="border-b border-zinc-100 last:border-0">
+                          <td className="px-3 py-2">
+                            <span className="font-medium text-zinc-900">{hit.employeeName}</span>
+                            {hit.employeeEmail ? (
+                              <span className="mt-0.5 block text-xs text-zinc-500">{hit.employeeEmail}</span>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-zinc-800">{hit.siteFolderName}</td>
+                          <td className="px-3 py-2">
+                            <div className="font-mono text-[11px] leading-snug text-zinc-800 break-all">{hit.pathUnderEmployee}</div>
+                            {hit.parentPathBeforeSite ? (
+                              <div className="mt-1 text-[10px] text-zinc-500">
+                                Date folders above site: <span className="font-mono">{hit.parentPathBeforeSite}</span>
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2 text-zinc-600">{hit.fileCountInSubtree}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => openSiteSearchHit(hit)}
+                              disabled={pickerLocked}
+                              className="font-medium text-indigo-600 hover:underline disabled:opacity-50"
+                            >
+                              Open in browser
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+              {siteSearchTruncated ? (
+                <p className="mt-2 text-xs text-amber-800">
+                  Some employee trees were not fully scanned or the result cap was reached. Try a more specific Site ID, or
+                  browse by employee.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {!regionId || !selectedFolder ? (
             <p className="text-sm text-amber-800">Create a region storage folder above (or pick another region) to continue.</p>
