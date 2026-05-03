@@ -328,7 +328,8 @@ INSERT INTO permissions (code, name, module) VALUES
   ('approvals.reject', 'Reject requests', 'approvals'),
   ('audit_logs.view_all', 'View audit logs', 'audit'),
   ('audit_logs.export', 'Export audit logs', 'audit'),
-  ('settings.manage', 'Manage settings', 'settings')
+  ('settings.manage', 'Manage settings', 'settings'),
+  ('employee_files.manage', 'Manage employee file regions and browse all employee uploads', 'people')
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO roles (id, name, description) VALUES
@@ -349,7 +350,8 @@ WHERE code IN (
   'assets.manage', 'assets.assign', 'assets.return',
   'vehicles.manage', 'vehicles.assign', 'vehicles.maintenance_manage',
   'approvals.view', 'approvals.approve', 'approvals.reject',
-  'audit_logs.view_all'
+  'audit_logs.view_all',
+  'employee_files.manage'
 )
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
