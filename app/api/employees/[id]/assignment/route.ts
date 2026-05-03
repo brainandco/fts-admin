@@ -73,6 +73,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { data: roleRows } = await supabase.from("employee_roles").select("role").eq("employee_id", id);
   const role = (roleRows ?? [])[0]?.role ?? "";
+  const roleCodes = new Set((roleRows ?? []).map((r) => String(r.role ?? "")));
+  const isReportingPortalRole = roleCodes.has("PP") || roleCodes.has("Reporting Team");
 
   const mayHaveProject = employeeMayHaveFormalProjectOnRecord(role);
 
@@ -83,7 +85,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     );
   }
 
-  if (mayHaveProject && project_id && !region_id) {
+  if (mayHaveProject && project_id && !region_id && !isReportingPortalRole) {
     return NextResponse.json({ message: "Select a region before assigning a project." }, { status: 400 });
   }
 

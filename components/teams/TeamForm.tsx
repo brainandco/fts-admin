@@ -57,7 +57,7 @@ export function TeamForm({
   const regionNamesByIdRef = useRef(regionNamesById);
   regionNamesByIdRef.current = regionNamesById;
 
-  /** Field roles only: not QC/QA/PP/PM/PC or Other/custom roles. */
+  /** Field roles only: not QC/QA/PP/PM/PC/Reporting Team or Other/custom roles. */
   const canBeOnTeam = (e: Employee) => !e.roles.some((r) => ROLES_NOT_ALLOWED_ON_TEAM.has(r));
   const selectable = useMemo(() => {
     const unavailableSet = new Set(unavailableEmployeeIds);
@@ -246,7 +246,7 @@ export function TeamForm({
         <FormCardSection>
           <FormSection
             title="Membership"
-            description="Only DT, Driver/Rigger, or Self DT can be on a team. QC, QA, PP, PM, PC, and custom (Other) roles cannot be assigned here."
+            description="Only DT, Driver/Rigger, or Self DT can be on a team. QC, QA, PP, PM, PC, Reporting Team, and custom (Other) roles cannot be assigned here."
           >
             <div>
               <span className="mb-2 block text-sm font-medium text-zinc-700">Team type</span>

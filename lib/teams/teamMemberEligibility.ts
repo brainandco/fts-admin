@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertEmployeesActiveForAssignment } from "@/lib/employees/active-for-assignment";
 import { ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
 
-/** QC, QA, PP, PM, PC, and support roles are not eligible for DT / Driver-Rigger / Self-DT team slots. */
+/** QC, QA, PP, PM, PC, Reporting Team, and support roles are not eligible for DT / Driver-Rigger / Self-DT team slots. */
 export async function assertEmployeesAllowedOnTeam(
   supabase: SupabaseClient,
   employeeIds: (string | null | undefined)[]
@@ -33,7 +33,7 @@ export async function assertEmployeesAllowedOnTeam(
       return {
         ok: false,
         message:
-          "This role cannot be on a team (QC, QA, PP, PM, PC, or any custom / Other role).",
+          "This role cannot be on a team (QC, QA, PP, PM, PC, Reporting Team, or any custom / Other role).",
       };
     }
   }

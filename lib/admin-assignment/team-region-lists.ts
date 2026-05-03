@@ -33,7 +33,8 @@ function isSimTargetRole(roles: Set<string>): boolean {
     roles.has("QA") ||
     roles.has("PP") ||
     roles.has("Project Manager") ||
-    roles.has("Project Coordinator")
+    roles.has("Project Coordinator") ||
+    roles.has("Reporting Team")
   );
 }
 

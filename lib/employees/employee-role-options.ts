@@ -13,6 +13,7 @@ export const ALLOWED_EMPLOYEE_ROLE_VALUES = [
   "PP",
   "Project Manager",
   "Project Coordinator",
+  "Reporting Team",
   EMPLOYEE_ROLE_OTHER,
 ] as const;
 
@@ -27,6 +28,7 @@ export const ROLES_NOT_ALLOWED_ON_TEAM = new Set<string>([
   "PP",
   "Project Manager",
   "Project Coordinator",
+  "Reporting Team",
   EMPLOYEE_ROLE_OTHER,
 ]);
 
@@ -113,6 +115,7 @@ export const EMPLOYEE_ROLE_GROUPS: {
       { value: "QC", label: "QC" },
       { value: "QA", label: "QA" },
       { value: "PP", label: "PP (post processor)" },
+      { value: "Reporting Team", label: "Reporting Team" },
       { value: "Project Manager", label: "Project Manager" },
       { value: "Project Coordinator", label: "Project Coordinator" },
     ],
