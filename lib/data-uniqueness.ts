@@ -19,6 +19,7 @@ export function isCsvDuplicateSignificantValue(raw: string | null | undefined): 
     "na",
     "n.a.",
     "n.a",
+    "na.",
     "not applicable",
     "not available",
     "none",
@@ -177,9 +178,9 @@ export async function loadEmployeeIdentitySets(supabase: SupabaseClient): Promis
       const e = typeof r.email === "string" ? r.email.trim().toLowerCase() : "";
       if (e) emailsLower.add(e);
       const p = typeof r.passport_number === "string" ? r.passport_number.trim() : "";
-      if (p) passports.add(p);
+      if (p && isCsvDuplicateSignificantValue(p)) passports.add(p);
       const q = typeof r.iqama_number === "string" ? r.iqama_number.trim() : "";
-      if (q) iqamas.add(q);
+      if (q && isCsvDuplicateSignificantValue(q)) iqamas.add(q);
     }
     if (data.length < page) break;
     from += page;
@@ -300,6 +301,8 @@ export async function employeeIdentityConflict(
   const email = fields.email.trim().toLowerCase();
   const passport = fields.passport_number.trim();
   const iqama = fields.iqama_number.trim();
+  const passportSignificant = isCsvDuplicateSignificantValue(passport);
+  const iqamaSignificant = isCsvDuplicateSignificantValue(iqama);
 
   let from = 0;
   const page = 500;
@@ -314,9 +317,9 @@ export async function employeeIdentityConflict(
       const re = typeof r.email === "string" ? r.email.trim().toLowerCase() : "";
       if (email && re === email) return "An employee with this email already exists.";
       const rp = typeof r.passport_number === "string" ? r.passport_number.trim() : "";
-      if (passport && rp === passport) return "An employee with this passport number already exists.";
+      if (passportSignificant && rp === passport) return "An employee with this passport number already exists.";
       const rq = typeof r.iqama_number === "string" ? r.iqama_number.trim() : "";
-      if (iqama && rq === iqama) return "An employee with this Iqama number already exists.";
+      if (iqamaSignificant && rq === iqama) return "An employee with this Iqama number already exists.";
     }
     if (data.length < page) break;
     from += page;

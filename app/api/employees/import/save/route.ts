@@ -4,7 +4,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
 import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
-import { loadEmployeeIdentitySets } from "@/lib/data-uniqueness";
+import { isCsvDuplicateSignificantValue, loadEmployeeIdentitySets } from "@/lib/data-uniqueness";
 
 const CHUNK_SIZE = 80;
 
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       onboarding_date = n.value;
     }
 
-    if (!full_name || !passport_number || !country || !email || !phone || !iqama_number) {
+    if (!full_name || !country || !email || !phone || !iqama_number) {
       errors.push({ row: csvRow, message: "Missing required fields" });
       continue;
     }
@@ -107,9 +107,9 @@ export async function POST(req: Request) {
     const em = p.payload.email.trim().toLowerCase();
     if (!emailFirstRow.has(em)) emailFirstRow.set(em, row);
     const pp = p.payload.passport_number.trim();
-    if (pp && !passportFirstRow.has(pp)) passportFirstRow.set(pp, row);
+    if (pp && isCsvDuplicateSignificantValue(pp) && !passportFirstRow.has(pp)) passportFirstRow.set(pp, row);
     const iq = p.payload.iqama_number.trim();
-    if (iq && !iqamaFirstRow.has(iq)) iqamaFirstRow.set(iq, row);
+    if (iq && isCsvDuplicateSignificantValue(iq) && !iqamaFirstRow.has(iq)) iqamaFirstRow.set(iq, row);
   }
 
   const insertable: Prepared[] = [];
@@ -132,7 +132,7 @@ export async function POST(req: Request) {
       continue;
     }
 
-    if (pp) {
+    if (pp && isCsvDuplicateSignificantValue(pp)) {
       const firstP = passportFirstRow.get(pp);
       if (firstP !== undefined && firstP !== row) {
         errors.push({
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (iq) {
+    if (iq && isCsvDuplicateSignificantValue(iq)) {
       const firstQ = iqamaFirstRow.get(iq);
       if (firstQ !== undefined && firstQ !== row) {
         errors.push({

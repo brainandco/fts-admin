@@ -160,8 +160,15 @@ export function EmployeeForm({
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} required className={fieldClass} />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">Passport number</label>
-            <input value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} className={fieldClass} />
+            <label className="mb-1 block text-sm font-medium text-zinc-700">
+              Passport number <span className="font-normal text-zinc-500">(optional)</span>
+            </label>
+            <input
+              value={passportNumber}
+              onChange={(e) => setPassportNumber(e.target.value)}
+              placeholder="Leave blank or use N/A if not applicable"
+              className={fieldClass}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">

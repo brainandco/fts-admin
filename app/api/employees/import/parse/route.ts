@@ -4,6 +4,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import {
   appendPreviewRowError,
   flagCsvDuplicateKeys,
+  isCsvDuplicateSignificantValue,
   loadEmployeeIdentitySets,
 } from "@/lib/data-uniqueness";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
@@ -63,21 +64,13 @@ export async function POST(req: Request) {
     _error?: string;
   }> = [];
 
-  const requiredHeaders = [
-    "full_name",
-    "passport_number",
-    "country",
-    "email",
-    "phone",
-    "iqama_number",
-    "roles",
-  ];
+  const requiredHeaders = ["full_name", "country", "email", "phone", "iqama_number", "roles"];
   const hasRequired = requiredHeaders.every((h) => headers.includes(h));
   if (!hasRequired) {
     return NextResponse.json(
       {
         message:
-          "The file must have headers: full_name, passport_number, country, email, phone, iqama_number, roles (and optionally onboarding_date, status). Assign region and project after import on Employees → Region & project assignments. One role per row: a fixed role (e.g. DT), Other:Label, or any custom text (stored as a custom role).",
+          "The file must have headers: full_name, country, email, phone, iqama_number, roles (and optionally passport_number, onboarding_date, status). passport_number may be left blank or use a placeholder like N/A — placeholders are not checked for uniqueness. Assign region and project after import on Employees → Region & project assignments. One role per row: a fixed role (e.g. DT), Other:Label, or any custom text (stored as a custom role).",
         previewRows: [],
       },
       { status: 400 }
@@ -123,7 +116,6 @@ export async function POST(req: Request) {
     }
 
     if (!full_name) errors.push("Full name required");
-    if (!passport_number) errors.push("Passport required");
     if (!country) errors.push("Country required");
     if (!email) errors.push("Email required");
     if (!phone) errors.push("Phone required");
@@ -188,11 +180,11 @@ export async function POST(req: Request) {
       appendPreviewRowError(r, "This email is already used by an employee in the database.");
     }
     const pp = r._payload.passport_number.trim();
-    if (pp && identity.passports.has(pp)) {
+    if (isCsvDuplicateSignificantValue(pp) && identity.passports.has(pp)) {
       appendPreviewRowError(r, "This passport number is already used by an employee in the database.");
     }
     const iq = r._payload.iqama_number.trim();
-    if (iq && identity.iqamas.has(iq)) {
+    if (isCsvDuplicateSignificantValue(iq) && identity.iqamas.has(iq)) {
       appendPreviewRowError(r, "This Iqama number is already used by an employee in the database.");
     }
   }

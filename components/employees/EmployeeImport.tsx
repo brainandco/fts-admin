@@ -161,7 +161,9 @@ export function EmployeeImport() {
             </div>
             <div className="overflow-y-auto max-h-[calc(90vh-8rem)] px-6 py-4 space-y-4">
               <p className="text-sm text-zinc-600">
-                Upload a CSV or Excel file with columns: full_name, passport_number, country, email, phone, iqama_number, roles, and optionally onboarding_date, status. Assign region and project after import on{" "}
+                Upload a CSV or Excel file with columns: full_name, country, email, phone, iqama_number, roles, and optionally{" "}
+                <span className="font-medium text-zinc-800">passport_number</span>, onboarding_date, status. Passport is optional;
+                values like N/A are treated as placeholders and do not count as duplicates. Assign region and project after import on{" "}
                 <span className="font-medium text-zinc-800">Employees → Region &amp; project assignments</span>. In the roles column use one value per row, for example{" "}
                 <code className="rounded bg-zinc-100 px-1">QA</code>, a fixed role like <code className="rounded bg-zinc-100 px-1">DT</code>,{" "}
                 <code className="rounded bg-zinc-100 px-1">Other:Mechanic</code>, or any custom label (stored as a custom role). One role per row.{" "}

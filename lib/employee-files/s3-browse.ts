@@ -89,7 +89,7 @@ export async function listRelativeFolderPathsBfs(
 }
 
 export async function browsePrefix(s3: S3Client, bucket: string, prefix: string): Promise<BrowseEntry[]> {
-  const p = prefix.replace(/\/*$/, "/");
+  const p = prefix === "" ? "" : prefix.replace(/\/*$/, "/");
   const out: BrowseEntry[] = [];
   const list = await s3.send(
     new ListObjectsV2Command({

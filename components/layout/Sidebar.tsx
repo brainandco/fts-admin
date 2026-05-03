@@ -59,6 +59,11 @@ const navStructure: NavEntry[] = [
           permission: PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT,
         },
         { href: "/employee-files", label: "Employee files", permission: PERMISSION_EMPLOYEE_FILES_MANAGE },
+        {
+          href: "/employee-files/pp-reports",
+          label: "PP final reports",
+          permission: PERMISSION_EMPLOYEE_FILES_MANAGE,
+        },
         { href: "/delegate", label: "Delegate" },
       ],
     },
