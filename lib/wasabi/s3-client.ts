@@ -95,3 +95,44 @@ export function getWasabiPpReportsKeyPrefix(): string {
   if (!p) return "";
   return p.replace(/^\/+|\/+$/g, "");
 }
+
+/**
+ * Optional separate Wasabi sub-user for PP final reports only.
+ * Set all four, or omit all four to reuse WASABI_EMPLOYEE_FILES_* credentials for the PP bucket.
+ */
+export function isPpReportsDedicatedCredentialsConfigured(): boolean {
+  const accessKeyId = process.env.WASABI_PP_REPORTS_ACCESS_KEY?.trim();
+  const secretAccessKey = process.env.WASABI_PP_REPORTS_SECRET_ACCESS_KEY?.trim();
+  const region = process.env.WASABI_PP_REPORTS_REGION?.trim();
+  const endpoint = process.env.WASABI_PP_REPORTS_ENDPOINT?.trim();
+  return !!(accessKeyId && secretAccessKey && region && endpoint);
+}
+
+/**
+ * S3 client for `WASABI_PP_REPORTS_BUCKET`. Uses dedicated PP credentials when all of
+ * WASABI_PP_REPORTS_ACCESS_KEY, WASABI_PP_REPORTS_SECRET_ACCESS_KEY, WASABI_PP_REPORTS_REGION,
+ * WASABI_PP_REPORTS_ENDPOINT are set; otherwise falls back to {@link getWasabiEmployeeFilesS3Client}.
+ */
+export function getWasabiPpReportsS3Client(): S3Client {
+  const accessKeyId = process.env.WASABI_PP_REPORTS_ACCESS_KEY?.trim();
+  const secretAccessKey = process.env.WASABI_PP_REPORTS_SECRET_ACCESS_KEY?.trim();
+  const region = process.env.WASABI_PP_REPORTS_REGION?.trim();
+  const endpoint = process.env.WASABI_PP_REPORTS_ENDPOINT?.trim();
+  const partial =
+    !!(accessKeyId || secretAccessKey || region || endpoint) &&
+    !(accessKeyId && secretAccessKey && region && endpoint);
+  if (partial) {
+    throw new Error(
+      "PP reports Wasabi user: set all of WASABI_PP_REPORTS_ACCESS_KEY, WASABI_PP_REPORTS_SECRET_ACCESS_KEY, WASABI_PP_REPORTS_REGION, WASABI_PP_REPORTS_ENDPOINT, or remove those variables to use the employee-files credentials."
+    );
+  }
+  if (accessKeyId && secretAccessKey && region && endpoint) {
+    return new S3Client({
+      region,
+      endpoint,
+      credentials: { accessKeyId, secretAccessKey },
+      forcePathStyle: true,
+    });
+  }
+  return getWasabiEmployeeFilesS3Client();
+}

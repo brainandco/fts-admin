@@ -4,8 +4,8 @@ import { ppReportsKeyPrefixBase } from "@/lib/employee-files/pp-reports-storage"
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
 import {
-  getWasabiEmployeeFilesS3Client,
   getWasabiPpReportsBucket,
+  getWasabiPpReportsS3Client,
   isPpReportsBucketConfigured,
 } from "@/lib/wasabi/s3-client";
 import { NextResponse } from "next/server";
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
       ? `${base}/`
       : "";
 
-  const s3 = getWasabiEmployeeFilesS3Client();
+  const s3 = getWasabiPpReportsS3Client();
   const bucket = getWasabiPpReportsBucket()!;
 
   let entries;

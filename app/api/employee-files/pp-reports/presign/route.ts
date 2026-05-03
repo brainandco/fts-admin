@@ -5,8 +5,8 @@ import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
 import {
   getWasabiEmployeeFileMaxBytes,
-  getWasabiEmployeeFilesS3Client,
   getWasabiPpReportsBucket,
+  getWasabiPpReportsS3Client,
   isPpReportsBucketConfigured,
 } from "@/lib/wasabi/s3-client";
 import { NextResponse } from "next/server";
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const s3 = getWasabiEmployeeFilesS3Client();
+    const s3 = getWasabiPpReportsS3Client();
     const bucket = getWasabiPpReportsBucket()!;
     const cmd = new PutObjectCommand({
       Bucket: bucket,
