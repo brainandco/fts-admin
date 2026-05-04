@@ -66,6 +66,11 @@ export async function sendEmployeePortalCredentials(employeeId: string): Promise
     }
     await markUsersProfileEmployeePortalOnly(supabase, portalUserId);
 
+    await admin.from("employees").update({ must_change_password: true }).eq("id", employeeId);
+    if (portalUserId) {
+      await admin.from("users_profile").update({ must_change_password: true }).eq("id", portalUserId);
+    }
+
     const sendResult = await sendEmployeeCredentials(email, fullName, password);
     const credentialsSent = sendResult.sent;
     const credentialsError = sendResult.sent ? undefined : sendResult.error ?? "Email could not be sent";

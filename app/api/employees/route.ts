@@ -96,6 +96,10 @@ export async function POST(req: Request) {
       }
     }
     await markUsersProfileEmployeePortalOnly(supabase, portalUserId);
+    await admin.from("employees").update({ must_change_password: true }).eq("id", data.id);
+    if (portalUserId) {
+      await admin.from("users_profile").update({ must_change_password: true }).eq("id", portalUserId);
+    }
     // Send credentials email (same password used for auth)
     const sendResult = await sendEmployeeCredentials(email, full_name, password);
     credentialsSent = sendResult.sent;

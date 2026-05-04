@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireActive } from "@/lib/rbac/permissions";
 
@@ -39,6 +40,17 @@ export async function POST(request: NextRequest) {
   const { error: updErr } = await supabase.auth.updateUser({ password: new_password });
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 400 });
+  }
+
+  try {
+    const admin = createServerSupabaseAdmin();
+    await admin.from("users_profile").update({ must_change_password: false }).eq("id", access.user.id);
+    const em = access.user.email?.trim().toLowerCase();
+    if (em) {
+      await admin.from("employees").update({ must_change_password: false }).eq("email", em);
+    }
+  } catch {
+    /* non-fatal; password already updated */
   }
 
   return NextResponse.json({ ok: true });

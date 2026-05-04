@@ -57,6 +57,8 @@ export interface UsersProfile {
   invitation_accepted_at?: string | null;
   /** True for Employee Portal logins; excluded from admin Users list. */
   employee_portal_only?: boolean;
+  /** True until the user changes password after receiving emailed credentials (non–super users only). */
+  must_change_password?: boolean;
 }
 
 /** Not used (PM is employee role only; region/project on employee). Kept for type compatibility. */

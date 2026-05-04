@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const admin = createServerSupabaseAdmin();
   const { data: profile, error: selErr } = await admin
     .from("users_profile")
-    .select("id, email, full_name, invitation_token, invitation_expires_at, invitation_accepted_at")
+    .select("id, email, full_name, invitation_token, invitation_expires_at, invitation_accepted_at, is_super_user")
     .eq("invitation_token", token)
     .maybeSingle();
 
@@ -57,6 +57,7 @@ export async function POST(req: Request) {
       invitation_accepted_at: now,
       invitation_token: null,
       status: "ACTIVE",
+      must_change_password: profile.is_super_user ? false : true,
     })
     .eq("id", profile.id);
 

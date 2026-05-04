@@ -1,5 +1,7 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireActive, getCurrentUserRolesAndPermissions } from "@/lib/rbac/permissions";
+import { CHANGE_PASSWORD_PATH, isPasswordChangeExemptPath } from "@/lib/auth/password-change-gate";
 import { getDataClient } from "@/lib/supabase/server";
 import { DashboardChrome } from "@/components/layout/DashboardChrome";
 
@@ -29,6 +31,15 @@ export default async function DashboardLayout({
     redirect("/api/auth/employee-portal-only");
   }
   const { isSuper, permissions } = await getCurrentUserRolesAndPermissions();
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  if (
+    pathname &&
+    !isPasswordChangeExemptPath(pathname) &&
+    !isSuper &&
+    access.profile.must_change_password === true
+  ) {
+    redirect(CHANGE_PASSWORD_PATH);
+  }
   const permissionList = Array.from(permissions);
   const supabase = await getDataClient();
   const userId = access.user?.id ?? null;
