@@ -13,9 +13,9 @@ function isQc(roles: Set<string>): boolean {
   return roles.has("QC");
 }
 
-/** DT or Self DT — tools / assets */
+/** DT, Junior DT, or Self DT — tools / assets */
 function isAssetTargetRole(roles: Set<string>): boolean {
-  return roles.has("DT") || roles.has("Self DT");
+  return roles.has("DT") || roles.has("Junior DT") || roles.has("Self DT");
 }
 
 /** Driver/Rigger or Self DT — vehicles */
@@ -28,6 +28,7 @@ function isSimTargetRole(roles: Set<string>): boolean {
   if (roles.has("QC")) return false;
   return (
     roles.has("DT") ||
+    roles.has("Junior DT") ||
     roles.has("Driver/Rigger") ||
     roles.has("Self DT") ||
     roles.has("QA") ||

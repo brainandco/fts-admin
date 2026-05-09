@@ -6,6 +6,7 @@ export const EMPLOYEE_ROLE_OTHER = "Other" as const;
 
 export const ALLOWED_EMPLOYEE_ROLE_VALUES = [
   "DT",
+  "Junior DT",
   "Driver/Rigger",
   "Self DT",
   "QC",
@@ -23,6 +24,7 @@ const ALLOWED_SET = new Set<string>(ALLOWED_EMPLOYEE_ROLE_VALUES);
 
 /** Roles that cannot occupy DT / Driver-Rigger team slots (includes custom "Other"). */
 export const ROLES_NOT_ALLOWED_ON_TEAM = new Set<string>([
+  "Junior DT",
   "QC",
   "QA",
   "PP",
@@ -104,6 +106,10 @@ export const EMPLOYEE_ROLE_GROUPS: {
     description: "Team-based field work",
     options: [
       { value: "DT", label: "DT (detailing / tools)" },
+      {
+        value: "Junior DT",
+        label: "Junior DT (tools — not on a team until promoted to DT)",
+      },
       { value: "Driver/Rigger", label: "Driver / Rigger" },
       { value: "Self DT", label: "Self DT (one person: DT + driver)" },
     ],
