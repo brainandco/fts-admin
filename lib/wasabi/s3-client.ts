@@ -80,11 +80,16 @@ export function getWasabiEmployeeFilesKeyPrefix(): string {
   return "employee-files";
 }
 
-/** Max size for a single employee personal file. Default 100 MiB. */
+/**
+ * Optional presign-time max size (bytes) for employee / PP Wasabi uploads.
+ * Unset, empty, or `"0"` = no application cap (single PUT still ~5 GiB max on typical S3-compatible APIs).
+ * Set a positive integer to enforce a maximum.
+ */
 export function getWasabiEmployeeFileMaxBytes(): number {
-  const raw = process.env.WASABI_EMPLOYEE_FILE_MAX_BYTES;
-  if (raw && /^\d+$/.test(raw.trim())) return parseInt(raw.trim(), 10);
-  return 100 * 1024 * 1024;
+  const raw = process.env.WASABI_EMPLOYEE_FILE_MAX_BYTES?.trim();
+  if (!raw || raw === "0") return 0;
+  if (/^\d+$/.test(raw)) return parseInt(raw, 10);
+  return 0;
 }
 
 export function getWasabiPpReportsBucket(): string | null {
