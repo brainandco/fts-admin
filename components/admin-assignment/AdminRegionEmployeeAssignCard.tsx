@@ -210,7 +210,7 @@ export function AdminRegionEmployeeAssignCard({
         : "Assign SIM (by region)";
 
   const description = isAssetGlobal
-    ? "Search and select an employee. The asset’s assignment region is set from their profile or team (DT) automatically."
+    ? "Search and select an employee. The asset’s assignment region is set from their profile or team automatically."
     : "Choose a region to filter eligible employees, then pick the person. Teams are still used elsewhere for visibility; assignment is always to an individual.";
 
   const assigned =
@@ -264,7 +264,7 @@ export function AdminRegionEmployeeAssignCard({
           ) : employees.length === 0 ? (
             <p className="text-sm text-amber-800">
               {isAssetGlobal
-                ? "No eligible employees found for asset assignment (DT / Self DT in a region)."
+                ? "No eligible employees found for asset assignment in this region."
                 : "No eligible employees in this region for this assignment type."}
             </p>
           ) : (

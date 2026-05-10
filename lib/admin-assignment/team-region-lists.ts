@@ -13,9 +13,15 @@ function isQc(roles: Set<string>): boolean {
   return roles.has("QC");
 }
 
-/** DT, Junior DT, or Self DT — tools / assets */
+/** DT, Junior DT, Self DT, PP, Reporting Team — tools / assets */
 function isAssetTargetRole(roles: Set<string>): boolean {
-  return roles.has("DT") || roles.has("Junior DT") || roles.has("Self DT");
+  return (
+    roles.has("DT") ||
+    roles.has("Junior DT") ||
+    roles.has("Self DT") ||
+    roles.has("PP") ||
+    roles.has("Reporting Team")
+  );
 }
 
 /** Driver/Rigger or Self DT — vehicles */
