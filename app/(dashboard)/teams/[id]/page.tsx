@@ -187,8 +187,24 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
               <h3 className="mb-2 text-sm font-medium text-zinc-800">Employee Portal credentials</h3>
               <p className="mb-3 text-xs text-zinc-500">
                 Sends the same credential email as on each employee&apos;s page (new temporary password per person). Only
-                current DT and Driver/Rigger on this team receive it.
+                current DT and Driver/Rigger on this team receive it. You can also trigger this from the{" "}
+                <Link href="/teams" className="font-medium text-indigo-700 underline hover:text-indigo-900">
+                  Teams list
+                </Link>{" "}
+                (Actions → Email members). When at least one email is delivered, the team&apos;s “Last team email” timestamp is updated.
               </p>
+              {(team as { last_team_credentials_email_sent_at?: string | null }).last_team_credentials_email_sent_at ? (
+                <p className="mb-3 text-xs text-zinc-600">
+                  Last team bulk send:{" "}
+                  <span className="font-medium text-zinc-800">
+                    {new Date(
+                      String((team as { last_team_credentials_email_sent_at?: string }).last_team_credentials_email_sent_at)
+                    ).toLocaleString()}
+                  </span>
+                </p>
+              ) : (
+                <p className="mb-3 text-xs text-zinc-500">No team bulk credentials email recorded yet.</p>
+              )}
               <SendTeamMemberCredentialsButton teamId={id} memberCount={memberIdsForFleet.length} />
             </div>
           )}

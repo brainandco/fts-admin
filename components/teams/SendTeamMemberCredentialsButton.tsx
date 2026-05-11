@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 type ResultRow = {
@@ -31,6 +32,7 @@ export function SendTeamMemberCredentialsButton({
   teamId: string;
   memberCount: number;
 }) {
+  const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
@@ -50,6 +52,9 @@ export function SendTeamMemberCredentialsButton({
         return;
       }
       setResponse(data);
+      if (data.summary?.credentialsEmailedOk && data.summary.credentialsEmailedOk > 0) {
+        router.refresh();
+      }
     } finally {
       setLoading(false);
       setConfirmOpen(false);

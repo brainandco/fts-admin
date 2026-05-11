@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { recordPortalCredentialsEmailSent } from "@/lib/employees/record-portal-credentials-email";
 import { sendEmployeePortalCredentials } from "@/lib/employees/send-employee-portal-credentials";
 
 /**
@@ -26,6 +27,10 @@ export async function POST(
       return NextResponse.json({ message: result.message }, { status: 400 });
     }
     return NextResponse.json({ message: result.message }, { status: 400 });
+  }
+
+  if (result.credentialsSent) {
+    await recordPortalCredentialsEmailSent(employeeId, "employee_resend");
   }
 
   const body: Record<string, unknown> = {

@@ -8,6 +8,7 @@ import { EmployeeForm } from "@/components/employees/EmployeeForm";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { ResendCredentialsButton } from "@/components/employees/ResendCredentialsButton";
 import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
+import { portalCredentialsSourceLabel } from "@/lib/teams/credentials-email-display";
 
 export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await can("users.edit")) && !(await can(PERMISSION_EMPLOYEE_MANAGE))) redirect("/employees");
@@ -67,6 +68,9 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
     : { data: null };
 
   const displayName = employee.full_name || "Employee";
+  const lastCredAt = (employee as { last_portal_credentials_email_sent_at?: string | null }).last_portal_credentials_email_sent_at;
+  const lastCredSource = (employee as { last_portal_credentials_email_source?: string | null }).last_portal_credentials_email_source;
+  const lastCredViaLabel = portalCredentialsSourceLabel(lastCredSource ?? null);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -120,7 +124,21 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
             )}
           </div>
           {employee.email && (
-            <div className="shrink-0">
+            <div className="shrink-0 space-y-2 text-right">
+              {lastCredAt ? (
+                <p className="max-w-xs text-xs text-zinc-500">
+                  Last portal credentials email:{" "}
+                  <span className="font-medium text-zinc-700">{new Date(String(lastCredAt)).toLocaleString()}</span>
+                  {lastCredViaLabel ? (
+                    <>
+                      <br />
+                      <span className="text-zinc-500">Via: {lastCredViaLabel}</span>
+                    </>
+                  ) : null}
+                </p>
+              ) : (
+                <p className="max-w-xs text-xs text-zinc-500">No portal credentials email recorded yet.</p>
+              )}
               <ResendCredentialsButton employeeId={id} />
             </div>
           )}

@@ -7,6 +7,7 @@ import { randomPassword, sendEmployeeCredentials } from "@/lib/email/send-employ
 import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
 import { employeeIdentityConflict } from "@/lib/data-uniqueness";
 import { markUsersProfileEmployeePortalOnly } from "@/lib/users/mark-employee-portal-profile";
+import { recordPortalCredentialsEmailSent } from "@/lib/employees/record-portal-credentials-email";
 export async function POST(req: Request) {
   if (!(await can("users.create")) && !(await can("employees.manage"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
@@ -104,6 +105,7 @@ export async function POST(req: Request) {
     const sendResult = await sendEmployeeCredentials(email, full_name, password);
     credentialsSent = sendResult.sent;
     if (!sendResult.sent) credentialsError = sendResult.error ?? "Email could not be sent";
+    else await recordPortalCredentialsEmailSent(data.id, "employee_create");
   } catch (e) {
     console.error("Employee credentials send error:", e);
     credentialsError = e instanceof Error ? e.message : "Unknown error";

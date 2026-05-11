@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function ResendCredentialsButton({ employeeId }: { employeeId: string }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     credentialsSent: boolean;
@@ -28,6 +30,9 @@ export function ResendCredentialsButton({ employeeId }: { employeeId: string }) 
         credentialsError: data.credentialsError,
         temporaryPassword: data.temporaryPassword,
       });
+      if (data.credentialsSent === true) {
+        router.refresh();
+      }
     } finally {
       setLoading(false);
     }

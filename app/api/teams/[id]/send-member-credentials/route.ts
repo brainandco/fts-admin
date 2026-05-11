@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { getActorUserId } from "@/lib/auth/actor-user-id";
 import { getDataClient } from "@/lib/supabase/server";
+import {
+  recordPortalCredentialsEmailSent,
+  recordTeamBulkCredentialsEmailSent,
+} from "@/lib/employees/record-portal-credentials-email";
 import { sendEmployeePortalCredentials } from "@/lib/employees/send-employee-portal-credentials";
+import { auditLog } from "@/lib/audit/log";
 
 /**
  * POST /api/teams/[id]/send-member-credentials
@@ -71,11 +77,26 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       credentialsError: result.credentialsError,
       temporaryPassword: result.temporaryPassword,
     });
+    if (result.credentialsSent) {
+      await recordPortalCredentialsEmailSent(employeeId, "team_bulk");
+    }
   }
 
   const sentCount = results.filter((r) => r.credentialsSent).length;
   const hardErrors = results.filter((r) => r.error).length;
   const emailFailed = results.filter((r) => !r.error && !r.credentialsSent).length;
+
+  if (sentCount > 0) {
+    const actorId = await getActorUserId();
+    await recordTeamBulkCredentialsEmailSent(team.id, actorId);
+    await auditLog({
+      actionType: "credentials_email",
+      entityType: "team",
+      entityId: team.id,
+      description: `Team bulk portal credentials email (${sentCount} member(s) delivered)`,
+      meta: { memberIds, credentialsEmailedOk: sentCount, emailDeliveryFailed: emailFailed, otherErrors: hardErrors },
+    });
+  }
 
   return NextResponse.json({
     teamId: team.id,
