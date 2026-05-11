@@ -8,6 +8,10 @@ import {
   fetchTeamsForEmployee,
   formatTeamListForMessage,
 } from "@/lib/employees/region-assignment-eligibility";
+import {
+  assertDtAssignmentCompatibleWithTeams,
+  syncTeamsRegionProjectForDtEmployee,
+} from "@/lib/teams/syncTeamsRegionProjectFromDt";
 
 /**
  * PATCH — requires `employees.assign_region_project` (or Super User). Sets region and formal project for an employee.
@@ -60,12 +64,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     );
   }
 
-  if (teamsForEmp.length > 0) {
+  const { data: driverOnlyTeams } = await supabase
+    .from("teams")
+    .select("id, name, team_code")
+    .eq("driver_rigger_employee_id", id)
+    .neq("dt_employee_id", id);
+
+  if ((driverOnlyTeams ?? []).length > 0) {
+    const labels = (driverOnlyTeams ?? []).map((t) => String(t.team_code ?? "").trim() || t.name || t.id);
     return NextResponse.json(
       {
-        message: `This employee is on a team (${formatTeamListForMessage(
-          teamsForEmp
-        )}). In Teams, replace or remove them before changing region or project.`,
+        message: `This employee is a Driver/Rigger on team(s): ${labels.join(
+          ", "
+        )}. They can only be released from the roster in Teams (or switched to DT there) before changing region or project here.`,
       },
       { status: 400 }
     );
@@ -100,16 +111,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     project_name_other: null,
   };
 
+  const teamCompat = await assertDtAssignmentCompatibleWithTeams(supabase, id, updates.region_id);
+  if (!teamCompat.ok) {
+    return NextResponse.json({ message: teamCompat.message }, { status: 400 });
+  }
+
   const { error } = await supabase.from("employees").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
-  const { data: asDtTeams } = await supabase.from("teams").select("id").eq("dt_employee_id", id);
-  if ((asDtTeams ?? []).length > 0) {
-    await supabase
-      .from("teams")
-      .update({ region_id: updates.region_id, project_id: updates.project_id })
-      .eq("dt_employee_id", id);
-  }
+  await syncTeamsRegionProjectForDtEmployee(supabase, id, updates.region_id, updates.project_id);
 
   await auditLog({
     actionType: "update",

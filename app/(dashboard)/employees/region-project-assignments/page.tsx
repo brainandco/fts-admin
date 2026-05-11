@@ -22,6 +22,9 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
     .select("id, name, team_code, dt_employee_id, driver_rigger_employee_id");
   type TeamRef = { id: string; label: string };
   const teamsByEmployeeId = new Map<string, TeamRef[]>();
+  const teamsAsDtByEmp = new Map<string, TeamRef[]>();
+  const teamsDriverOnlyByEmp = new Map<string, TeamRef[]>();
+
   function pushTeam(empId: string | null, t: { id: string; name: string; team_code: string | null }) {
     if (!empId) return;
     const label = String(t.team_code ?? "").trim() || t.name || t.id;
@@ -29,9 +32,30 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
     if (!cur.some((x) => x.id === t.id)) cur.push({ id: t.id, label });
     teamsByEmployeeId.set(empId, cur);
   }
+  function pushDtTeams(empId: string | null, t: { id: string; name: string; team_code: string | null }) {
+    if (!empId) return;
+    const label = String(t.team_code ?? "").trim() || t.name || t.id;
+    const cur = teamsAsDtByEmp.get(empId) ?? [];
+    if (!cur.some((x) => x.id === t.id)) cur.push({ id: t.id, label });
+    teamsAsDtByEmp.set(empId, cur);
+  }
+  function pushDriverOnlyTeams(empId: string | null, t: { id: string; name: string; team_code: string | null }) {
+    if (!empId) return;
+    const label = String(t.team_code ?? "").trim() || t.name || t.id;
+    const cur = teamsDriverOnlyByEmp.get(empId) ?? [];
+    if (!cur.some((x) => x.id === t.id)) cur.push({ id: t.id, label });
+    teamsDriverOnlyByEmp.set(empId, cur);
+  }
+
   for (const t of allTeams ?? []) {
     pushTeam(t.dt_employee_id, t);
     pushTeam(t.driver_rigger_employee_id, t);
+    pushDtTeams(t.dt_employee_id, t);
+    const dtId = t.dt_employee_id;
+    const drId = t.driver_rigger_employee_id;
+    if (dtId && drId && dtId !== drId) {
+      pushDriverOnlyTeams(drId, t);
+    }
   }
   const { data: roleRows } = await supabase
     .from("employee_roles")
@@ -52,6 +76,8 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
     project_id: e.project_id,
     status: (e as { status?: string }).status ?? "ACTIVE",
     team_memberships: teamsByEmployeeId.get(e.id) ?? [],
+    teams_as_dt: teamsAsDtByEmp.get(e.id) ?? [],
+    teams_driver_only: teamsDriverOnlyByEmp.get(e.id) ?? [],
     role: roleByEmp.get(e.id) ?? "",
     role_code: roleCodeByEmp.get(e.id) ?? "",
   }));
@@ -80,11 +106,11 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
           <span className="font-medium text-zinc-800">Inactive</span> employees cannot be assigned a region or project here — reactivate them on their employee profile first.
-          Anyone listed on a <span className="font-medium text-zinc-800">team</span> (including as Self DT) must be replaced or removed in{" "}
+          Someone who is only the <span className="font-medium text-zinc-800">Driver/Rigger</span> on a team (with a separate DT) cannot change region or project here — replace them in{" "}
           <Link href="/teams" className="font-medium text-indigo-700 hover:underline">
             Teams
           </Link>{" "}
-          before their region or project can change.
+          first. <span className="font-medium text-zinc-800">DT</span> on a team (including Self DT) can update region and project here; compatible changes sync to their team&apos;s assignment.
         </p>
       </header>
       <EmployeeRegionProjectAssignmentsClient employees={employees} regions={regions ?? []} projects={projects ?? []} />

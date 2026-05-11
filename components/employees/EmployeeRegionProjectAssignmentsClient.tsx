@@ -14,13 +14,17 @@ type Row = {
   project_id: string | null;
   status: string;
   team_memberships: TeamRef[];
+  /** Teams where this employee is the DT — assignment edits can sync to the team (API-enforced). */
+  teams_as_dt: TeamRef[];
+  /** Teams where this employee is Driver/Rigger only (separate DT) — blocked until replaced in Teams. */
+  teams_driver_only: TeamRef[];
   role: string;
   /** `employee_roles.role` — use for project eligibility, not display `role`. */
   role_code: string;
 };
 
 function canAssignRegionProject(row: Row): boolean {
-  return row.status === "ACTIVE" && row.team_memberships.length === 0;
+  return row.status === "ACTIVE" && row.teams_driver_only.length === 0;
 }
 
 type Region = { id: string; name: string };
@@ -128,10 +132,10 @@ export function EmployeeRegionProjectAssignmentsClient({
           type: "err",
           text: "Inactive employees cannot receive region or project changes. Reactivate them on their employee profile first.",
         });
-      } else if (row.team_memberships.length > 0) {
+      } else if (row.teams_driver_only.length > 0) {
         setMessage({
           type: "err",
-          text: "This employee is on a team. Replace or remove them in Teams before changing region or project.",
+          text: "This employee is the Driver/Rigger on a team with a separate DT. Replace them in Teams before changing region or project.",
         });
       }
       return;
@@ -149,7 +153,13 @@ export function EmployeeRegionProjectAssignmentsClient({
 
   async function save(employeeId: string, roleCode: string, row: Row) {
     if (!canAssignRegionProject(row)) {
-      setMessage({ type: "err", text: "Cannot save: employee is inactive or on a team." });
+      setMessage({
+        type: "err",
+        text:
+          row.status !== "ACTIVE"
+            ? "Cannot save: employee is inactive."
+            : "Cannot save: replace Driver/Rigger-only roster member in Teams first.",
+      });
       return;
     }
     setSaving(true);
@@ -325,8 +335,16 @@ export function EmployeeRegionProjectAssignmentsClient({
                                   Inactive
                                 </span>
                               ) : null}
-                              {row.team_memberships.length > 0 ? (
+                              {row.teams_driver_only.length > 0 ? (
                                 <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-900">
+                                  Driver on team
+                                </span>
+                              ) : row.teams_as_dt.length > 0 ? (
+                                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-900">
+                                  DT on team
+                                </span>
+                              ) : row.team_memberships.length > 0 ? (
+                                <span className="inline-flex items-center rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-800">
                                   On team
                                 </span>
                               ) : null}
@@ -337,14 +355,33 @@ export function EmployeeRegionProjectAssignmentsClient({
                               ) : null}
                             </div>
                             {row.team_memberships.length > 0 ? (
-                              <p className="mt-1 max-w-xs text-[11px] leading-snug text-rose-800/90">
+                              <p
+                                className={`mt-1 max-w-xs text-[11px] leading-snug ${
+                                  row.teams_driver_only.length > 0
+                                    ? "text-rose-800/90"
+                                    : row.teams_as_dt.length > 0 && row.status === "ACTIVE"
+                                      ? "text-indigo-900/85"
+                                      : "text-rose-800/90"
+                                }`}
+                              >
                                 {row.status !== "ACTIVE"
                                   ? "Inactive and still on a team — replace them in Teams after reactivation if needed."
-                                  : "On a team — open Teams to replace or remove this person before changing region or project."}{" "}
+                                  : row.teams_driver_only.length > 0
+                                    ? "Driver/Rigger only — open Teams to replace this person before changing region or project."
+                                    : row.teams_as_dt.length > 0
+                                      ? "DT on team — saving region/project here updates the team when it matches the driver’s region (Self DT teams always sync)."
+                                      : "On a team — open Teams to replace or remove this person before changing region or project."}{" "}
                                 {row.team_memberships.map((tm, idx) => (
                                   <span key={tm.id}>
                                     {idx > 0 ? " · " : ""}
-                                    <Link href={`/teams/${tm.id}`} className="font-medium underline hover:text-rose-950">
+                                    <Link
+                                      href={`/teams/${tm.id}`}
+                                      className={`font-medium underline ${
+                                        row.teams_driver_only.length > 0 || row.status !== "ACTIVE" || row.teams_as_dt.length === 0
+                                          ? "hover:text-rose-950"
+                                          : "hover:text-indigo-950"
+                                      }`}
+                                    >
                                       {tm.label}
                                     </Link>
                                   </span>
@@ -457,7 +494,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                                 !canAssignRegionProject(row)
                                   ? row.status !== "ACTIVE"
                                     ? "Inactive employees cannot be edited here"
-                                    : "Replace or remove from Teams first"
+                                    : "Driver/Rigger-only on a team — replace in Teams first"
                                   : undefined
                               }
                               onClick={() => startEdit(row)}
