@@ -1,10 +1,11 @@
 import { resolveAdminPpReportsFolderZip } from "@/lib/employee-files/pp-reports-folder-zip";
 import {
-  mintPpReportsZipToken,
-  ppReportsZipLinkSecretConfigured,
-} from "@/lib/employee-files/pp-reports-zip-token";
+  insertPpReportsZipShareLink,
+  ppReportsFolderLabelFromNormalizedPath,
+} from "@/lib/employee-files/pp-reports-zip-share-link";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
+import { getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -14,16 +15,6 @@ type Body = { path?: string; ttlMs?: number };
 export async function POST(req: Request) {
   if (!(await can(PERMISSION_EMPLOYEE_FILES_MANAGE))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-  }
-
-  if (!ppReportsZipLinkSecretConfigured()) {
-    return NextResponse.json(
-      {
-        message:
-          "Copy-download-link is not configured. Set PP_REPORTS_ZIP_LINK_SECRET (min 16 characters), or reuse EMPLOYEE_FILES_SITE_ZIP_LINK_SECRET on the server.",
-      },
-      { status: 503 }
-    );
   }
 
   let body: Body;
@@ -44,22 +35,35 @@ export async function POST(req: Request) {
       ? body.ttlMs
       : DEFAULT_TTL_MS;
   const exp = Date.now() + ttl;
+  const expiresAtIso = new Date(exp).toISOString();
+  const norm = resolved.folder.zipRootFolderName;
+  const folderLabel = ppReportsFolderLabelFromNormalizedPath(norm);
 
-  const token = mintPpReportsZipToken({
-    v: 1,
-    scope: "bucket",
-    path: resolved.folder.zipRootFolderName,
-    exp,
+  const supabase = await getDataClient();
+  const inserted = await insertPpReportsZipShareLink(supabase, {
+    link_kind: "admin_bucket",
+    reporter_slug: null,
+    normalized_folder_path: norm,
+    folder_label: folderLabel,
+    expires_at: expiresAtIso,
   });
-  if (!token) {
-    return NextResponse.json({ message: "Could not mint link" }, { status: 503 });
+  if ("error" in inserted) {
+    const hint =
+      inserted.error.toLowerCase().includes("relation") || inserted.error.toLowerCase().includes("does not exist")
+        ? " Apply migration 00068_pp_reports_zip_share_links.sql (or run pending Supabase migrations)."
+        : "";
+    return NextResponse.json({ message: `${inserted.error}${hint}` }, { status: 503 });
   }
 
   const origin = new URL(req.url).origin;
-  const publicUrl = `${origin}/api/employee-files/pp-reports/folder-zip/public?t=${encodeURIComponent(token)}`;
+  const encFolder = encodeURIComponent(folderLabel);
+  const publicUrl = `${origin}/api/employee-files/pp-reports/zip-p/${encFolder}/${inserted.id}`;
 
   return NextResponse.json({
     url: publicUrl,
-    expiresAt: new Date(exp).toISOString(),
+    expiresAt: expiresAtIso,
+    folderLabel,
+    linkId: inserted.id,
+    zipFileName: `${folderLabel}.zip`,
   });
 }
