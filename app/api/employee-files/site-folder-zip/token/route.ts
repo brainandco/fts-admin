@@ -1,7 +1,7 @@
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
 import { resolveSiteFolderZipContext } from "@/lib/employee-files/site-folder-zip";
-import { mintSiteZipToken, siteZipLinkSecretConfigured } from "@/lib/employee-files/site-zip-token";
+import { folderLabelFromNormalizedSitePath, mintSiteZipToken, siteZipLinkSecretConfigured } from "@/lib/employee-files/site-zip-token";
 import { NextResponse } from "next/server";
 
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -58,7 +58,9 @@ export async function POST(req: Request) {
 
   const self = new URL(req.url);
   const origin = self.origin;
-  const publicUrl = `${origin}/api/employee-files/site-folder-zip/public?t=${encodeURIComponent(token)}`;
+  const label = folderLabelFromNormalizedSitePath(resolved.normalizedSitePath);
+  const enc = encodeURIComponent(label);
+  const publicUrl = `${origin}/api/employee-files/site-folder-zip/public/${enc}?c=${encodeURIComponent(token)}`;
 
   return NextResponse.json({
     url: publicUrl,
