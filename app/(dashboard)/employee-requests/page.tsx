@@ -6,32 +6,51 @@ import { DataTable } from "@/components/ui/DataTable";
 import { leaveRequestTracking } from "@/lib/employee-requests/leave-metrics";
 
 export default async function EmployeeRequestsPage() {
-  const canView =
+  const canViewApprovals =
     (await can("approvals.view")) || (await can("approvals.approve")) || (await can("approvals.reject"));
-  if (!canView) redirect("/dashboard");
+  const canManageEmployees = await can("employees.manage");
+  if (!canViewApprovals && !canManageEmployees) redirect("/dashboard");
 
   const supabase = await getDataClient();
 
-  const [{ data: leaveApprovals }, { data: transfers }, { data: returnRows }] = await Promise.all([
-    supabase
-      .from("approvals")
-      .select("id, status, requester_id, created_at, payload_json, region_id")
-      .eq("approval_type", "leave_request")
-      .order("created_at", { ascending: false })
-      .limit(300),
-    supabase
-      .from("transfer_requests")
-      .select(
-        "id, request_type, status, requester_employee_id, target_employee_id, request_reason, created_at, reviewed_at, reviewer_comment, requester_region_id"
-      )
-      .order("created_at", { ascending: false })
-      .limit(300),
-    supabase
-      .from("asset_return_requests")
-      .select("id, asset_id, from_employee_id, status, employee_comment, pm_decision, created_at, processed_at, region_id")
-      .order("created_at", { ascending: false })
-      .limit(200),
-  ]);
+  const [{ data: leaveApprovals }, { data: transfers }, { data: returnRows }, { data: profileUpdateRows }] =
+    await Promise.all([
+      canViewApprovals
+        ? supabase
+            .from("approvals")
+            .select("id, status, requester_id, created_at, payload_json, region_id")
+            .eq("approval_type", "leave_request")
+            .order("created_at", { ascending: false })
+            .limit(300)
+        : { data: [] },
+      canViewApprovals
+        ? supabase
+            .from("transfer_requests")
+            .select(
+              "id, request_type, status, requester_employee_id, target_employee_id, request_reason, created_at, reviewed_at, reviewer_comment, requester_region_id"
+            )
+            .order("created_at", { ascending: false })
+            .limit(300)
+        : { data: [] },
+      canViewApprovals
+        ? supabase
+            .from("asset_return_requests")
+            .select(
+              "id, asset_id, from_employee_id, status, employee_comment, pm_decision, created_at, processed_at, region_id"
+            )
+            .order("created_at", { ascending: false })
+            .limit(200)
+        : { data: [] },
+      canManageEmployees
+        ? supabase
+            .from("employee_profile_update_requests")
+            .select(
+              "id, employee_id, status, requested_full_name, requested_phone, requested_email, created_at"
+            )
+            .order("created_at", { ascending: false })
+            .limit(200)
+        : { data: [] },
+    ]);
 
   const leaveUserIds = [...new Set((leaveApprovals ?? []).map((a) => a.requester_id))];
   const { data: leaveProfiles } = leaveUserIds.length
@@ -66,6 +85,26 @@ export default async function EmployeeRequestsPage() {
     (returnAssets ?? []).map((a) => [a.id, [a.name, a.asset_id].filter(Boolean).join(" · ") || a.id])
   );
 
+  const profileRequestEmpIds = [...new Set((profileUpdateRows ?? []).map((r) => r.employee_id))];
+  const { data: profileRequestEmps } = profileRequestEmpIds.length
+    ? await supabase.from("employees").select("id, full_name").in("id", profileRequestEmpIds)
+    : { data: [] };
+  const profileRequestEmpMap = new Map((profileRequestEmps ?? []).map((e) => [e.id, e.full_name ?? ""]));
+
+  const profileUpdateTableRows = (profileUpdateRows ?? []).map((r) => ({
+    id: r.id,
+    employee: profileRequestEmpMap.get(r.employee_id) || r.employee_id,
+    requested_preview: [
+      r.requested_full_name && `Name → ${r.requested_full_name}`,
+      r.requested_phone && `Phone → ${r.requested_phone}`,
+      r.requested_email && `Email → ${r.requested_email}`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    status: r.status,
+    created_at: r.created_at,
+  }));
+
   const leaveRows = (leaveApprovals ?? []).map((a) => {
     const payload = (a.payload_json as { from_date?: string; to_date?: string; requester_name?: string | null }) ?? {};
     const fromD = payload.from_date ?? "";
@@ -94,7 +133,8 @@ export default async function EmployeeRequestsPage() {
     status: t.status,
     region: t.requester_region_id ? regionMap.get(t.requester_region_id) ?? "—" : "—",
     created_at: t.created_at,
-    reason_preview: t.request_reason.length > 80 ? `${t.request_reason.slice(0, 80)}…` : t.request_reason,
+    reason_preview:
+      (t.request_reason?.length ?? 0) > 80 ? `${t.request_reason!.slice(0, 80)}…` : (t.request_reason ?? "—"),
   }));
 
   const returnTableRows = (returnRows ?? []).map((r) => ({
@@ -105,12 +145,14 @@ export default async function EmployeeRequestsPage() {
     pm_decision: r.pm_decision ?? "—",
     created_at: r.created_at,
     processed_at: r.processed_at,
-    comment_preview: r.employee_comment.length > 60 ? `${r.employee_comment.slice(0, 60)}…` : r.employee_comment,
+    comment_preview:
+      (r.employee_comment?.length ?? 0) > 60 ? `${r.employee_comment!.slice(0, 60)}…` : (r.employee_comment ?? "—"),
   }));
 
   const leaveCount = leaveRows.length;
   const transferCount = transferTableRows.length;
   const returnCount = returnTableRows.length;
+  const profileUpdateCount = profileUpdateTableRows.length;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -120,13 +162,14 @@ export default async function EmployeeRequestsPage() {
             <div className="max-w-3xl">
               <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Employee requests</h1>
               <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-                Monitor leave applications, internal transfers, and asset return submissions. Open a leave row for remarks
-                and workflow actions. 
-                {/* Use{" "}
-                <Link href="/assets/returns" className="font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-2 hover:text-indigo-800">
-                  Asset returns
-                </Link>{" "}
-                to process pending returns. */}
+                {[
+                  canViewApprovals &&
+                    "Monitor leave applications, internal transfers, and asset return submissions from the employee portal.",
+                  canManageEmployees &&
+                    "Profile updates (name, phone, email) submitted by employees are listed below — open a request, apply changes on the employee record, then mark it completed.",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
               </p>
               {/* <p className="mt-2 text-sm text-zinc-500">
                 <span className="font-medium text-zinc-700">Leave — days left</span> counts calendar days remaining in the
@@ -134,109 +177,150 @@ export default async function EmployeeRequestsPage() {
               </p> */}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
-                <p className="text-lg font-semibold tabular-nums text-zinc-900">{leaveCount}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Leave</p>
-              </div>
-              <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
-                <p className="text-lg font-semibold tabular-nums text-zinc-900">{transferCount}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Transfers</p>
-              </div>
-              <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
-                <p className="text-lg font-semibold tabular-nums text-zinc-900">{returnCount}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Returns</p>
-              </div>
+              {canViewApprovals ? (
+                <>
+                  <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
+                    <p className="text-lg font-semibold tabular-nums text-zinc-900">{leaveCount}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Leave</p>
+                  </div>
+                  <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
+                    <p className="text-lg font-semibold tabular-nums text-zinc-900">{transferCount}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Transfers</p>
+                  </div>
+                  <div className="rounded-xl border border-zinc-200/80 bg-white/90 px-3 py-2 text-center shadow-sm">
+                    <p className="text-lg font-semibold tabular-nums text-zinc-900">{returnCount}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Returns</p>
+                  </div>
+                </>
+              ) : null}
+              {canManageEmployees ? (
+                <div className="rounded-xl border border-teal-200/80 bg-teal-50/90 px-3 py-2 text-center shadow-sm">
+                  <p className="text-lg font-semibold tabular-nums text-teal-900">{profileUpdateCount}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-700">Profile updates</p>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
       </div>
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-900">Leave requests</h2>
-            <p className="mt-0.5 text-sm text-zinc-600">Opens the full approval record for remarks and decisions.</p>
-          </div>
-          <Link href="/approvals" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-            All approval types →
-          </Link>
-        </div>
-        <div className="p-4 sm:p-6">
-        <DataTable
-          keyField="id"
-          data={leaveRows}
-          hrefPrefix="/approvals/"
-          filterKeys={["status"]}
-          searchPlaceholder="Search leave requests…"
-          columns={[
-            { key: "employee", label: "Employee" },
-            { key: "leave_from", label: "From" },
-            { key: "leave_to", label: "To" },
-            { key: "requested_days", label: "Days (range)" },
-            { key: "days_left", label: "Days left" },
-            { key: "tracking", label: "Tracking" },
-            { key: "status", label: "Status" },
-            { key: "created_at", label: "Submitted", format: "datetime" },
-          ]}
-        />
-        </div>
-      </section>
+      {canViewApprovals ? (
+        <>
+          <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900">Leave requests</h2>
+                <p className="mt-0.5 text-sm text-zinc-600">Opens the full approval record for remarks and decisions.</p>
+              </div>
+              <Link href="/approvals" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+                All approval types →
+              </Link>
+            </div>
+            <div className="p-4 sm:p-6">
+              <DataTable
+                keyField="id"
+                data={leaveRows}
+                hrefPrefix="/approvals/"
+                filterKeys={["status"]}
+                searchPlaceholder="Search leave requests…"
+                columns={[
+                  { key: "employee", label: "Employee" },
+                  { key: "leave_from", label: "From" },
+                  { key: "leave_to", label: "To" },
+                  { key: "requested_days", label: "Days (range)" },
+                  { key: "days_left", label: "Days left" },
+                  { key: "tracking", label: "Tracking" },
+                  { key: "status", label: "Status" },
+                  { key: "created_at", label: "Submitted", format: "datetime" },
+                ]}
+              />
+            </div>
+          </section>
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
-        <div className="border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
-          <h2 className="text-base font-semibold text-zinc-900">Transfer requests</h2>
-          <p className="mt-0.5 text-sm text-zinc-600">
-            Vehicle swap, replacement, drive swap, and asset transfer requests between employees or teams.
-          </p>
-        </div>
-        <div className="p-4 sm:p-6">
-        <DataTable
-          keyField="id"
-          data={transferTableRows}
-          hrefPrefix="/employee-requests/transfers/"
-          filterKeys={["request_type", "status"]}
-          searchPlaceholder="Search transfers…"
-          columns={[
-            { key: "request_type", label: "Type" },
-            { key: "requester", label: "Requester" },
-            { key: "target", label: "Target" },
-            { key: "region", label: "Region" },
-            { key: "status", label: "Status" },
-            { key: "reason_preview", label: "Reason" },
-            { key: "created_at", label: "Created", format: "datetime" },
-          ]}
-        />
-        </div>
-      </section>
+          <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+            <div className="border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
+              <h2 className="text-base font-semibold text-zinc-900">Transfer requests</h2>
+              <p className="mt-0.5 text-sm text-zinc-600">
+                Vehicle swap, replacement, drive swap, and asset transfer requests between employees or teams.
+              </p>
+            </div>
+            <div className="p-4 sm:p-6">
+              <DataTable
+                keyField="id"
+                data={transferTableRows}
+                hrefPrefix="/employee-requests/transfers/"
+                filterKeys={["request_type", "status"]}
+                searchPlaceholder="Search transfers…"
+                columns={[
+                  { key: "request_type", label: "Type" },
+                  { key: "requester", label: "Requester" },
+                  { key: "target", label: "Target" },
+                  { key: "region", label: "Region" },
+                  { key: "status", label: "Status" },
+                  { key: "reason_preview", label: "Reason" },
+                  { key: "created_at", label: "Created", format: "datetime" },
+                ]}
+              />
+            </div>
+          </section>
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-900">Asset return requests</h2>
-            <p className="mt-0.5 text-sm text-zinc-600">Summary of return submissions from the employee portal.</p>
+          <section className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-5 py-4 sm:px-6">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900">Asset return requests</h2>
+                <p className="mt-0.5 text-sm text-zinc-600">Summary of return submissions from the employee portal.</p>
+              </div>
+              <Link href="/assets/returns" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+                Open return queue →
+              </Link>
+            </div>
+            <div className="p-4 sm:p-6">
+              <DataTable
+                keyField="id"
+                data={returnTableRows}
+                filterKeys={["status"]}
+                searchPlaceholder="Search returns…"
+                columns={[
+                  { key: "asset", label: "Asset" },
+                  { key: "employee", label: "Employee" },
+                  { key: "status", label: "Status" },
+                  { key: "pm_decision", label: "PM decision" },
+                  { key: "comment_preview", label: "Employee note" },
+                  { key: "created_at", label: "Submitted", format: "datetime" },
+                  { key: "processed_at", label: "Processed", format: "datetime" },
+                ]}
+              />
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {canManageEmployees ? (
+        <section className="overflow-hidden rounded-2xl border border-teal-200/80 bg-white shadow-sm ring-1 ring-zinc-950/5">
+          <div className="border-b border-teal-100 bg-teal-50/60 px-5 py-4 sm:px-6">
+            <h2 className="text-base font-semibold text-zinc-900">Employee profile update requests</h2>
+            <p className="mt-0.5 text-sm text-zinc-600">
+              Name, phone, or email change requests from the employee portal. Update the employee in People, then mark
+              completed here.
+            </p>
           </div>
-          <Link href="/assets/returns" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
-            Open return queue →
-          </Link>
-        </div>
-        <div className="p-4 sm:p-6">
-        <DataTable
-          keyField="id"
-          data={returnTableRows}
-          filterKeys={["status"]}
-          searchPlaceholder="Search returns…"
-          columns={[
-            { key: "asset", label: "Asset" },
-            { key: "employee", label: "Employee" },
-            { key: "status", label: "Status" },
-            { key: "pm_decision", label: "PM decision" },
-            { key: "comment_preview", label: "Employee note" },
-            { key: "created_at", label: "Submitted", format: "datetime" },
-            { key: "processed_at", label: "Processed", format: "datetime" },
-          ]}
-        />
-        </div>
-      </section>
+          <div className="p-4 sm:p-6">
+            <DataTable
+              keyField="id"
+              data={profileUpdateTableRows}
+              hrefPrefix="/employee-requests/profile-updates/"
+              filterKeys={["status"]}
+              searchPlaceholder="Search profile requests…"
+              columns={[
+                { key: "employee", label: "Employee" },
+                { key: "requested_preview", label: "Requested changes" },
+                { key: "status", label: "Status" },
+                { key: "created_at", label: "Submitted", format: "datetime" },
+              ]}
+            />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

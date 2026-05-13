@@ -79,7 +79,7 @@ const navStructure: NavEntry[] = [
         {
           href: "/employee-requests",
           label: "Employee requests",
-          permissionAnyOf: ["approvals.view", "approvals.approve", "approvals.reject"],
+          permissionAnyOf: ["approvals.view", "approvals.approve", "approvals.reject", PERMISSION_EMPLOYEE_MANAGE],
         },
         { href: "/notifications", label: "Notifications", permission: "users.view" },
       ],

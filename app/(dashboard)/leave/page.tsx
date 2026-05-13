@@ -31,8 +31,8 @@ export default async function AdminLeavePage() {
       <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-5 sm:p-6">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Leave</h1>
         <p className="mt-1 text-sm text-zinc-600">
-          Request leave from the admin portal. Super Users receive the request and give the final approval (no performa or
-          guarantor). Employees who use the separate Employee Portal submit leave there (guarantor and performa workflow).
+          Request leave from the admin portal. Super Users receive the request and give the final approval (no performa).
+          Employees use the Employee Portal to apply (no guarantor; asset rules apply there before submit).
         </p>
       </div>
 

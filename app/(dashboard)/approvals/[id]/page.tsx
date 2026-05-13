@@ -198,7 +198,7 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
       {approval.approval_type === "leave_request" && adminPortalLeave ? (
         <div className={cardShell}>
           <div className={`${cardHeader} border-sky-100/80 bg-gradient-to-r from-sky-50/90 to-indigo-50/40`}>
-            <h2 className={cardTitle}>Administrator leave (no guarantor)</h2>
+            <h2 className={cardTitle}>Administrator leave</h2>
             <p className={cardSubtitle}>
               Submitted by a portal Administrator or Super User (employee portal or admin portal). A Super User gives the
               only approval (no performa).
