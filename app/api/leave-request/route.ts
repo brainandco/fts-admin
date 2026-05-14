@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireActive } from "@/lib/rbac/permissions";
 import { inclusiveCalendarDays } from "@/lib/employee-requests/leave-metrics";
 import { auditLog } from "@/lib/audit/log";
+import { collectSuperUserRecipientUserIds } from "@/lib/notifications/super-user-recipients";
 
 /**
  * POST /api/leave-request — admin portal user submits leave (no guarantor, no performa).
@@ -72,23 +73,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: error.message }, { status: 400 });
   }
 
-  const { data: supers } = await supabase
-    .from("users_profile")
-    .select("id")
-    .eq("status", "ACTIVE")
-    .eq("is_super_user", true);
-  const superRows = (supers ?? [])
-    .filter((p) => p.id !== userId)
-    .map((p) => ({
-      recipient_user_id: p.id,
+  const superIds = await collectSuperUserRecipientUserIds(supabase, { excludeUserId: userId });
+  const rows: {
+    recipient_user_id: string;
+    title: string;
+    body: string;
+    category: string;
+    link: string;
+    meta: Record<string, unknown>;
+  }[] = [
+    {
+      recipient_user_id: userId,
+      title: "Leave request submitted",
+      body: "Your leave request was submitted and is pending Super User approval.",
+      category: "leave_request",
+      link: `/approvals/${approval.id}`,
+      meta: { approval_id: approval.id, from_date, to_date, admin_leave: true, self_submitted: true },
+    },
+    ...superIds.map((sid) => ({
+      recipient_user_id: sid,
       title: "Admin leave request pending",
       body: `${displayName} submitted a leave request (Super User approval required).`,
       category: "leave_request",
       link: `/approvals/${approval.id}`,
       meta: { approval_id: approval.id, from_date, to_date, admin_leave: true },
-    }));
-  if (superRows.length > 0) {
-    await supabase.from("notifications").insert(superRows);
+    })),
+  ];
+  if (rows.length > 0) {
+    await supabase.from("notifications").insert(rows);
   }
 
   await auditLog({

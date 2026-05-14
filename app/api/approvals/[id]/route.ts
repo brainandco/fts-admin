@@ -207,33 +207,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const { error } = await dataClient.from("approvals").update(updates).eq("id", id);
       if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
-      const { data: admins } = await supabase
-        .from("users_profile")
-        .select("id")
-        .eq("status", "ACTIVE")
-        .eq("is_super_user", false);
-      const adminRows = (admins ?? []).map((u) => ({
-        recipient_user_id: u.id,
-        title: "Leave request final decision",
-        body:
-          newStatus === "Completed"
-            ? "A leave request has been finally approved by super user."
-            : "A leave request has been rejected by super user.",
+      await supabase.from("notifications").insert({
+        recipient_user_id: approval.requester_id,
+        title: "Your leave request was updated",
+        body: newStatus === "Completed" ? "Your leave request is approved." : "Your leave request was rejected.",
         category: "leave_request",
-        link: `/approvals/${id}`,
+        link: "/leave",
         meta: { approval_id: id, final_status: newStatus },
-      }));
-      await supabase.from("notifications").insert([
-        ...adminRows,
-        {
-          recipient_user_id: approval.requester_id,
-          title: "Your leave request was updated",
-          body: newStatus === "Completed" ? "Your leave request is approved." : "Your leave request was rejected.",
-          category: "leave_request",
-          link: "/leave",
-          meta: { approval_id: id, final_status: newStatus },
-        },
-      ]);
+      });
 
       await auditLog({
         actionType: action === "approve" ? "approval_approved" : "approval_rejected",
@@ -320,33 +301,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
     }
     if (approval.status === "Admin_Approved" && (newStatus === "Completed" || newStatus === "PM_Rejected")) {
-      const { data: admins } = await supabase
-        .from("users_profile")
-        .select("id")
-        .eq("status", "ACTIVE")
-        .eq("is_super_user", false);
-      const adminRows = (admins ?? []).map((u) => ({
-        recipient_user_id: u.id,
-        title: "Asset request final decision",
-        body:
-          newStatus === "Completed"
-            ? "A PM asset request has been finally approved by super user."
-            : "A PM asset request has been rejected by super user.",
+      await supabase.from("notifications").insert({
+        recipient_user_id: approval.requester_id,
+        title: "Your asset request was updated",
+        body: newStatus === "Completed" ? "Your asset request is approved." : "Your asset request was rejected.",
         category,
-        link: `/approvals/${id}`,
+        link: requesterLink,
         meta: { approval_id: id, final_status: newStatus },
-      }));
-      await supabase.from("notifications").insert([
-        ...adminRows,
-        {
-          recipient_user_id: approval.requester_id,
-          title: "Your asset request was updated",
-          body: newStatus === "Completed" ? "Your asset request is approved." : "Your asset request was rejected.",
-          category,
-          link: requesterLink,
-          meta: { approval_id: id, final_status: newStatus },
-        },
-      ]);
+      });
     }
 
     await auditLog({
