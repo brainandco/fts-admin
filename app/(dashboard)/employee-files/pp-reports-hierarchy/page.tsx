@@ -26,7 +26,7 @@ export default async function PpReportsHierarchyPage() {
         <h1 className="text-2xl font-semibold text-zinc-900">PP final reports folder hierarchy</h1>
         <p className="mt-2 text-sm text-zinc-600">
           Manage operators, accounts, and projects that PP / Reporting Team members can select when creating folders in the
-          final reports bucket.
+          final reports bucket. Regions are taken from the existing Regions module (not edited here).
         </p>
         <p className="mt-3 flex flex-wrap gap-3 text-sm">
           <Link href="/employee-files/pp-reports" className="font-medium text-indigo-700 hover:underline">

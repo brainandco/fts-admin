@@ -1,4 +1,4 @@
--- PP final reports folder hierarchy: Operator → Account → Project (admin-managed lookup tables).
+-- PP final reports folder hierarchy: Region (public.regions) → Operator → Account → Project.
 
 CREATE OR REPLACE FUNCTION public.fts_is_reporting_portal_employee()
 RETURNS boolean

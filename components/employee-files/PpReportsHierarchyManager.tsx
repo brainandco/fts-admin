@@ -121,8 +121,9 @@ export function PpReportsHierarchyManager() {
 
       <p className="text-sm text-zinc-600">
         PP and Reporting Team members must create final-report folders as{" "}
-        <strong>Operator → Account → Project</strong>. Names here must match folder names in Wasabi exactly. Deactivating
-        hides an option from dropdowns without deleting existing folders.
+        <strong>Region → Operator → Account → Project</strong>. Regions come from the main Regions list in the admin portal.
+        Operator, account, and project names below must match folder names in Wasabi exactly. Deactivating hides an option
+        from dropdowns without deleting existing folders.
       </p>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
