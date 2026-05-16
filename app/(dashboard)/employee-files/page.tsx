@@ -48,6 +48,14 @@ export default async function EmployeeFilesPage() {
           Use the workspace below to turn on storage per region, then browse Wasabi the same way employees see it: pick a
           region, open someone&apos;s folder, go to dates or custom folders, and upload or tidy files on their behalf.
         </p>
+        <p className="mt-3 flex flex-wrap gap-4 text-sm">
+          <Link href="/employee-files/pp-reports" className="font-medium text-indigo-700 hover:underline">
+            PP final reports bucket
+          </Link>
+          <Link href="/employee-files/pp-reports-hierarchy" className="font-medium text-indigo-700 hover:underline">
+            PP reports folder hierarchy
+          </Link>
+        </p>
       </div>
       <EmployeeFilesClient regions={regions ?? []} initialFolders={initialFolders} />
     </div>

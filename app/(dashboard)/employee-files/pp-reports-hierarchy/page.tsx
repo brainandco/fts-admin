@@ -1,16 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PpReportsBucketClient } from "@/components/employee-files/PpReportsBucketClient";
+import { PpReportsHierarchyManager } from "@/components/employee-files/PpReportsHierarchyManager";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
-import { isPpReportsBucketConfigured } from "@/lib/wasabi/s3-client";
 
-export default async function AdminPpReportsPage() {
+export default async function PpReportsHierarchyPage() {
   if (!(await can(PERMISSION_EMPLOYEE_FILES_MANAGE))) {
     redirect("/dashboard");
   }
-
-  const configured = isPpReportsBucketConfigured();
 
   return (
     <div className="space-y-5 pb-10">
@@ -23,21 +20,21 @@ export default async function AdminPpReportsPage() {
           Employee files
         </Link>
         <span>/</span>
-        <span className="text-zinc-900">PP final reports</span>
+        <span className="text-zinc-900">PP reports folder hierarchy</span>
       </nav>
       <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 p-5 sm:p-6">
-        <h1 className="text-2xl font-semibold text-zinc-900">PP final reports bucket</h1>
+        <h1 className="text-2xl font-semibold text-zinc-900">PP final reports folder hierarchy</h1>
         <p className="mt-2 text-sm text-zinc-600">
-          Same Wasabi bucket Post Processors use for finished reports. Admins with employee-files access can browse, upload,
-          download, and delete here alongside the regional employee field workspace.
+          Manage operators, accounts, and projects that PP / Reporting Team members can select when creating folders in the
+          final reports bucket.
         </p>
-        <p className="mt-3 text-sm">
-          <Link href="/employee-files/pp-reports-hierarchy" className="font-medium text-indigo-700 hover:underline">
-            Manage PP folder hierarchy (operators, accounts, projects)
+        <p className="mt-3 flex flex-wrap gap-3 text-sm">
+          <Link href="/employee-files/pp-reports" className="font-medium text-indigo-700 hover:underline">
+            Open PP final reports bucket
           </Link>
         </p>
       </div>
-      <PpReportsBucketClient configured={configured} />
+      <PpReportsHierarchyManager />
     </div>
   );
 }
