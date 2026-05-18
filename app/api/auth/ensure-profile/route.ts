@@ -1,5 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { emailHasEmployeeRecord } from "@/lib/auth/employee-account";
+import { getEmployeePortalBaseUrl } from "@/lib/email/employee-portal-base-url";
 
 function safeNext(next: string | null, baseUrl: string): string {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/dashboard";
@@ -12,7 +14,9 @@ function safeNext(next: string | null, baseUrl: string): string {
 }
 
 async function ensureProfile(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { user: null, promoted: false, error: null as string | null };
   const fullName = (user.user_metadata?.full_name as string) ?? "";
   const email = user.email ?? "";
@@ -42,12 +46,31 @@ export async function POST() {
 
 /**
  * GET: Create users_profile row if the current user has none (fallback when DB trigger didn't run).
- * Dashboard redirects here when no_profile; this creates the row and redirects back to dashboard.
+ * Employees are sent to the Employee Portal — never auto-provisioned as admin users here.
  */
 export async function GET(request: NextRequest) {
   const supabase = await createServerSupabaseClient();
-  const result = await ensureProfile(supabase);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const next = safeNext(request.nextUrl.searchParams.get("next"), request.url);
+
+  if (!user) {
+    return NextResponse.redirect(new URL("/login?redirect=" + encodeURIComponent(next), request.url), 302);
+  }
+
+  if (user.email && (await emailHasEmployeeRecord(user.email, supabase))) {
+    const employeeBase = getEmployeePortalBaseUrl();
+    const target = new URL("/login", employeeBase);
+    target.searchParams.set(
+      "error",
+      "Use the Employee Portal to sign in. Your account is an employee account, not an admin user."
+    );
+    await supabase.auth.signOut();
+    return NextResponse.redirect(target, 302);
+  }
+
+  const result = await ensureProfile(supabase);
   if (!result.user) {
     return NextResponse.redirect(new URL("/login?redirect=" + encodeURIComponent(next), request.url), 302);
   }
