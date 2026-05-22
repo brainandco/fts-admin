@@ -1,6 +1,6 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
-import { markUsersProfileEmployeePortalOnly } from "@/lib/users/mark-employee-portal-profile";
+import { normalizeEmployeeEmail } from "@/lib/auth/employee-email";
 import { randomPassword, sendEmployeeCredentials } from "@/lib/email/send-employee-credentials";
 
 export type SendEmployeePortalCredentialsResult =
@@ -31,18 +31,22 @@ export async function sendEmployeePortalCredentials(employeeId: string): Promise
     return { ok: false, code: "not_found", employeeId, message: "Employee not found" };
   }
 
-  const email = (employee.email ?? "").trim();
+  const rawEmail = (employee.email ?? "").trim();
   const fullName = (employee.full_name ?? "").trim();
-  if (!email) {
+  if (!rawEmail) {
     return { ok: false, code: "no_email", employeeId, message: "Employee has no email" };
   }
+  const email = normalizeEmployeeEmail(rawEmail);
 
   const password = randomPassword(12);
 
   try {
     const admin = createServerSupabaseAdmin();
+    if (rawEmail !== email) {
+      await admin.from("employees").update({ email }).eq("id", employeeId);
+    }
     const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    const existingUser = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+    const existingUser = list?.users?.find((u) => u.email?.toLowerCase() === email);
 
     let portalUserId: string | null = null;
     if (existingUser) {
@@ -64,12 +68,21 @@ export async function sendEmployeePortalCredentials(employeeId: string): Promise
       }
       portalUserId = created?.user?.id ?? null;
     }
-    await markUsersProfileEmployeePortalOnly(supabase, portalUserId);
+    if (portalUserId) {
+      await admin.from("users_profile").upsert(
+        {
+          id: portalUserId,
+          email,
+          full_name: fullName || null,
+          status: "ACTIVE",
+          employee_portal_only: true,
+          must_change_password: true,
+        },
+        { onConflict: "id" }
+      );
+    }
 
     await admin.from("employees").update({ must_change_password: true }).eq("id", employeeId);
-    if (portalUserId) {
-      await admin.from("users_profile").update({ must_change_password: true }).eq("id", portalUserId);
-    }
 
     const sendResult = await sendEmployeeCredentials(email, fullName, password);
     const credentialsSent = sendResult.sent;
