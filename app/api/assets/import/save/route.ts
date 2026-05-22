@@ -8,6 +8,8 @@ import {
   isCsvDuplicateSignificantValue,
 } from "@/lib/data-uniqueness";
 import { formatCompanyDisplayName } from "@/lib/assets/company-display";
+import { createBulkAssetIdAllocator, resolveImportAssetId } from "@/lib/assets/bulk-asset-id-allocator";
+import { resolveAssetIdScheme } from "@/lib/assets/asset-id-scheme";
 
 /** Rows per INSERT; keeps payloads small and avoids long single transactions. */
 const CHUNK_SIZE = 120;
@@ -78,10 +80,38 @@ export async function POST(req: Request) {
     prepared.push({ csvRow, insert: mapped.insert });
   }
 
+  let idAllocator: Awaited<ReturnType<typeof createBulkAssetIdAllocator>>;
+  try {
+    idAllocator = await createBulkAssetIdAllocator(supabase);
+  } catch (e) {
+    return NextResponse.json(
+      { message: e instanceof Error ? e.message : "Could not load existing asset IDs", inserted: 0 },
+      { status: 500 }
+    );
+  }
+
+  for (const p of prepared) {
+    const ins = p.insert;
+    const category = typeof ins.category === "string" ? ins.category.trim() : "";
+    const company = typeof ins.name === "string" ? ins.name.trim() : "";
+    const currentId = typeof ins.asset_id === "string" ? ins.asset_id.trim() || null : null;
+    const resolved = resolveImportAssetId(idAllocator, category, company, currentId);
+    if (resolved) {
+      ins.asset_id = resolved;
+    } else if (!currentId && category && !resolveAssetIdScheme(category)) {
+      errors.push({
+        row: p.csvRow,
+        message:
+          "Asset ID is required for this category (not configured for auto-generation). Add asset_id in the file or use a supported type.",
+      });
+    }
+  }
+
+  const preparedWithIds = prepared.filter((p) => !errors.some((e) => e.row === p.csvRow));
   const serials: string[] = [];
   const assetIds: string[] = [];
   const imeis: string[] = [];
-  for (const p of prepared) {
+  for (const p of preparedWithIds) {
     const ins = p.insert;
     const s = typeof ins.serial === "string" ? ins.serial.trim() : "";
     if (s) serials.push(s);
@@ -101,7 +131,7 @@ export async function POST(req: Request) {
   const serialFirstRow = new Map<string, number>();
   const assetIdFirstRow = new Map<string, number>();
   const imeiFirstRow = new Map<string, number>();
-  for (const p of prepared) {
+  for (const p of preparedWithIds) {
     const row = p.csvRow;
     const ins = p.insert;
     const ser = typeof ins.serial === "string" ? ins.serial.trim() : "";
@@ -116,7 +146,7 @@ export async function POST(req: Request) {
 
   const insertable: typeof prepared = [];
 
-  for (const p of prepared) {
+  for (const p of preparedWithIds) {
     const ins = p.insert;
     const row = p.csvRow;
 

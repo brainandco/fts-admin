@@ -10,6 +10,8 @@ import {
   isCsvDuplicateSignificantValue,
 } from "@/lib/data-uniqueness";
 import { formatCompanyDisplayName } from "@/lib/assets/company-display";
+import { createBulkAssetIdAllocator, resolveImportAssetId } from "@/lib/assets/bulk-asset-id-allocator";
+import { resolveAssetIdScheme } from "@/lib/assets/asset-id-scheme";
 import { normalizeHeaderDefault, parseImportFile } from "@/lib/import/spreadsheet";
 
 export async function POST(req: Request) {
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         message:
-          "The file must include headers: company, category. Optional: model, serial, imei_1, imei_2, asset_id, condition, software_connectivity, ram. Category is any label you use for grouping (free text).",
+          "The file must include headers: company, category. Optional: model, serial, imei_1, imei_2, asset_id (leave blank to auto-generate), condition, software_connectivity, ram.",
         previewRows: [],
       },
       { status: 400 }
@@ -125,6 +127,33 @@ export async function POST(req: Request) {
     });
   }
 
+  const supabase = await getDataClient();
+  let idAllocator: Awaited<ReturnType<typeof createBulkAssetIdAllocator>> | null = null;
+  try {
+    idAllocator = await createBulkAssetIdAllocator(supabase);
+  } catch (e) {
+    return NextResponse.json(
+      { message: e instanceof Error ? e.message : "Could not load existing asset IDs", previewRows: [] },
+      { status: 500 }
+    );
+  }
+
+  for (const r of previewRows) {
+    if (r._error) continue;
+    const company = (typeof r._payload.specs.company === "string" ? r._payload.specs.company : "").trim();
+    const category = r._payload.category.trim();
+    const generated = resolveImportAssetId(idAllocator, category, company, r._payload.asset_id);
+    if (generated) {
+      r._payload.asset_id = generated;
+      r.asset_id = generated;
+    } else if (!r._payload.asset_id?.trim() && !resolveAssetIdScheme(category)) {
+      appendPreviewRowError(
+        r,
+        "Asset ID is empty and this category is not configured for auto-generation. Add asset_id in the file or use a supported type (e.g. mobile, laptop, GPS)."
+      );
+    }
+  }
+
   flagCsvDuplicateKeys(
     previewRows,
     (r) => r._payload.serial?.trim() || null,
@@ -137,7 +166,6 @@ export async function POST(req: Request) {
   );
   flagCsvDuplicateImeisInAssetImport(previewRows);
 
-  const supabase = await getDataClient();
   const serials = previewRows
     .filter((r) => !r._error && isCsvDuplicateSignificantValue(r._payload.serial))
     .map((r) => r._payload.serial!.trim());

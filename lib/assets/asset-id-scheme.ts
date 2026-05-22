@@ -170,6 +170,27 @@ export function formatNextAssetId(scheme: AssetIdScheme, company: string, nextNu
   return `${scheme.prefix}-${nextNum}`;
 }
 
+/** Next numeric suffix after scanning existing asset_id values for this scheme (and company when applicable). */
+export function nextAssetIdNumberAfterExisting(
+  scheme: AssetIdScheme,
+  company: string,
+  existingAssetIds: (string | null)[]
+): number {
+  if (scheme.kind === "company_middle") {
+    const max = maxForCompanyMiddle(existingAssetIds, scheme.middle, company);
+    return max > 0 ? max + 1 : scheme.start;
+  }
+  const max = maxForPrefix(existingAssetIds, scheme.prefix);
+  return max > 0 ? max + 1 : scheme.start;
+}
+
+export function allocationKeyForAssetId(scheme: AssetIdScheme, company: string): string {
+  if (scheme.kind === "company_middle") {
+    return `${scheme.middle}:${companyAbbrevForAssetId(company)}`;
+  }
+  return `prefix:${scheme.prefix}`;
+}
+
 /**
  * Next asset_id for a new row: scans existing assets with the same category (case-insensitive).
  */
@@ -191,18 +212,7 @@ export async function computeNextAssetId(
   if (error) return null;
 
   const ids = (rows ?? []).map((r) => r.asset_id as string | null);
-
-  let nextNum: number;
-  if (scheme.kind === "company_middle") {
-    const abbrev = companyAbbrevForAssetId(company);
-    if (!abbrev) return null;
-    const max = maxForCompanyMiddle(ids, scheme.middle, company);
-    nextNum = max > 0 ? max + 1 : scheme.start;
-  } else {
-    const max = maxForPrefix(ids, scheme.prefix);
-    nextNum = max > 0 ? max + 1 : scheme.start;
-  }
-
+  const nextNum = nextAssetIdNumberAfterExisting(scheme, company, ids);
   return formatNextAssetId(scheme, company, nextNum);
 }
 
