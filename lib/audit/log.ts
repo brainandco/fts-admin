@@ -1,5 +1,6 @@
 import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import type { AuditActionCategory, AuditLogInput, AuditPortal } from "@/lib/audit/types";
+import { persistAuditRow, type AuditPersistRow } from "@/lib/audit/persist";
 
 export type { AuditLogInput, AuditPortal, AuditActionCategory };
 
@@ -33,7 +34,20 @@ export async function resolveActor(req?: Request | null): Promise<{ userId: stri
   return { userId: user.id, email: profile?.email ?? user.email ?? null };
 }
 
-/** Persist an audit event (uses service role when available for reliable writes). */
+export function inferCategory(actionType: string): AuditActionCategory {
+  const a = actionType.toLowerCase();
+  if (a.includes("login") || a.includes("logout") || a.includes("register") || a.includes("auth")) return "auth";
+  if (a.includes("upload") || a.includes("download") || a.includes("presign") || a.includes("file") || a.includes("multipart")) return "file";
+  if (a.includes("import")) return "import";
+  if (a.includes("export")) return "export";
+  if (a.includes("assign") || a.includes("return") || a.includes("receipt")) return "assignment";
+  if (a.includes("approv") || a.includes("leave")) return "approval";
+  if (a === "api_access" || a.includes("api_")) return "api";
+  if (a.includes("create") || a.includes("update") || a.includes("delete") || a.includes("view")) return "data";
+  return "system";
+}
+
+/** Persist an audit event (service role when available; falls back if new columns missing). */
 export async function auditLog(params: AuditLogInput & { req?: Request | null }) {
   const { req, ...rest } = params;
   const actor =
@@ -41,7 +55,7 @@ export async function auditLog(params: AuditLogInput & { req?: Request | null })
       ? { userId: rest.actorUserId ?? null, email: rest.actorEmail ?? null }
       : await resolveActor(req);
 
-  const row = {
+  const row: AuditPersistRow = {
     actor_user_id: actor.userId,
     actor_email: actor.email,
     action_type: rest.actionType,
@@ -62,31 +76,48 @@ export async function auditLog(params: AuditLogInput & { req?: Request | null })
 
   try {
     const db = await getDataClient();
-    await db.from("audit_logs").insert(row);
+    const ok = await persistAuditRow(db, row);
+    if (!ok) {
+      const userDb = await createServerSupabaseClient();
+      await persistAuditRow(userDb, row);
+    }
   } catch (e) {
-    console.error("[audit] insert failed:", e);
+    console.error("[audit] insert exception:", e);
+    try {
+      const userDb = await createServerSupabaseClient();
+      await persistAuditRow(userDb, row);
+    } catch (e2) {
+      console.error("[audit] user client insert exception:", e2);
+    }
   }
 }
 
-export function inferCategory(actionType: string): AuditActionCategory {
-  const a = actionType.toLowerCase();
-  if (a.includes("login") || a.includes("logout") || a.includes("register") || a.includes("auth")) return "auth";
-  if (a.includes("upload") || a.includes("download") || a.includes("presign") || a.includes("file") || a.includes("multipart")) return "file";
-  if (a.includes("import")) return "import";
-  if (a.includes("export")) return "export";
-  if (a.includes("assign") || a.includes("return") || a.includes("receipt")) return "assignment";
-  if (a.includes("approv") || a.includes("leave")) return "approval";
-  if (a === "api_access" || a.includes("api_")) return "api";
-  if (a.includes("create") || a.includes("update") || a.includes("delete") || a.includes("view")) return "data";
-  return "system";
-}
-
-export async function auditLogFromRequest(req: Request, params: Omit<AuditLogInput, "routePath" | "httpMethod" | "ipAddress" | "userAgent">) {
+export async function auditLogFromRequest(
+  req: Request,
+  params: Omit<AuditLogInput, "routePath" | "httpMethod" | "ipAddress" | "userAgent">
+) {
   const url = new URL(req.url);
   await auditLog({
     ...params,
     req,
+    portal: params.portal ?? "admin",
     routePath: url.pathname,
     httpMethod: req.method,
   });
+}
+
+/** Normalize DB rows for API/UI (legacy rows without portal columns). */
+export function normalizeAuditLogRow(row: Record<string, unknown>): Record<string, unknown> {
+  const meta = (row.meta as Record<string, unknown> | null) ?? null;
+  const v2 = (meta?._audit_v2 as Record<string, unknown> | undefined) ?? undefined;
+  const actionType = String(row.action_type ?? "");
+
+  return {
+    ...row,
+    portal: row.portal ?? v2?.portal ?? "admin",
+    action_category: row.action_category ?? v2?.action_category ?? inferCategory(actionType),
+    route_path: row.route_path ?? v2?.route_path ?? null,
+    http_method: row.http_method ?? v2?.http_method ?? null,
+    status_code: row.status_code ?? v2?.status_code ?? null,
+  };
 }

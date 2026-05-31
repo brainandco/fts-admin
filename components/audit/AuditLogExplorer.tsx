@@ -57,15 +57,22 @@ const ENTITY_OPTIONS = [
 
 const CATEGORY_OPTIONS = ["", "file", "data", "auth", "assignment", "approval", "export", "import", "api", "system"];
 
-export function AuditLogExplorer() {
+export function AuditLogExplorer({
+  initialLogs = [],
+  initialTotal = 0,
+}: {
+  initialLogs?: Record<string, unknown>[];
+  initialTotal?: number;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>(() => initialLogs.map((r) => r as AuditLog));
   const [stats, setStats] = useState<Stats | null>(null);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(initialTotal);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(Math.max(1, Math.ceil(initialTotal / 50)));
+  const [loading, setLoading] = useState(!initialLogs.length && initialTotal === 0);
+  const [loadError, setLoadError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const portal = searchParams.get("portal") ?? "";
@@ -89,6 +96,7 @@ export function AuditLogExplorer() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     const pageNum = parseInt(searchParams.get("page") ?? "1", 10) || 1;
     const qs = new URLSearchParams();
     qs.set("page", String(pageNum));
@@ -113,6 +121,8 @@ export function AuditLogExplorer() {
         setTotal(logsJson.total ?? 0);
         setPage(logsJson.page ?? 1);
         setTotalPages(logsJson.totalPages ?? 1);
+      } else {
+        setLoadError(logsJson.message ?? "Failed to load audit logs");
       }
       if (statsRes.ok) setStats(statsJson);
     } finally {
@@ -190,6 +200,14 @@ export function AuditLogExplorer() {
           >
             Export page (CSV)
           </button>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-2">
+          <QuickFilter label="All activity" params={{}} />
+          <QuickFilter label="Data changes" params={{ action_category: "data" }} />
+          <QuickFilter label="Employees" params={{ entity_type: "employee" }} />
+          <QuickFilter label="Assets" params={{ entity_type: "asset" }} />
+          <QuickFilter label="Imports" params={{ action_category: "import" }} />
+          <QuickFilter label="Files" params={{ action_category: "file" }} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <FilterSelect label="Portal" value={portal} onChange={(v) => setFilter("portal", v)}>
@@ -277,6 +295,9 @@ export function AuditLogExplorer() {
           <Pagination page={page} totalPages={totalPages} onPage={(p) => setFilter("page", String(p))} />
         </div>
 
+        {loadError ? (
+          <div className="mx-5 my-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</div>
+        ) : null}
         {loading && !logs.length ? (
           <div className="flex justify-center py-16 text-sm text-zinc-500">Loading activity…</div>
         ) : !logs.length ? (
@@ -291,11 +312,11 @@ export function AuditLogExplorer() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      {log.portal ? (
-                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${PORTAL_STYLES[log.portal] ?? "bg-zinc-200"}`}>
-                          {log.portal}
-                        </span>
-                      ) : null}
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${PORTAL_STYLES[log.portal ?? "admin"] ?? "bg-zinc-200"}`}
+                      >
+                        {log.portal ?? "admin"}
+                      </span>
                       {log.action_category ? (
                         <span
                           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${ACTION_CATEGORY_STYLES[log.action_category] ?? ACTION_CATEGORY_STYLES.api}`}
@@ -373,6 +394,34 @@ function StatCard({
       <p className="mt-2 text-3xl font-bold tabular-nums">{value.toLocaleString()}</p>
       <p className="mt-1 text-xs text-white/70">{sub}</p>
     </div>
+  );
+}
+
+function QuickFilter({ label, params }: { label: string; params: Record<string, string> }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const active = Object.entries(params).every(([k, v]) => searchParams.get(k) === v) && (
+    params.action_category !== undefined ||
+    params.entity_type !== undefined ||
+    Object.keys(params).length === 0 && !searchParams.get("portal") && !searchParams.get("action_category") && !searchParams.get("entity_type")
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const next = new URLSearchParams();
+        for (const [k, v] of Object.entries(params)) {
+          if (v) next.set(k, v);
+        }
+        router.push(`/audit?${next.toString()}`);
+      }}
+      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+        active ? "bg-indigo-600 text-white" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

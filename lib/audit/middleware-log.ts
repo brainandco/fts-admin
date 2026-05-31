@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { inferFromApiRoute, shouldLogApiMethod, shouldSkipApiAudit } from "@/lib/audit/infer-route";
+import { isExplicitAuditedMutation, persistAuditRow } from "@/lib/audit/persist";
 import { getSupabaseProjectUrl } from "@/lib/supabase/public-env";
 import type { AuditPortal } from "@/lib/audit/types";
 
@@ -43,6 +44,7 @@ async function resolveActorFromRequest(request: NextRequest): Promise<{ userId: 
 export async function logApiRequestMiddleware(request: NextRequest, portal: AuditPortal) {
   const pathname = request.nextUrl.pathname;
   if (!pathname.startsWith("/api/") || shouldSkipApiAudit(pathname)) return;
+  if (isExplicitAuditedMutation(request.method, pathname)) return;
   if (!shouldLogApiMethod(request.method, pathname)) return;
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -57,7 +59,7 @@ export async function logApiRequestMiddleware(request: NextRequest, portal: Audi
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { error } = await supabase.from("audit_logs").insert({
+  await persistAuditRow(supabase, {
     actor_user_id: actor.userId,
     actor_email: actor.email,
     action_type: inferred.actionType,
@@ -75,6 +77,4 @@ export async function logApiRequestMiddleware(request: NextRequest, portal: Audi
       source: "middleware",
     },
   });
-
-  if (error) console.error("[audit middleware]", error.message);
 }
