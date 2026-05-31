@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isVehicleAssigneeRole } from "@/lib/employees/vehicle-assignment-roles";
 import { ADMIN_REGION_FALLBACK_TEAM_ID } from "./constants";
 
 export type TeamMemberPick = {
@@ -24,9 +25,9 @@ function isAssetTargetRole(roles: Set<string>): boolean {
   );
 }
 
-/** Driver/Rigger or Self DT — vehicles */
+/** Driver/Rigger, Self DT, or QA — vehicles */
 function isVehicleTargetRole(roles: Set<string>): boolean {
-  return roles.has("Driver/Rigger") || roles.has("Self DT");
+  return [...roles].some((r) => isVehicleAssigneeRole(r));
 }
 
 /** SIMs: field roles, not QC */
@@ -170,7 +171,7 @@ export async function buildTeamRegionAssigneeLists(
   if (regionOnly.length > 0) {
     teamsOut.push({
       teamId: ADMIN_REGION_FALLBACK_TEAM_ID,
-      teamName: variant === "vehicle" ? "Other drivers in region" : "Other employees in region",
+      teamName: variant === "vehicle" ? "Other vehicle assignees in region" : "Other employees in region",
       members: regionOnly,
     });
   }

@@ -106,7 +106,10 @@ export function AssignVehicleForm({
   return (
     <form onSubmit={submit} className="max-w-lg space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
       <h2 className="text-lg font-medium text-zinc-900">Assign vehicle to employee</h2>
-      <p className="text-sm text-zinc-500">Choose a vehicle and an employee. The vehicle record will be updated with the employee&apos;s details.</p>
+      <p className="text-sm text-zinc-500">
+        Choose a vehicle and an employee with role Driver/Rigger, Self DT, or QA. The employee must be eligible in the
+        vehicle&apos;s regional pool.
+      </p>
 
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Vehicle (plate number) <span className="text-red-600">*</span></label>

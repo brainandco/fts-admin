@@ -2,8 +2,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
+import { isVehicleAssigneeRole } from "@/lib/employees/vehicle-assignment-roles";
 
-/** Returns all employees for vehicle assignee (Name) dropdown. */
+/** Returns employees eligible for vehicle assignment (Driver/Rigger, Self DT, QA). */
 export async function GET() {
   if (!(await can("vehicles.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   const supabase = await createServerSupabaseClient();
@@ -18,20 +19,24 @@ export async function GET() {
     ? await supabase.from("employee_roles").select("employee_id, role, role_custom").in("employee_id", ids)
     : { data: [] };
   const rolesByEmp = new Map<string, string[]>();
+  const vehicleEligible = new Set<string>();
   for (const r of roles ?? []) {
     const arr = rolesByEmp.get(r.employee_id) ?? [];
     arr.push(formatEmployeeRoleDisplay(r.role, r.role_custom));
     rolesByEmp.set(r.employee_id, arr);
+    if (isVehicleAssigneeRole(r.role as string)) vehicleEligible.add(r.employee_id as string);
   }
 
-  const list = (employees ?? []).map((e) => ({
-    id: e.id,
-    full_name: e.full_name,
-    phone: e.phone ?? null,
-    email: e.email ?? null,
-    designation: (rolesByEmp.get(e.id) ?? []).join(", ") || null,
-    project_id: e.project_id ?? null,
-    region_id: e.region_id ?? null,
-  }));
+  const list = (employees ?? [])
+    .filter((e) => vehicleEligible.has(e.id))
+    .map((e) => ({
+      id: e.id,
+      full_name: e.full_name,
+      phone: e.phone ?? null,
+      email: e.email ?? null,
+      designation: (rolesByEmp.get(e.id) ?? []).join(", ") || null,
+      project_id: e.project_id ?? null,
+      region_id: e.region_id ?? null,
+    }));
   return NextResponse.json({ employees: list });
 }
