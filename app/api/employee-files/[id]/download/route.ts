@@ -4,6 +4,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
 import { getWasabiEmployeeFilesBucket, getWasabiEmployeeFilesS3Client } from "@/lib/wasabi/s3-client";
+import { auditLogFromRequest } from "@/lib/audit/log";
 import { NextResponse } from "next/server";
 
 const EXPIRES = 300;
@@ -38,5 +39,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     ResponseContentDisposition: `attachment; filename="${encodeURIComponent(row.file_name)}"`,
   });
   const downloadUrl = await getSignedUrl(s3, cmd, { expiresIn: EXPIRES });
+
+  await auditLogFromRequest(_req, {
+    actionType: "file_download",
+    entityType: "employee_file",
+    entityId: id,
+    actionCategory: "file",
+    description: `Downloaded employee file: ${row.file_name}`,
+    meta: { file_name: row.file_name, storage_key: row.storage_key },
+  });
+
   return NextResponse.json({ downloadUrl, expiresIn: EXPIRES });
 }

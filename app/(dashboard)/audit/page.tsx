@@ -1,28 +1,23 @@
 import { Suspense } from "react";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
-import { AuditLogTable } from "@/components/audit/AuditLogTable";
+import { AuditLogExplorer } from "@/components/audit/AuditLogExplorer";
 
-export default async function AuditPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ entity_type?: string; entity_id?: string; from?: string; to?: string }>;
-}) {
+export default async function AuditPage() {
   if (!(await can("audit_logs.view_all"))) redirect("/dashboard");
-  const params = await searchParams;
-  const supabase = await createServerSupabaseClient();
-  let query = supabase.from("audit_logs").select("id, timestamp, actor_email, action_type, entity_type, entity_id, description").order("timestamp", { ascending: false }).limit(200);
-  if (params.entity_type) query = query.eq("entity_type", params.entity_type);
-  if (params.entity_id) query = query.eq("entity_id", params.entity_id);
-  if (params.from) query = query.gte("timestamp", params.from);
-  if (params.to) query = query.lte("timestamp", params.to);
-  const { data: logs } = await query;
+
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Audit logs</h1>
-      <Suspense fallback={<div className="text-zinc-500">Loading…</div>}>
-        <AuditLogTable logs={logs ?? []} searchParams={params} />
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Activity & audit trail</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
+          Complete tracking across the admin and employee portals—uploads, downloads, data changes, assignments,
+          approvals, exports, and API access. Events are recorded automatically; detailed actions include file names
+          and change data where available.
+        </p>
+      </div>
+      <Suspense fallback={<div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center text-zinc-500">Loading audit trail…</div>}>
+        <AuditLogExplorer />
       </Suspense>
     </div>
   );

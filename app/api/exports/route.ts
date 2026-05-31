@@ -1,3 +1,4 @@
+import { auditLogFromRequest } from "@/lib/audit/log";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
@@ -500,6 +501,14 @@ export async function GET(req: Request) {
   } else {
     return NextResponse.json({ message: "Unsupported dataset" }, { status: 400 });
   }
+
+  await auditLogFromRequest(req, {
+    actionType: "export",
+    entityType: "export",
+    actionCategory: "export",
+    description: `Exported dataset: ${dataset} (${rows.length} rows)`,
+    meta: { dataset, row_count: rows.length },
+  });
 
   const csv = toCsv(rows);
   return new NextResponse(csv, {
