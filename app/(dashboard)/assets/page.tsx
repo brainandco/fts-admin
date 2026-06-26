@@ -3,6 +3,7 @@ import { can, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import { AssetImport } from "@/components/assets/AssetImport";
 import { AssetsDeleteAllPanel } from "@/components/assets/AssetsDeleteAllPanel";
+import { BulkUnassignAssetsPanel } from "@/components/assets/BulkUnassignAssetsPanel";
 import { AssetPoolQuantityCard } from "@/components/assets/AssetPoolQuantityCard";
 import Link from "next/link";
 
@@ -95,6 +96,8 @@ export default async function AssetsPage() {
   );
   const totalAssets = rows.length;
 
+  const { data: regions } = await supabase.from("regions").select("id, name").order("name");
+
   return (
     <div className="space-y-8">
       <div className="rounded-2xl border border-zinc-200 bg-gradient-to-r from-white to-zinc-50 p-6 shadow-sm">
@@ -159,6 +162,8 @@ export default async function AssetsPage() {
       ) : null}
 
       {canBulkDelete ? <AssetsDeleteAllPanel /> : null}
+
+      <BulkUnassignAssetsPanel regions={(regions ?? []).map((r) => ({ id: r.id, name: r.name }))} />
     </div>
   );
 }
