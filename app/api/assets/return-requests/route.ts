@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { pmEmployeeIdSet } from "@/lib/employees/pm-role";
 
 /** List pending + maintenance/damaged returns for admin read-only queue. */
 export async function GET() {
@@ -31,11 +32,13 @@ export async function GET() {
 
   const assetMap = new Map((assets ?? []).map((a) => [a.id, a]));
   const empMap = new Map((emps ?? []).map((e) => [e.id, e.full_name]));
+  const pmReturnerIds = await pmEmployeeIdSet(supabase, empIds);
 
   const rows = (queue ?? []).map((r) => ({
     ...r,
     asset: assetMap.get(r.asset_id) ?? null,
     from_employee_name: empMap.get(r.from_employee_id) ?? null,
+    requires_admin_confirmation: pmReturnerIds.has(r.from_employee_id),
   }));
 
   /** PM decision is historical; list sections reflect current asset.status so cleared maintenance disappears from the queue. */

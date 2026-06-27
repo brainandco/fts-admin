@@ -14,6 +14,7 @@ type Row = {
   pm_decision?: string | null;
   pm_comment?: string | null;
   processed_at?: string | null;
+  requires_admin_confirmation?: boolean;
   asset: {
     id: string;
     name: string;
@@ -33,6 +34,9 @@ export function AssetReturnsQueue({ canClearMaintenance = false }: { canClearMai
   const [damaged, setDamaged] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [decision, setDecision] = useState<Record<string, "Available" | "Under_Maintenance" | "Damaged">>({});
+  const [adminComment, setAdminComment] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
@@ -60,6 +64,44 @@ export function AssetReturnsQueue({ canClearMaintenance = false }: { canClearMai
   useEffect(() => {
     load();
   }, []);
+
+  async function processPmReturn(id: string) {
+    const dec = decision[id] ?? "Available";
+    const comment = (adminComment[id] ?? "").trim();
+    if (dec !== "Available" && !comment) {
+      setError("Add a comment explaining maintenance or damage.");
+      return;
+    }
+    setError("");
+    setProcessingId(id);
+    try {
+      const res = await fetch(`/api/assets/return-requests/${id}/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: dec, pm_comment: comment || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setProcessingId(null);
+      if (!res.ok) {
+        setError(data.message || "Failed to process");
+        return;
+      }
+      setDecision((d) => {
+        const n = { ...d };
+        delete n[id];
+        return n;
+      });
+      setAdminComment((c) => {
+        const n = { ...c };
+        delete n[id];
+        return n;
+      });
+      await load();
+    } catch {
+      setProcessingId(null);
+      setError("Failed to process");
+    }
+  }
 
   if (loading) return <p className="text-sm text-zinc-500">Loading return queue…</p>;
   if (error && pending.length === 0 && maintenance.length === 0 && damaged.length === 0) return <p className="text-sm text-red-600">{error}</p>;
@@ -109,9 +151,58 @@ export function AssetReturnsQueue({ canClearMaintenance = false }: { canClearMai
                   <p className="mt-1 text-xs text-zinc-400">{new Date(row.created_at).toLocaleString()}</p>
                 </div>
               </div>
-              <div className="mt-4 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-                PM reviews and sets the final status in the PM return queue.
-              </div>
+              {row.requires_admin_confirmation ? (
+                <div className="mt-4 flex flex-col gap-3 border-t border-violet-100 pt-4 sm:flex-row sm:items-end">
+                  <p className="w-full text-sm text-violet-900 sm:col-span-full">
+                    <strong>Project Manager return</strong> — confirm here (no GM step required).
+                  </p>
+                  <div className="flex-1">
+                    <label className="mb-1 block text-xs font-medium text-zinc-600">Final status</label>
+                    <select
+                      value={decision[row.id] ?? "Available"}
+                      onChange={(e) =>
+                        setDecision((d) => ({
+                          ...d,
+                          [row.id]: e.target.value as "Available" | "Under_Maintenance" | "Damaged",
+                        }))
+                      }
+                      className="w-full max-w-xs rounded border border-zinc-300 px-3 py-2 text-sm"
+                    >
+                      <option value="Available">Available (back in pool)</option>
+                      <option value="Under_Maintenance">Under maintenance</option>
+                      <option value="Damaged">Damaged (destroy / discard)</option>
+                    </select>
+                  </div>
+                  <div className="min-w-0 flex-[2]">
+                    <label className="mb-1 block text-xs font-medium text-zinc-600">
+                      Admin comment {(decision[row.id] ?? "Available") !== "Available" ? "(required)" : "(optional)"}
+                    </label>
+                    <textarea
+                      value={adminComment[row.id] ?? ""}
+                      onChange={(e) => setAdminComment((c) => ({ ...c, [row.id]: e.target.value }))}
+                      rows={2}
+                      className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+                      placeholder={
+                        (decision[row.id] ?? "Available") === "Available"
+                          ? "Optional note for the record"
+                          : "Required: describe the issue or reason"
+                      }
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={processingId === row.id}
+                    onClick={() => processPmReturn(row.id)}
+                    className="shrink-0 rounded bg-violet-700 px-4 py-2 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-50"
+                  >
+                    {processingId === row.id ? "Saving…" : "Confirm return"}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  PM reviews and sets the final status in the PM return queue (Employee Portal).
+                </div>
+              )}
             </div>
           ))
         )}

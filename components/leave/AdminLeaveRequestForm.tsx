@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 const LEAVE_TYPES = [
   "Annual",
   "Sick",
+  "Casual",
   "Emergency",
   "Unpaid",
   "Marriage",
   "Bereavement",
+  "Maternity",
   "Hajj / Umrah",
   "Other",
 ] as const;
