@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import type { UsersProfile } from "@/lib/types/database";
 import { getInvitationGate } from "@/lib/invitation";
 
@@ -29,25 +29,19 @@ export async function getCurrentUserProfile() {
   return { user, profile: { ...profile, region_id: null } };
 }
 
-export async function getCurrentUserRolesAndPermissions() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { permissions: new Set<string>(), roleIds: new Set<string>() };
-
-  const profile = await supabase
-    .from("users_profile")
-    .select("is_super_user")
-    .eq("id", user.id)
-    .single();
-
-  if (profile.data?.is_super_user) {
+export async function getRolesAndPermissionsForUserId(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  userId: string,
+  profile: { is_super_user: boolean | null }
+) {
+  if (profile.is_super_user) {
     return { permissions: new Set<string>(["*"]), roleIds: new Set<string>(), isSuper: true };
   }
 
   const { data: superRole } = await supabase
     .from("user_roles")
     .select("role_id")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("role_id", SUPER_ROLE_ID)
     .maybeSingle();
 
@@ -55,10 +49,7 @@ export async function getCurrentUserRolesAndPermissions() {
     return { permissions: new Set<string>(["*"]), roleIds: new Set<string>(), isSuper: true };
   }
 
-  const { data: userRoles } = await supabase
-    .from("user_roles")
-    .select("role_id")
-    .eq("user_id", user.id);
+  const { data: userRoles } = await supabase.from("user_roles").select("role_id").eq("user_id", userId);
   const roleIds = new Set((userRoles ?? []).map((r) => r.role_id));
 
   const { data: rolePerms } = await supabase
@@ -67,25 +58,24 @@ export async function getCurrentUserRolesAndPermissions() {
     .in("role_id", Array.from(roleIds));
   const permIds = [...new Set((rolePerms ?? []).map((p) => p.permission_id))];
 
-  const { data: perms } = await supabase
-    .from("permissions")
-    .select("code")
-    .in("id", permIds);
+  const { data: perms } = permIds.length
+    ? await supabase.from("permissions").select("code").in("id", permIds)
+    : { data: [] as { code: string }[] };
   const fromRoles = new Set((perms ?? []).map((p) => p.code));
 
   const { data: overrides } = await supabase
     .from("user_permission_overrides")
     .select("permission_id, granted")
-    .eq("user_id", user.id);
+    .eq("user_id", userId);
   const overridePermIds = (overrides ?? []).filter((o) => o.granted).map((o) => o.permission_id);
   const denyPermIds = (overrides ?? []).filter((o) => !o.granted).map((o) => o.permission_id);
 
   const { data: overridePerms } = overridePermIds.length
     ? await supabase.from("permissions").select("code").in("id", overridePermIds)
-    : { data: [] };
+    : { data: [] as { code: string }[] };
   const { data: denyPerms } = denyPermIds.length
     ? await supabase.from("permissions").select("code").in("id", denyPermIds)
-    : { data: [] };
+    : { data: [] as { code: string }[] };
 
   const granted = new Set([...fromRoles, ...(overridePerms ?? []).map((p) => p.code)]);
   (denyPerms ?? []).forEach((p) => granted.delete(p.code));
@@ -94,7 +84,7 @@ export async function getCurrentUserRolesAndPermissions() {
   const { data: activeDelegations } = await supabase
     .from("delegations")
     .select("delegator_user_id")
-    .eq("delegatee_user_id", user.id)
+    .eq("delegatee_user_id", userId)
     .lte("from_date", today)
     .gte("to_date", today);
   if (activeDelegations?.length) {
@@ -104,9 +94,14 @@ export async function getCurrentUserRolesAndPermissions() {
       const dRoleIds = (dr ?? []).map((r) => r.role_id);
       const { data: drp } = await supabase.from("role_permissions").select("permission_id").in("role_id", dRoleIds);
       const dPermIds = [...new Set((drp ?? []).map((p) => p.permission_id))];
-      const { data: dp } = dPermIds.length ? await supabase.from("permissions").select("code").in("id", dPermIds) : { data: [] };
+      const { data: dp } = dPermIds.length
+        ? await supabase.from("permissions").select("code").in("id", dPermIds)
+        : { data: [] as { code: string }[] };
       (dp ?? []).forEach((p) => granted.add(p.code));
-      const { data: dOverrides } = await supabase.from("user_permission_overrides").select("permission_id, granted").eq("user_id", delegatorId);
+      const { data: dOverrides } = await supabase
+        .from("user_permission_overrides")
+        .select("permission_id, granted")
+        .eq("user_id", delegatorId);
       const dGrantedIds = (dOverrides ?? []).filter((o) => o.granted).map((o) => o.permission_id);
       const dDenyIds = (dOverrides ?? []).filter((o) => !o.granted).map((o) => o.permission_id);
       if (dGrantedIds.length) {
@@ -121,6 +116,27 @@ export async function getCurrentUserRolesAndPermissions() {
   }
 
   return { permissions: granted, roleIds, isSuper: false };
+}
+
+export async function getCurrentUserRolesAndPermissions() {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { permissions: new Set<string>(), roleIds: new Set<string>(), isSuper: false };
+
+  const profile = await supabase
+    .from("users_profile")
+    .select("is_super_user")
+    .eq("id", user.id)
+    .single();
+
+  if (profile.data?.is_super_user) {
+    return { permissions: new Set<string>(["*"]), roleIds: new Set<string>(), isSuper: true };
+  }
+
+  const dataClient = await getDataClient();
+  return getRolesAndPermissionsForUserId(dataClient, user.id, {
+    is_super_user: profile.data?.is_super_user ?? null,
+  });
 }
 
 export async function can(permissionCode: string): Promise<boolean> {

@@ -4,6 +4,7 @@ import { requireActive } from "@/lib/rbac/permissions";
 import { inclusiveCalendarDays } from "@/lib/employee-requests/leave-metrics";
 import { auditLog } from "@/lib/audit/log";
 import { collectSuperUserRecipientUserIds } from "@/lib/notifications/super-user-recipients";
+import { dispatchNotifications } from "@/lib/notifications/dispatch-notifications";
 
 /**
  * POST /api/leave-request — admin portal user submits leave (no guarantor, no performa).
@@ -100,7 +101,7 @@ export async function POST(req: Request) {
     })),
   ];
   if (rows.length > 0) {
-    await supabase.from("notifications").insert(rows);
+    await dispatchNotifications(supabase, rows);
   }
 
   await auditLog({

@@ -1,6 +1,7 @@
 import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import type { AuditActionCategory, AuditLogInput, AuditPortal } from "@/lib/audit/types";
 import { persistAuditRow, type AuditPersistRow } from "@/lib/audit/persist";
+import { getRequestAuth } from "@/lib/supabase/request-auth";
 
 export type { AuditLogInput, AuditPortal, AuditActionCategory };
 
@@ -21,6 +22,13 @@ export async function resolveActor(req?: Request | null): Promise<{ userId: stri
     const explicitEmail = req.headers.get("x-audit-actor-email");
     if (explicitId || explicitEmail) {
       return { userId: explicitId, email: explicitEmail };
+    }
+
+    const auth = await getRequestAuth(req);
+    if (auth) {
+      const db = await getDataClient();
+      const { data: profile } = await db.from("users_profile").select("email").eq("id", auth.user.id).maybeSingle();
+      return { userId: auth.user.id, email: profile?.email ?? auth.user.email ?? null };
     }
   }
 

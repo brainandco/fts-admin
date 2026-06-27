@@ -93,6 +93,11 @@ const navStructure: NavEntry[] = [
       children: [
         { href: "/assets", label: "Assets", permission: "assets.manage" },
         {
+          href: "/assets/assign",
+          label: "Assign assets",
+          permissionAnyOf: ["assets.manage", "assets.assign"],
+        },
+        {
           href: "/assets/who-has",
           label: "Who has assets",
           permissionAnyOf: ["assets.manage", "assets.assign"],

@@ -10,6 +10,7 @@ export type AssetLine = {
   serial: string | null;
   category: string | null;
   status: string | null;
+  receiptStatus: "pending" | "confirmed" | null;
 };
 
 export type AdminEmployeeWithAssets = {
@@ -43,7 +44,29 @@ function modelDisplay(model: string | null | undefined): string {
   return m.length > 0 ? m : "N/A";
 }
 
+function receiptBadge(status: AssetLine["receiptStatus"]): { label: string; className: string } | null {
+  if (status === "confirmed") {
+    return {
+      label: "Receipt confirmed",
+      className: "bg-emerald-100 text-emerald-900 ring-emerald-200/80",
+    };
+  }
+  if (status === "pending") {
+    return {
+      label: "Receipt pending",
+      className: "bg-amber-100 text-amber-900 ring-amber-200/80",
+    };
+  }
+  return null;
+}
+
 function haystack(emp: AdminEmployeeWithAssets, a: AssetLine): string {
+  const receiptLabel =
+    a.receiptStatus === "confirmed"
+      ? "receipt confirmed"
+      : a.receiptStatus === "pending"
+        ? "receipt pending"
+        : "";
   return [
     emp.full_name,
     emp.email ?? "",
@@ -54,6 +77,7 @@ function haystack(emp: AdminEmployeeWithAssets, a: AssetLine): string {
     a.serial,
     a.category,
     a.status,
+    receiptLabel,
   ]
     .join(" ")
     .toLowerCase();
@@ -94,6 +118,14 @@ export function AdminWhoHasAssetsClient({
   }, [employees, q, regionFilter]);
 
   const totalTools = useMemo(() => employees.reduce((n, e) => n + e.assets.length, 0), [employees]);
+  const pendingReceipts = useMemo(
+    () => employees.reduce((n, e) => n + e.assets.filter((a) => a.receiptStatus === "pending").length, 0),
+    [employees]
+  );
+  const confirmedReceipts = useMemo(
+    () => employees.reduce((n, e) => n + e.assets.filter((a) => a.receiptStatus === "confirmed").length, 0),
+    [employees]
+  );
 
   if (employees.length === 0) {
     return (
@@ -119,6 +151,11 @@ export function AdminWhoHasAssetsClient({
             <p className="text-sm text-white/85">active employees holding tools</p>
             <p className="mt-2 text-sm text-white/75">
               <span className="font-semibold text-white">{totalTools}</span> assignments company-wide
+              {pendingReceipts > 0 || confirmedReceipts > 0 ? (
+                <span className="mt-1 block text-xs text-white/70">
+                  Receipts: {confirmedReceipts} confirmed · {pendingReceipts} pending
+                </span>
+              ) : null}
               {withoutCount > 0 ? (
                 <span className="mt-1 block text-xs text-white/70">
                   {withoutCount} other active employee{withoutCount === 1 ? "" : "s"} with no tools
@@ -244,11 +281,23 @@ export function AdminWhoHasAssetsClient({
                       >
                         <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
                           <span className="font-semibold text-zinc-900">{a.name?.trim() || a.category || "Asset"}</span>
-                          {a.status ? (
-                            <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
-                              {(a.status ?? "").replace(/_/g, " ")}
-                            </span>
-                          ) : null}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {(() => {
+                              const badge = receiptBadge(a.receiptStatus);
+                              return badge ? (
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${badge.className}`}
+                                >
+                                  {badge.label}
+                                </span>
+                              ) : null;
+                            })()}
+                            {a.status ? (
+                              <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                                {(a.status ?? "").replace(/_/g, " ")}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                         <p className="mt-1 text-xs text-zinc-600">
                           <span className="font-medium text-zinc-800">Model:</span> {modelDisplay(a.model)}

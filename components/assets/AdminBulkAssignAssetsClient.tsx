@@ -1,0 +1,471 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
+
+type Asset = {
+  id: string;
+  name: string | null;
+  category: string | null;
+  model: string | null;
+  serial: string | null;
+  imei_1: string | null;
+  imei_2: string | null;
+  status: string;
+};
+type SearchCatalogAsset = Asset & {
+  assigneeName: string | null;
+  assigned_to_employee_id?: string | null;
+};
+type Assignee = { id: string; label: string };
+
+function assetTypeKey(a: Pick<Asset, "category">): string {
+  return (a.category || "Other").trim() || "Other";
+}
+
+function catalogAvailabilityLabel(
+  hit: SearchCatalogAsset,
+  assignableIds: Set<string>,
+  visibleAssignableIds: Set<string>,
+  activeType: string
+): { text: string; className: string } {
+  const inPool = hit.status === "Available" && !hit.assigned_to_employee_id;
+  if (inPool && assignableIds.has(hit.id)) {
+    if (visibleAssignableIds.has(hit.id)) {
+      return { text: "In pool — available (listed below)", className: "text-emerald-700" };
+    }
+    if (activeType !== "All" && assetTypeKey(hit) !== activeType) {
+      return { text: `In pool — switch type tab to “${assetTypeKey(hit)}”`, className: "text-emerald-700" };
+    }
+    return { text: "In pool — available", className: "text-emerald-700" };
+  }
+  if (hit.assigneeName) {
+    return { text: `Assigned to ${hit.assigneeName}`, className: "text-amber-800 font-medium" };
+  }
+  if (inPool) {
+    return { text: "In pool", className: "text-emerald-700" };
+  }
+  return { text: hit.status.replace(/_/g, " "), className: "text-zinc-600" };
+}
+
+function matchesSearch(a: Asset, q: string): boolean {
+  const tokens = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const hay = [a.serial, a.model, a.imei_1, a.imei_2, a.name, a.category]
+    .map((x) => (x ?? "").toLowerCase())
+    .join(" ");
+  return tokens.every((t) => hay.includes(t));
+}
+
+export function AdminBulkAssignAssetsClient({
+  assets,
+  searchCatalog,
+  assignees,
+}: {
+  assets: Asset[];
+  searchCatalog: SearchCatalogAsset[];
+  assignees: Assignee[];
+}) {
+  const router = useRouter();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [employeeId, setEmployeeId] = useState("");
+  const [activeType, setActiveType] = useState<string>("All");
+  const [search, setSearch] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const employeeOptions: SearchableOption[] = useMemo(
+    () => assignees.map((a) => ({ id: a.id, label: a.label })),
+    [assignees]
+  );
+  const employeeLabel = employeeId ? assignees.find((e) => e.id === employeeId)?.label ?? "" : "";
+
+  const typeTabs = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const a of assets) {
+      const key = (a.category || "Other").trim() || "Other";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return ["All", ...Array.from(counts.keys()).sort((a, b) => a.localeCompare(b))];
+  }, [assets]);
+
+  const filteredAssets = useMemo(() => {
+    const byType =
+      activeType === "All" ? assets : assets.filter((a) => assetTypeKey(a) === activeType);
+    return byType.filter((a) => matchesSearch(a, search));
+  }, [assets, activeType, search]);
+
+  const assignableIds = useMemo(() => new Set(assets.map((a) => a.id)), [assets]);
+  const visibleAssignableIds = useMemo(() => new Set(filteredAssets.map((a) => a.id)), [filteredAssets]);
+
+  const catalogHits = useMemo(() => {
+    if (!search.trim()) return [];
+    return searchCatalog.filter((a) => matchesSearch(a, search)).slice(0, 30);
+  }, [searchCatalog, search]);
+
+  const assetById = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
+
+  const selectedAssets = useMemo(() => {
+    const rows: Asset[] = [];
+    for (const id of selected) {
+      const a = assetById.get(id);
+      if (a) rows.push(a);
+    }
+    rows.sort((a, b) => {
+      const cat = (a.category ?? "").localeCompare(b.category ?? "");
+      if (cat !== 0) return cat;
+      return (a.serial ?? a.name ?? "").localeCompare(b.serial ?? b.name ?? "");
+    });
+    return rows;
+  }, [selected, assetById]);
+
+  const removeSelected = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const clearSelected = () => setSelected(new Set());
+
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    const visibleIds = filteredAssets.map((a) => a.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+    if (allVisibleSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        visibleIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        visibleIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  async function assign() {
+    setError("");
+    setMessage("");
+    if (selected.size === 0) {
+      setError("Select at least one asset.");
+      return;
+    }
+    if (!employeeId.trim()) {
+      setError("Select an employee.");
+      return;
+    }
+    setSubmitting(true);
+    const res = await fetch("/api/assets/bulk-assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        asset_ids: [...selected],
+        employee_id: employeeId,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setSubmitting(false);
+    if (!res.ok) {
+      setError(data.message || "Failed to assign");
+      return;
+    }
+    setMessage(data.message || `Assigned ${data.assigned ?? 0} to employee.`);
+    setSelected(new Set());
+    setEmployeeId("");
+    router.refresh();
+  }
+
+  if (assets.length === 0 && searchCatalog.length === 0) {
+    return (
+      <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center">
+        <p className="text-zinc-600">No available assets in the pool. Add assets or return assigned tools to the pool first.</p>
+      </div>
+    );
+  }
+
+  if (assets.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-950">
+          No assets are currently available in the pool. Use search below to see if a tool is already assigned to someone.
+        </div>
+        <div className="rounded-2xl border border-zinc-200 bg-white p-3">
+          <label htmlFor="assign-asset-search" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Search
+          </label>
+          <input
+            id="assign-asset-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Serial, model, IMEI, name, or type…"
+            className="w-full max-w-md rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400"
+            autoComplete="off"
+          />
+        </div>
+        {search.trim() && catalogHits.length > 0 ? (
+          <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+            <h3 className="text-sm font-semibold text-sky-950">Search results</h3>
+            <ul className="mt-3 space-y-2">
+              {catalogHits.map((hit) => {
+                const avail = catalogAvailabilityLabel(hit, assignableIds, visibleAssignableIds, activeType);
+                return (
+                  <li key={hit.id} className="rounded-xl border border-sky-100 bg-white px-3 py-2.5 text-sm shadow-sm">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <span className="font-medium text-zinc-900">{hit.serial ?? hit.name ?? hit.model ?? "Asset"}</span>
+                      <span className={`text-xs ${avail.className}`}>{avail.text}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : search.trim() ? (
+          <div className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
+            No assets in your scope match this search.
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-4 rounded-2xl border border-zinc-200 bg-white p-4">
+        <div className="min-w-[280px] max-w-xl flex-1">
+          <label className="mb-1 block text-sm font-medium text-zinc-700">Employee (QC excluded)</label>
+          <SearchableSelect
+            options={employeeOptions}
+            value={employeeLabel}
+            onChange={(_value, option) => {
+              if (option) setEmployeeId(option.id);
+            }}
+            placeholder="Type to search or select employee…"
+            className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
+            listClassName="max-h-72"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={assign}
+          disabled={submitting || selected.size === 0 || !employeeId}
+          className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+        >
+          {submitting ? "Assigning…" : `Assign ${selected.size} selected`}
+        </button>
+        <p className="text-xs text-zinc-500">
+          Showing: <span className="font-medium text-zinc-700">{activeType}</span> ({filteredAssets.length}
+          {search.trim() ? " matched" : ""})
+        </p>
+        {assignees.length === 0 && (
+          <p className="text-sm text-amber-600">No eligible employees found (QC excluded).</p>
+        )}
+      </div>
+
+      {selectedAssets.length > 0 ? (
+        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-indigo-950">Selected for assignment</h2>
+              <p className="mt-0.5 text-xs text-indigo-900/80">
+                {selectedAssets.length} asset{selectedAssets.length === 1 ? "" : "s"} — remove any item here without searching again.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={clearSelected}
+              className="rounded border border-indigo-200 bg-white px-3 py-1.5 text-sm font-medium text-indigo-900 hover:bg-indigo-100"
+            >
+              Clear all
+            </button>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-indigo-100 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 bg-zinc-50">
+                  <th className="px-3 py-2 text-left font-medium text-zinc-700">Serial</th>
+                  <th className="px-3 py-2 text-left font-medium text-zinc-700">Model</th>
+                  <th className="px-3 py-2 text-left font-medium text-zinc-700">IMEI 1</th>
+                  <th className="px-3 py-2 text-left font-medium text-zinc-700">Name</th>
+                  <th className="px-3 py-2 text-left font-medium text-zinc-700">Type</th>
+                  <th className="w-24 px-3 py-2 text-right font-medium text-zinc-700">Remove</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedAssets.map((a) => (
+                  <tr key={a.id} className="border-b border-zinc-100 last:border-0">
+                    <td className="px-3 py-2 font-medium text-zinc-900">{a.serial ?? "—"}</td>
+                    <td className="px-3 py-2 text-zinc-700">{a.model ?? "—"}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-zinc-700">{a.imei_1 ?? "—"}</td>
+                    <td className="px-3 py-2 text-zinc-900">{a.name ?? "—"}</td>
+                    <td className="px-3 py-2 text-zinc-600">{a.category ?? "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeSelected(a.id)}
+                        className="rounded border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                        aria-label={`Remove ${a.serial ?? a.name ?? "asset"} from selection`}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="rounded-2xl border border-zinc-200 bg-white p-3">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="assign-asset-search" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Search
+            </label>
+            <input
+              id="assign-asset-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Serial, model, IMEI, name, or type…"
+              className="w-full max-w-md rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400"
+              autoComplete="off"
+            />
+          </div>
+          {search.trim() ? (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="shrink-0 rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100"
+            >
+              Clear search
+            </button>
+          ) : null}
+        </div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Asset types</p>
+        <div className="flex flex-wrap gap-2">
+          {typeTabs.map((tab) => {
+            const count =
+              tab === "All"
+                ? assets.length
+                : assets.filter((a) => ((a.category || "Other").trim() || "Other") === tab).length;
+            const active = tab === activeType;
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveType(tab)}
+                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                  active
+                    ? "border-indigo-300 bg-indigo-600 text-white"
+                    : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
+                }`}
+              >
+                {tab} ({count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {message && <p className="text-sm text-emerald-600">{message}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {search.trim() && catalogHits.length > 0 ? (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+          <h3 className="text-sm font-semibold text-sky-950">Search results in your scope</h3>
+          <p className="mt-1 text-xs text-sky-900/80">
+            Pool items can be assigned below. Already-assigned tools show who holds them — you cannot select those here.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {catalogHits.map((hit) => {
+              const avail = catalogAvailabilityLabel(hit, assignableIds, visibleAssignableIds, activeType);
+              return (
+                <li
+                  key={hit.id}
+                  className="rounded-xl border border-sky-100 bg-white px-3 py-2.5 text-sm shadow-sm"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <span className="font-medium text-zinc-900">
+                      {hit.serial ?? hit.name ?? hit.model ?? "Asset"}
+                      {hit.model && hit.serial ? (
+                        <span className="ml-2 font-normal text-zinc-600">{hit.model}</span>
+                      ) : null}
+                    </span>
+                    <span className={`text-xs ${avail.className}`}>{avail.text}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {hit.category ?? "—"}
+                    {hit.imei_1 ? ` · IMEI ${hit.imei_1}` : ""}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
+      {filteredAssets.length === 0 ? (
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
+          {search.trim()
+            ? catalogHits.length > 0
+              ? "No assignable pool items match this search with the current type filter. See search results above."
+              : "No assets match this search."
+            : "No assets found in this type."}
+        </div>
+      ) : null}
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-200 bg-zinc-50">
+              <th className="w-10 px-4 py-3 text-left">
+                <input
+                  type="checkbox"
+                  checked={filteredAssets.length > 0 && filteredAssets.every((a) => selected.has(a.id))}
+                  onChange={toggleAll}
+                  className="rounded border-zinc-300"
+                  aria-label="Select all visible"
+                />
+              </th>
+              <th className="px-4 py-3 text-left font-medium text-zinc-700">Serial</th>
+              <th className="px-4 py-3 text-left font-medium text-zinc-700">Model</th>
+              <th className="px-4 py-3 text-left font-medium text-zinc-700">IMEI 1</th>
+              <th className="px-4 py-3 text-left font-medium text-zinc-700">IMEI 2</th>
+              <th className="px-4 py-3 text-left font-medium text-zinc-700">Name</th>
+              <th className="px-4 py-3 text-left font-medium text-zinc-700">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAssets.map((a) => (
+              <tr key={a.id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
+                <td className="px-4 py-3">
+                  <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggle(a.id)} className="rounded border-zinc-300" />
+                </td>
+                <td className="px-4 py-3 font-medium text-zinc-900">{a.serial ?? "—"}</td>
+                <td className="px-4 py-3 text-zinc-700">{a.model ?? "—"}</td>
+                <td className="px-4 py-3 font-mono text-xs text-zinc-700">{a.imei_1 ?? "—"}</td>
+                <td className="px-4 py-3 font-mono text-xs text-zinc-700">{a.imei_2 ?? "—"}</td>
+                <td className="px-4 py-3 text-zinc-900">{a.name ?? "—"}</td>
+                <td className="px-4 py-3 text-zinc-600">{a.category ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

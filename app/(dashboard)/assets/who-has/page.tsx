@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWhoHasAssetsClient, type AdminEmployeeWithAssets, type AssetLine } from "@/components/assets/AdminWhoHasAssetsClient";
+import { loadAssetReceiptStatusMap } from "@/lib/assets/asset-receipt-status";
 import { getDataClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac/permissions";
 
@@ -45,8 +46,22 @@ export default async function AdminWhoHasAssetsPage() {
       serial: a.serial,
       category: a.category,
       status: a.status,
+      receiptStatus: null,
     });
     assetsByEmp.set(eid, list);
+  }
+
+  const assetIds = [...new Set((assignedAssets ?? []).map((a) => a.id))];
+  const activeEmpIdList = (emps ?? []).map((e) => e.id);
+  const receiptMap = await loadAssetReceiptStatusMap(supabase, activeEmpIdList, assetIds);
+  for (const [eid, lines] of assetsByEmp) {
+    assetsByEmp.set(
+      eid,
+      lines.map((line) => ({
+        ...line,
+        receiptStatus: receiptMap.get(`${eid}:${line.id}`) ?? null,
+      }))
+    );
   }
 
   const regionIds = [...new Set((emps ?? []).map((e) => e.region_id).filter(Boolean) as string[])];
@@ -104,8 +119,9 @@ export default async function AdminWhoHasAssetsPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600/90">Admin · Asset management</p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Who has assets</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-              Active employees with at least one tool assigned (including under maintenance, damaged, or with QC). Filter
-              by region, search by person or asset details, and open the employee record when you need to make changes.
+              Active employees with at least one tool assigned (including under maintenance, damaged, or with QC). Each
+              asset shows whether the employee has confirmed receipt or it is still pending. Filter by region, search by
+              person or asset details, and open the employee record when you need to make changes.
             </p>
           </div>
         </div>

@@ -1,13 +1,13 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { uploadResourcePhotosBuffer } from "@/lib/supabase/upload-resource-photos";
 import { fillLeavePerformaPdf } from "@/lib/leave/fill-leave-performa-pdf";
 import { buildPerformaFillFromPayload } from "@/lib/leave/performa-from-payload";
 import { isAdminPortalLeaveRequest } from "@/lib/approvals/leave-workflow";
+import { resolveApiAuthContext } from "@/lib/mobile/api-auth-context";
+import { dispatchNotifications } from "@/lib/notifications/dispatch-notifications";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,17 +15,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const action = body.action;
   const comment = body.comment ?? "";
   if (!["approve", "reject"].includes(action)) return NextResponse.json({ message: "action must be approve or reject" }, { status: 400 });
-  const supabase = await createServerSupabaseClient();
-  const { data: approval } = await supabase.from("approvals").select("*").eq("id", id).single();
-  if (!approval) return NextResponse.json({ message: "Not found" }, { status: 404 });
 
-  const { profile } = await getCurrentUserProfile();
-  const isPm = approval.region_id && profile?.region_id === approval.region_id;
-  const canApprove = await can("approvals.approve");
-  const isSuper = profile?.is_super_user === true;
+  const ctx = await resolveApiAuthContext(req);
+  if (!ctx) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+  const profile = ctx.profile;
+  const isSuper = ctx.isSuper;
+  const canApprove = ctx.canApprove;
   const isAdminNonSuper = !isSuper && canApprove;
 
   const dataClient = await getDataClient();
+  const notifyClient = ctx.userClient;
+
+  const { data: approval } = await dataClient.from("approvals").select("*").eq("id", id).single();
+  if (!approval) return NextResponse.json({ message: "Not found" }, { status: 404 });
+
+  const isPm = false;
 
   /** --- Leave: admin → filled performa → requester signs → super final --- */
   if (approval.approval_type === "leave_request") {
@@ -52,14 +57,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const { error } = await dataClient.from("approvals").update(updates).eq("id", id);
       if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
-      await supabase.from("notifications").insert({
+      await dispatchNotifications(notifyClient, [{
         recipient_user_id: approval.requester_id,
         title: "Your leave request was updated",
         body: newStatus === "Completed" ? "Your leave request was approved." : "Your leave request was rejected.",
         category: "leave_request",
         link: "/leave",
         meta: { approval_id: id, final_status: newStatus },
-      });
+      }]);
 
       await auditLog({
         actionType: action === "approve" ? "approval_approved" : "approval_rejected",
@@ -84,14 +89,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         };
         const { error } = await dataClient.from("approvals").update(updates).eq("id", id);
         if (error) return NextResponse.json({ message: error.message }, { status: 400 });
-        await supabase.from("notifications").insert({
+        await dispatchNotifications(notifyClient, [{
           recipient_user_id: approval.requester_id,
           title: "Leave request rejected by Admin",
           body: "Your leave request was rejected at admin review stage.",
           category: "leave_request",
           link: "/leave",
           meta: { approval_id: id, final_status: "Admin_Rejected" },
-        });
+        }]);
         await auditLog({
           actionType: "approval_rejected",
           entityType: "approval",
@@ -174,14 +179,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const { error } = await dataClient.from("approvals").update(updates).eq("id", id);
       if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
-      await supabase.from("notifications").insert({
+      await dispatchNotifications(notifyClient, [{
         recipient_user_id: approval.requester_id,
         title: "Leave performa ready",
         body: "Admin approved your leave in principle. Download the filled performa PDF from Leave, print and sign it, then upload the signed copy with a short note.",
         category: "leave_request",
         link: "/leave",
         meta: { approval_id: id, stage: "performa" },
-      });
+      }]);
 
       await auditLog({
         actionType: "approval_approved",
@@ -207,14 +212,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const { error } = await dataClient.from("approvals").update(updates).eq("id", id);
       if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
-      await supabase.from("notifications").insert({
+      await dispatchNotifications(notifyClient, [{
         recipient_user_id: approval.requester_id,
         title: "Your leave request was updated",
         body: newStatus === "Completed" ? "Your leave request is approved." : "Your leave request was rejected.",
         category: "leave_request",
         link: "/leave",
         meta: { approval_id: id, final_status: newStatus },
-      });
+      }]);
 
       await auditLog({
         actionType: action === "approve" ? "approval_approved" : "approval_rejected",
@@ -260,24 +265,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ message: "Forbidden or invalid state for this approval workflow" }, { status: 403 });
     }
 
-    const { error } = await supabase.from("approvals").update(updates).eq("id", id);
+    const { error } = await dataClient.from("approvals").update(updates).eq("id", id);
     if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
     const category = "asset_request";
     const requesterLink = "/dashboard/assets/request";
 
     if (approval.status === "Submitted" && newStatus === "Admin_Rejected") {
-      await supabase.from("notifications").insert({
+      await dispatchNotifications(notifyClient, [{
         recipient_user_id: approval.requester_id,
         title: "Asset request rejected by Admin",
         body: "Your asset request was rejected at admin review stage.",
         category,
         link: requesterLink,
         meta: { approval_id: id, final_status: newStatus },
-      });
+      }]);
     }
     if (approval.status === "Submitted" && newStatus === "Admin_Approved") {
-      const { data: supers } = await supabase
+      const { data: supers } = await dataClient
         .from("users_profile")
         .select("id")
         .eq("status", "ACTIVE")
@@ -290,25 +295,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         link: `/approvals/${id}`,
         meta: { approval_id: id, stage: "super_review" },
       }));
-      if (rows.length) await supabase.from("notifications").insert(rows);
-      await supabase.from("notifications").insert({
+      if (rows.length) await dispatchNotifications(notifyClient, rows);
+      await dispatchNotifications(notifyClient, [{
         recipient_user_id: approval.requester_id,
         title: "Asset request moved to final approval",
         body: "Admin reviewed your asset request. It is now pending super-user final decision.",
         category,
         link: requesterLink,
         meta: { approval_id: id, stage: "super_review" },
-      });
+      }]);
     }
     if (approval.status === "Admin_Approved" && (newStatus === "Completed" || newStatus === "PM_Rejected")) {
-      await supabase.from("notifications").insert({
+      await dispatchNotifications(notifyClient, [{
         recipient_user_id: approval.requester_id,
         title: "Your asset request was updated",
         body: newStatus === "Completed" ? "Your asset request is approved." : "Your asset request was rejected.",
         category,
         link: requesterLink,
         meta: { approval_id: id, final_status: newStatus },
-      });
+      }]);
     }
 
     await auditLog({
@@ -336,7 +341,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ message: "Forbidden or invalid state" }, { status: 403 });
   }
 
-  const { error } = await supabase.from("approvals").update(updates).eq("id", id);
+  const { error } = await dataClient.from("approvals").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
   await auditLog({
