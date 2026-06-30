@@ -11,6 +11,7 @@ export const ASSET_TYPE_OPTIONS = [
   "Scanner",
   "Spectrum Analyzer",
   "R&S Scanner",
+  "CPE",
   "Data Cable",
   "Other",
 ] as const;

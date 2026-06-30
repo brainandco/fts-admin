@@ -8,6 +8,7 @@ export const ASSET_TYPE_PRESETS = [
   "USB Hub",
   "Scanner",
   "Spectrum",
+  "CPE",
 ] as const;
 
 export type AssetTypePreset = (typeof ASSET_TYPE_PRESETS)[number];

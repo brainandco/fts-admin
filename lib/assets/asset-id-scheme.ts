@@ -110,6 +110,7 @@ const EXACT_CATEGORY_SCHEME: Record<string, AssetIdScheme> = {
   "usb hub": { kind: "prefix", prefix: "ASTU", start: 12001 },
   usbhub: { kind: "prefix", prefix: "ASTU", start: 12001 },
   scanner: { kind: "prefix", prefix: "ASTSC", start: 13001 },
+  cpe: { kind: "prefix", prefix: "ASTCP-CP", start: 13001 },
   spectrum: { kind: "prefix", prefix: "ASTSP", start: 14001 },
   "aramco mobile device": { kind: "prefix", prefix: "ARAMD", start: 11001 },
   "aramco digital": { kind: "prefix", prefix: "ARAD", start: 10001 },
@@ -162,6 +163,28 @@ function maxForPrefix(assetIds: (string | null)[], prefix: string): number {
   return max;
 }
 
+const CPE_ASSET_ID_PREFIX = "ASTCP-CP";
+const CPE_ASSET_ID_START = 13001;
+const CPE_ASSET_ID_FALLBACK_START = 14001;
+
+function isAstcpCp13001Taken(assetIds: (string | null)[]): boolean {
+  return assetIds.some((raw) => {
+    if (!raw || typeof raw !== "string") return false;
+    return new RegExp(`^${CPE_ASSET_ID_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-?13001$`, "i").test(
+      raw.trim()
+    );
+  });
+}
+
+/** CPE IDs: ASTCP-CP-13001 unless that slot exists, then start at ASTCP-CP-14001. */
+function nextForAstcpCpPrefix(assetIds: (string | null)[]): number {
+  const max = maxForPrefix(assetIds, CPE_ASSET_ID_PREFIX);
+  const start = isAstcpCp13001Taken(assetIds) ? CPE_ASSET_ID_FALLBACK_START : CPE_ASSET_ID_START;
+  if (max === 0) return start;
+  if (max < start) return start;
+  return max + 1;
+}
+
 export function formatNextAssetId(scheme: AssetIdScheme, company: string, nextNum: number): string {
   if (scheme.kind === "company_middle") {
     const abbrev = companyAbbrevForAssetId(company);
@@ -179,6 +202,9 @@ export function nextAssetIdNumberAfterExisting(
   if (scheme.kind === "company_middle") {
     const max = maxForCompanyMiddle(existingAssetIds, scheme.middle, company);
     return max > 0 ? max + 1 : scheme.start;
+  }
+  if (scheme.kind === "prefix" && scheme.prefix === CPE_ASSET_ID_PREFIX) {
+    return nextForAstcpCpPrefix(existingAssetIds);
   }
   const max = maxForPrefix(existingAssetIds, scheme.prefix);
   return max > 0 ? max + 1 : scheme.start;
@@ -212,7 +238,13 @@ export async function computeNextAssetId(
   if (error) return null;
 
   const ids = (rows ?? []).map((r) => r.asset_id as string | null);
-  const nextNum = nextAssetIdNumberAfterExisting(scheme, company, ids);
+  let pool = ids;
+  if (scheme.kind === "prefix" && scheme.prefix === CPE_ASSET_ID_PREFIX) {
+    const { data: cpeRows } = await supabase.from("assets").select("asset_id").ilike("asset_id", "ASTCP-CP%");
+    pool = [...ids, ...(cpeRows ?? []).map((r) => r.asset_id as string | null)];
+  }
+
+  const nextNum = nextAssetIdNumberAfterExisting(scheme, company, pool);
   return formatNextAssetId(scheme, company, nextNum);
 }
 
