@@ -375,7 +375,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                                   : row.teams_driver_only.length > 0
                                     ? "Driver/Rigger only — open Teams to replace this person before changing region or project."
                                     : row.teams_as_dt.length > 0
-                                      ? "DT on team — saving region/project here updates the team when it matches the driver’s region (Self DT teams always sync)."
+                                      ? "DT on team — saving region/project here moves the whole team (Driver/Rigger region syncs automatically). Assigned fleet stays as-is."
                                       : "On a team — open Teams to replace or remove this person before changing region or project."}{" "}
                                 {row.team_memberships.map((tm, idx) => (
                                   <span key={tm.id}>

@@ -11,6 +11,7 @@ import {
 import {
   assertDtAssignmentCompatibleWithTeams,
   syncTeamsRegionProjectForDtEmployee,
+  syncTeammateDriversRegionFromDt,
 } from "@/lib/teams/syncTeamsRegionProjectFromDt";
 
 /**
@@ -119,6 +120,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { error } = await supabase.from("employees").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
+  await syncTeammateDriversRegionFromDt(supabase, id, updates.region_id);
   await syncTeamsRegionProjectForDtEmployee(supabase, id, updates.region_id, updates.project_id);
 
   await auditLog({
