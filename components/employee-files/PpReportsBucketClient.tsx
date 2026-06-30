@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EMPLOYEE_UPLOAD_ALLOWED_EXTENSIONS_HELP } from "@/lib/employee-files/storage";
+import { stickyActionsTdClass, stickyActionsThClassRight } from "@/components/ui/table-sticky-actions";
 
 const API = "/api/employee-files/pp-reports";
 
@@ -353,12 +354,12 @@ export function PpReportsBucketClient({ configured }: { configured: boolean }) {
                   </th>
                   <th className="px-3 py-2 text-left font-medium text-zinc-800">Name</th>
                   <th className="px-3 py-2 text-left font-medium text-zinc-800">Size</th>
-                  <th className="px-3 py-2 text-right font-medium text-zinc-800">Actions</th>
+                  <th className={stickyActionsThClassRight}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {folders.map((f) => (
-                  <tr key={f.path} className="border-b border-zinc-100">
+                  <tr key={f.path} className="group border-b border-zinc-100">
                     <td className="w-10 px-2 py-2 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
@@ -376,7 +377,7 @@ export function PpReportsBucketClient({ configured }: { configured: boolean }) {
                       </button>
                     </td>
                     <td className="px-3 py-2 text-zinc-500">—</td>
-                    <td className="px-3 py-2 text-right">
+                    <td className={stickyActionsTdClass({ align: "right", compact: true })}>
                       <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs">
                         <button
                           type="button"
@@ -400,11 +401,11 @@ export function PpReportsBucketClient({ configured }: { configured: boolean }) {
                   </tr>
                 ))}
                 {files.map((f) => (
-                  <tr key={f.key} className="border-b border-zinc-100">
+                  <tr key={f.key} className="group border-b border-zinc-100">
                     <td className="w-10 px-2 py-2" aria-hidden />
                     <td className="px-3 py-2 font-medium text-zinc-900">{f.name}</td>
                     <td className="px-3 py-2 text-zinc-600">{formatBytes(f.size)}</td>
-                    <td className="px-3 py-2 text-right">
+                    <td className={stickyActionsTdClass({ align: "right", compact: true })}>
                       <button type="button" onClick={() => void downloadFile(f.key)} className="text-indigo-600 hover:underline">
                         Download
                       </button>

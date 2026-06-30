@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { employeeMayHaveFormalProjectOnRecord } from "@/lib/employees/employee-record-project-roles";
+import { stickyActionsTdClass, stickyActionsThClassGradientRight } from "@/components/ui/table-sticky-actions";
 
 type TeamRef = { id: string; label: string };
 
@@ -289,7 +290,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">Role</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">Region</th>
                 <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-zinc-600">Project</th>
-                <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-zinc-600">Actions</th>
+                <th className={stickyActionsThClassGradientRight}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -314,10 +315,15 @@ export function EmployeeRegionProjectAssignmentsClient({
                 sortedRows.map((row, i) => {
                   const att = rowAttention(row);
                   const isEditing = editingId === row.id;
+                  const rowBg = isEditing
+                    ? "bg-indigo-50/60 group-hover:bg-indigo-50/60"
+                    : i % 2 === 0
+                      ? "bg-white group-hover:bg-indigo-50/30"
+                      : "bg-zinc-50/40 group-hover:bg-indigo-50/30";
                   return (
                     <tr
                       key={row.id}
-                      className={`transition-colors ${isEditing ? "bg-indigo-50/60" : i % 2 === 0 ? "bg-white" : "bg-zinc-50/40"} ${rowBlocked(row) ? "opacity-[0.92]" : ""} hover:bg-indigo-50/30`}
+                      className={`group transition-colors ${isEditing ? "bg-indigo-50/60" : i % 2 === 0 ? "bg-white" : "bg-zinc-50/40"} ${rowBlocked(row) ? "opacity-[0.92]" : ""} hover:bg-indigo-50/30`}
                     >
                       <td className="px-4 py-3.5 align-middle">
                         <div className="flex items-center gap-3">
@@ -438,7 +444,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                               <span className="text-xs text-zinc-400">Region only (Driver/Rigger, QC)</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 align-middle text-right">
+                          <td className={`${stickyActionsTdClass({ align: "right", bgClass: rowBg })} align-middle`}>
                             <div className="flex flex-wrap justify-end gap-2">
                               <button
                                 type="button"
@@ -486,7 +492,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                               <span className="text-zinc-400">—</span>
                             )}
                           </td>
-                          <td className="px-4 py-3.5 text-right align-middle">
+                          <td className={`${stickyActionsTdClass({ align: "right", bgClass: rowBg })} align-middle`}>
                             <button
                               type="button"
                               disabled={!canAssignRegionProject(row)}

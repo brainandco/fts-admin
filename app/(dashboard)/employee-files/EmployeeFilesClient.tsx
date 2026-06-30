@@ -6,6 +6,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { adminUploadFilesBatch, type AdminUploadItem } from "@/lib/employee-files/batch-upload-client";
 import { EMPLOYEE_UPLOAD_ALLOWED_EXTENSIONS_HELP } from "@/lib/employee-files/storage";
 import { filterEmployeeUploadItems, type SkippedUpload } from "@/lib/employee-files/upload-filter";
+import { stickyActionsTdClass, stickyActionsThClassRight } from "@/components/ui/table-sticky-actions";
 
 type Region = { id: string; name: string; code: string | null };
 type Folder = {
@@ -1069,12 +1070,12 @@ export function EmployeeFilesClient({
                           ) : null}
                           <th className="px-3 py-2 text-left font-medium text-zinc-800">Name</th>
                           <th className="px-3 py-2 text-left font-medium text-zinc-800">Size</th>
-                          <th className="px-3 py-2 text-right font-medium text-zinc-800">Actions</th>
+                          <th className={stickyActionsThClassRight}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {browseFolders.map((f) => (
-                          <tr key={`folder-${f.path}`} className="border-b border-zinc-100">
+                          <tr key={`folder-${f.path}`} className="group border-b border-zinc-100">
                             {showEmployeeFolderZipUi ? (
                               <td
                                 className="w-10 px-2 py-2 text-center align-middle"
@@ -1103,7 +1104,7 @@ export function EmployeeFilesClient({
                               </button>
                             </td>
                             <td className="px-3 py-2 text-zinc-500">—</td>
-                            <td className="px-3 py-2 text-right">
+                            <td className={stickyActionsTdClass({ align: "right", compact: true })}>
                               {showEmployeeFolderZipUi ? (
                                 <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs">
                                   <button
@@ -1131,11 +1132,11 @@ export function EmployeeFilesClient({
                           </tr>
                         ))}
                         {browseFiles.map((f) => (
-                          <tr key={f.key} className="border-b border-zinc-100">
+                          <tr key={f.key} className="group border-b border-zinc-100">
                             {showEmployeeFolderZipUi ? <td className="w-10 px-2 py-2" aria-hidden /> : null}
                             <td className="px-3 py-2 font-medium text-zinc-900">{f.name}</td>
                             <td className="px-3 py-2 text-zinc-600">{formatBytes(f.size)}</td>
-                            <td className="px-3 py-2 text-right">
+                            <td className={stickyActionsTdClass({ align: "right", compact: true })}>
                               {f.db?.id && f.db.upload_status === "active" ? (
                                 <button
                                   type="button"
@@ -1384,12 +1385,12 @@ export function EmployeeFilesClient({
                           <th className="px-3 py-2.5">Status</th>
                           <th className="px-3 py-2.5">Size</th>
                           <th className="px-3 py-2.5">Uploaded</th>
-                          <th className="px-3 py-2.5 text-right">Actions</th>
+                          <th className={stickyActionsThClassRight}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {files.map((f) => (
-                          <tr key={f.id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50/60">
+                          <tr key={f.id} className="group border-b border-zinc-100 last:border-0 hover:bg-zinc-50/60">
                             <td className="px-3 py-2.5 font-medium text-zinc-900">{f.fileName}</td>
                             <td className="px-3 py-2.5 text-zinc-700">
                               {f.employeeName}
@@ -1402,7 +1403,7 @@ export function EmployeeFilesClient({
                             </td>
                             <td className="px-3 py-2.5 text-zinc-600">{formatBytes(f.byteSize)}</td>
                             <td className="px-3 py-2.5 text-zinc-600">{new Date(f.createdAt).toLocaleString()}</td>
-                            <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                            <td className={`${stickyActionsTdClass({ align: "right", bgClass: "bg-white group-hover:bg-zinc-50/60" })} whitespace-nowrap`}>
                               {f.uploadStatus === "active" ? (
                                 <button
                                   type="button"

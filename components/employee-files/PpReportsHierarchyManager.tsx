@@ -6,6 +6,7 @@ import type {
   PpReportOperatorRow,
   PpReportProjectRow,
 } from "@/lib/pp-reports/folder-hierarchy";
+import { stickyActionsTdClass, stickyActionsThClassRight } from "@/components/ui/table-sticky-actions";
 
 type HierarchyData = {
   operators: PpReportOperatorRow[];
@@ -310,20 +311,20 @@ function HierarchyTable({
                 {h}
               </th>
             ))}
-            <th className="px-3 py-2 text-right font-medium text-zinc-800">Actions</th>
+            <th className={stickyActionsThClassRight}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => {
             const active = activeKey(row);
             return (
-              <tr key={row.id} className="border-b border-zinc-100">
+              <tr key={row.id} className="group border-b border-zinc-100">
                 {row.cells.map((c, i) => (
                   <td key={i} className="px-3 py-2 text-zinc-800">
                     {c}
                   </td>
                 ))}
-                <td className="px-3 py-2 text-right whitespace-nowrap">
+                <td className={`${stickyActionsTdClass({ align: "right", compact: true })} whitespace-nowrap`}>
                   <button
                     type="button"
                     disabled={busy}

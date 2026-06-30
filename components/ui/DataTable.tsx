@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { InfoModal } from "@/components/ui/InfoModal";
+import { stickyActionsTdClass, stickyActionsThClassGradient } from "@/components/ui/table-sticky-actions";
 
 type ColumnFormat = "text" | "date" | "datetime" | "boolean";
 
@@ -394,7 +395,7 @@ export function DataTable<T extends Record<string, unknown>>({
                   {col.label}
                 </th>
               ))}
-              {showActionsColumn && <th className="px-4 py-3 text-left font-medium text-zinc-700">Actions</th>}
+              {showActionsColumn && <th className={stickyActionsThClassGradient}>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -413,7 +414,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 return (
                   <tr
                     key={key}
-                    className={`border-b border-zinc-100 hover:bg-zinc-50 ${isSelected ? "bg-zinc-100" : ""} ${selectableEffective ? "cursor-pointer" : ""}`}
+                    className={`group border-b border-zinc-100 hover:bg-zinc-50 ${isSelected ? "bg-zinc-100" : ""} ${selectableEffective ? "cursor-pointer" : ""}`}
                     onClick={selectableEffective ? () => setSelectedRow(isSelected ? null : row) : undefined}
                   >
                     {multiSelect && (
@@ -444,7 +445,7 @@ export function DataTable<T extends Record<string, unknown>>({
                       );
                     })}
                     {showActionsColumn && (
-                      <td className="px-4 py-3 text-zinc-900" onClick={(e) => e.stopPropagation()}>
+                      <td className={stickyActionsTdClass({ selected: !!isSelected })} onClick={(e) => e.stopPropagation()}>
                         <div className="relative inline-block" ref={openActionsKey === key ? dropdownRef : undefined}>
                           <button
                             type="button"
@@ -455,7 +456,7 @@ export function DataTable<T extends Record<string, unknown>>({
                             <IconEllipsis />
                           </button>
                           {openActionsKey === key && (
-                            <div className="absolute right-0 top-full z-10 mt-1 min-w-[160px] rounded border border-zinc-200 bg-white py-1 shadow-lg">
+                            <div className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded border border-zinc-200 bg-white py-1 shadow-lg">
                               {actions.map((action, i) => (
                                 action.href ? (
                                   <Link key={i} href={action.href} className="flex items-center gap-2 px-4 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50" onClick={() => setOpenActionsKey(null)}>

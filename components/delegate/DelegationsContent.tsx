@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { InfoModal } from "@/components/ui/InfoModal";
+import { stickyActionsTdClass, stickyActionsThClass } from "@/components/ui/table-sticky-actions";
 
 type User = { id: string; email: string | null; full_name: string | null };
 type DelegationRow = {
@@ -170,7 +171,7 @@ export function DelegationsContent() {
                 <th className="px-4 py-2 text-left font-medium text-zinc-700">To</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-700">Status</th>
                 <th className="px-4 py-2 text-left font-medium text-zinc-700">Notes</th>
-                <th className="px-4 py-2 text-left font-medium text-zinc-700">Actions</th>
+                <th className={stickyActionsThClass}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -180,7 +181,7 @@ export function DelegationsContent() {
                 delegations.map((d) => {
                   const active = today >= d.from_date && today <= d.to_date;
                   return (
-                    <tr key={d.id} className="border-b border-zinc-100">
+                    <tr key={d.id} className="group border-b border-zinc-100">
                       <td className="px-4 py-2">{d.delegator.full_name || d.delegator.email || "—"}</td>
                       <td className="px-4 py-2">{d.delegatee.full_name || d.delegatee.email || "—"}</td>
                       <td className="px-4 py-2">{d.from_date}</td>
@@ -189,7 +190,7 @@ export function DelegationsContent() {
                         <span className={active ? "text-green-600 font-medium" : "text-zinc-500"}>{active ? "Active" : "Inactive"}</span>
                       </td>
                       <td className="px-4 py-2 text-zinc-600">{d.notes || "—"}</td>
-                      <td className="px-4 py-2">
+                      <td className={stickyActionsTdClass({ compact: true })}>
                         <button
                           type="button"
                           onClick={() =>

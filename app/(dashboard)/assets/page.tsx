@@ -2,6 +2,7 @@ import { getDataClient } from "@/lib/supabase/server";
 import { can, PERMISSION_BULK_DELETE } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import { AssetImport } from "@/components/assets/AssetImport";
+import { AssetGlobalSearch } from "@/components/assets/AssetGlobalSearch";
 import { AssetsDeleteAllPanel } from "@/components/assets/AssetsDeleteAllPanel";
 import { BulkUnassignAssetsPanel } from "@/components/assets/BulkUnassignAssetsPanel";
 import { AssetPoolQuantityCard } from "@/components/assets/AssetPoolQuantityCard";
@@ -114,6 +115,23 @@ export default async function AssetsPage() {
               Add tool
             </Link>
           </div>
+        </div>
+        <div className="mb-6">
+          <AssetGlobalSearch
+            assets={rows.map((r) => ({
+              id: r.id,
+              asset_id: r.asset_id ?? null,
+              name: r.name,
+              category: r.category ?? null,
+              model: r.model ?? null,
+              serial: r.serial ?? null,
+              imei_1: r.imei_1 ?? null,
+              imei_2: r.imei_2 ?? null,
+              status: r.status,
+              assigned_name: r.assigned_name,
+              software_connectivity: r.software_connectivity ?? null,
+            }))}
+          />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard label="Total assets" value={totalAssets} />
