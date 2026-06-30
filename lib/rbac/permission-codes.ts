@@ -7,6 +7,9 @@ export const PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT = "employees.assign_regio
 /** Create, edit, delete employees; import; PM extra regions / same as users.edit for employee APIs where applicable. */
 export const PERMISSION_EMPLOYEE_MANAGE = "employees.manage";
 
+/** Terminate (delete) a team after all fleet items are unassigned. Super User always allowed. */
+export const PERMISSION_TEAMS_TERMINATE = "teams.terminate";
+
 /**
  * Region employee-file folders + browse all employee uploads in admin (Employee files + PP final reports).
  * Granted to Administrator, Regional Project Manager (see migration 00061), and any custom role via Settings → Roles.

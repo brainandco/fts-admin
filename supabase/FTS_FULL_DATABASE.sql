@@ -311,6 +311,7 @@ INSERT INTO permissions (code, name, module) VALUES
   ('regions.manage', 'Manage regions', 'regions'),
   ('projects.manage', 'Manage projects', 'projects'),
   ('teams.manage', 'Manage teams', 'teams'),
+  ('teams.terminate', 'Terminate teams', 'teams'),
   ('tasks.create', 'Create tasks', 'tasks'),
   ('tasks.assign_to_pm', 'Assign tasks to PM', 'tasks'),
   ('tasks.assign_to_user', 'Assign tasks to user', 'tasks'),
@@ -689,7 +690,9 @@ CREATE POLICY teams_insert ON teams FOR INSERT WITH CHECK (
   public.fts_is_super_user() = true OR public.fts_is_super_or_has_permission('teams.manage') = true
 );
 CREATE POLICY teams_update ON teams FOR UPDATE USING (public.fts_is_super_user() = true);
-CREATE POLICY teams_delete ON teams FOR DELETE USING (public.fts_is_super_user() = true);
+CREATE POLICY teams_delete ON teams FOR DELETE USING (
+  public.fts_is_super_user() = true OR public.fts_is_super_or_has_permission('teams.terminate') = true
+);
 
 CREATE POLICY team_members_select ON team_members FOR SELECT USING (
   public.fts_is_super_user() = true OR public.fts_is_super_or_has_permission('teams.manage') = true

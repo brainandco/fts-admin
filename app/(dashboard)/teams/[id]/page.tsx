@@ -2,6 +2,7 @@ import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { PERMISSION_TEAMS_TERMINATE } from "@/lib/rbac/permission-codes";
 import { TeamForm } from "@/components/teams/TeamForm";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { TerminateTeamButton } from "@/components/teams/TerminateTeamButton";
@@ -33,6 +34,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   const { profile } = await getCurrentUserProfile();
   const isSuper = profile?.is_super_user ?? false;
   const canManageTeams = await can("teams.manage");
+  const canTerminateTeam = await can(PERMISSION_TEAMS_TERMINATE);
   const canUnassignFleet =
     canManageTeams &&
     ((await can("assets.manage")) ||
@@ -102,7 +104,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
         </div>
         <div className="flex shrink-0 flex-col items-end gap-3 sm:flex-row sm:items-start">
           {isSuper && dtId && drId ? <SyncTeamFromDtButton teamId={id} /> : null}
-          {isSuper ? (
+          {canTerminateTeam ? (
             <TerminateTeamButton
               teamId={id}
               teamName={team.name}

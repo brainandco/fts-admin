@@ -9,6 +9,7 @@ export {
   PERMISSION_BULK_DELETE,
   PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT,
   PERMISSION_EMPLOYEE_MANAGE,
+  PERMISSION_TEAMS_TERMINATE,
 } from "./permission-codes";
 
 /** Role id for "Regional Project Manager" – not assignable to users; PM is an employee role only (region/project on employee). */

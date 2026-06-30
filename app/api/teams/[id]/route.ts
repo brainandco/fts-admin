@@ -1,8 +1,8 @@
 import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { requireSuper } from "@/lib/rbac/permissions";
+import { can, getCurrentUserProfile, requireSuper } from "@/lib/rbac/permissions";
+import { PERMISSION_TEAMS_TERMINATE } from "@/lib/rbac/permission-codes";
 import { auditLog } from "@/lib/audit/log";
-import { getCurrentUserProfile } from "@/lib/rbac/permissions";
 import {
   getTeamTerminationBlockers,
   teamTerminationBlockedMessage,
@@ -113,8 +113,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const superResult = await requireSuper();
-  if (!superResult.allowed) return NextResponse.json({ message: "Only Super User can delete (terminate) teams." }, { status: 403 });
+  if (!(await can(PERMISSION_TEAMS_TERMINATE))) {
+    return NextResponse.json({ message: "You do not have permission to terminate teams." }, { status: 403 });
+  }
   const { id } = await params;
   const supabase = await createServerSupabaseClient();
   const { data: old } = await supabase.from("teams").select("*").eq("id", id).single();
