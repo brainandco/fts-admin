@@ -8,6 +8,7 @@ import { buildPerformaFillFromPayload } from "@/lib/leave/performa-from-payload"
 import { isAdminPortalLeaveRequest } from "@/lib/approvals/leave-workflow";
 import { resolveApiAuthContext } from "@/lib/mobile/api-auth-context";
 import { dispatchNotifications } from "@/lib/notifications/dispatch-notifications";
+import { collectSuperUserRecipientUserIds } from "@/lib/notifications/super-user-recipients";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -282,13 +283,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }]);
     }
     if (approval.status === "Submitted" && newStatus === "Admin_Approved") {
-      const { data: supers } = await dataClient
-        .from("users_profile")
-        .select("id")
-        .eq("status", "ACTIVE")
-        .eq("is_super_user", true);
-      const rows = (supers ?? []).map((u) => ({
-        recipient_user_id: u.id,
+      const superIds = await collectSuperUserRecipientUserIds(dataClient);
+      const rows = superIds.map((id) => ({
+        recipient_user_id: id,
         title: "Asset request requires final review",
         body: "Admin reviewed and approved a PM asset request. Final super-user decision is needed.",
         category,
