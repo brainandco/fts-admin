@@ -5,7 +5,8 @@ import { getDataClient } from "@/lib/supabase/server";
 import { buildGlobalAssetAssignees } from "@/lib/admin-assignment/team-region-lists";
 import { AdminBulkAssignAssetsClient } from "@/components/assets/AdminBulkAssignAssetsClient";
 import { AdminBulkAssignEhsToolsClient } from "@/components/ehs/AdminBulkAssignEhsToolsClient";
-import { FleetEhsSectionTabs, parseFleetEhsTab } from "@/components/ui/FleetEhsSectionTabs";
+import { FleetEhsSectionTabs } from "@/components/ui/FleetEhsSectionTabs";
+import { parseFleetEhsTab } from "@/lib/assets/fleet-ehs-tabs";
 
 export default async function AdminAssignAssetsPage({
   searchParams,
@@ -16,7 +17,7 @@ export default async function AdminAssignAssetsPage({
     redirect("/dashboard");
   }
 
-  const sp = await searchParams;
+  const sp = (await Promise.resolve(searchParams ?? {})) as { tab?: string };
   const tab = parseFleetEhsTab(sp.tab);
 
   const supabase = await getDataClient();

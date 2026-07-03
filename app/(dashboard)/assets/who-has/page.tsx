@@ -6,7 +6,8 @@ import { loadAssetReceiptStatusMap } from "@/lib/assets/asset-receipt-status";
 import { loadTeamEhsAssignments } from "@/lib/assets/load-team-ehs-assignments";
 import { getDataClient } from "@/lib/supabase/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
-import { FleetEhsSectionTabs, parseFleetEhsTab } from "@/components/ui/FleetEhsSectionTabs";
+import { FleetEhsSectionTabs } from "@/components/ui/FleetEhsSectionTabs";
+import { parseFleetEhsTab } from "@/lib/assets/fleet-ehs-tabs";
 
 export default async function AdminWhoHasAssetsPage({
   searchParams,
@@ -17,7 +18,7 @@ export default async function AdminWhoHasAssetsPage({
     redirect("/dashboard");
   }
 
-  const sp = await searchParams;
+  const sp = (await Promise.resolve(searchParams ?? {})) as { tab?: string };
   const tab = parseFleetEhsTab(sp.tab);
 
   const supabase = await getDataClient();

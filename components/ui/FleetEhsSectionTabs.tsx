@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-
-export type FleetEhsTab = "fleet" | "ehs";
+import type { FleetEhsTab } from "@/lib/assets/fleet-ehs-tabs";
 
 export function FleetEhsSectionTabs({
   activeTab,
@@ -47,8 +46,4 @@ export function FleetEhsSectionTabs({
       })}
     </div>
   );
-}
-
-export function parseFleetEhsTab(raw: string | undefined): FleetEhsTab {
-  return raw === "ehs" ? "ehs" : "fleet";
 }
