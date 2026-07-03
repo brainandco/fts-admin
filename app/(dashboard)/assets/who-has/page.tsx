@@ -1,24 +1,39 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminWhoHasAssetsClient, type AdminEmployeeWithAssets, type AssetLine } from "@/components/assets/AdminWhoHasAssetsClient";
+import { AdminEhsWhoHasClient } from "@/components/ehs/AdminEhsWhoHasClient";
 import { loadAssetReceiptStatusMap } from "@/lib/assets/asset-receipt-status";
+import { loadTeamEhsAssignments } from "@/lib/assets/load-team-ehs-assignments";
 import { getDataClient } from "@/lib/supabase/server";
-import { can } from "@/lib/rbac/permissions";
+import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { FleetEhsSectionTabs, parseFleetEhsTab } from "@/components/ui/FleetEhsSectionTabs";
 
-export default async function AdminWhoHasAssetsPage() {
+export default async function AdminWhoHasAssetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   if (!(await can("assets.manage")) && !(await can("assets.assign"))) {
     redirect("/dashboard");
   }
 
-  const supabase = await getDataClient();
+  const sp = await searchParams;
+  const tab = parseFleetEhsTab(sp.tab);
 
-  const { data: assignedAssets } = await supabase
-    .from("assets")
-    .select("id, name, model, serial, category, status, assigned_to_employee_id")
-    .eq("is_ehs_tool", false)
-    .not("assigned_to_employee_id", "is", null)
-    .in("status", ["Assigned", "Under_Maintenance", "Damaged", "With_QC"])
-    .order("name");
+  const supabase = await getDataClient();
+  const { profile } = await getCurrentUserProfile();
+  const regionId = profile?.is_super_user ? null : profile?.region_id ?? null;
+
+  const [{ data: assignedAssets }, ehsTeams] = await Promise.all([
+    supabase
+      .from("assets")
+      .select("id, name, model, serial, category, status, assigned_to_employee_id")
+      .eq("is_ehs_tool", false)
+      .not("assigned_to_employee_id", "is", null)
+      .in("status", ["Assigned", "Under_Maintenance", "Damaged", "With_QC"])
+      .order("name"),
+    loadTeamEhsAssignments(supabase, { regionId }),
+  ]);
 
   const empIdsFromAssets = [
     ...new Set((assignedAssets ?? []).map((a) => a.assigned_to_employee_id).filter(Boolean) as string[]),
@@ -118,20 +133,30 @@ export default async function AdminWhoHasAssetsPage() {
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600/90">Admin · Asset management</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Who has assets</h1>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Who has assets & EHS tools</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-              Active employees with at least one tool assigned (including under maintenance, damaged, or with QC). Each
-              asset shows whether the employee has confirmed receipt or it is still pending. Filter by region, search by
-              person or asset details, and open the employee record when you need to make changes.{" "}
-              <Link href="/ehs-tools/who-has" className="font-medium text-orange-700 hover:underline">
-                View EHS tools by team →
-              </Link>
+              {tab === "ehs"
+                ? "Team-wise EHS view: DT wear and Driver/Rigger wear tools per team (held by DT)."
+                : "Active employees with fleet assets assigned. Receipt status shown per asset. Filter by region or search."}
             </p>
           </div>
         </div>
       </div>
 
-      <AdminWhoHasAssetsClient employees={employees} withoutCount={withoutCount} regionOptions={regionOptions} />
+      <FleetEhsSectionTabs
+        activeTab={tab}
+        basePath="/assets/who-has"
+        fleetCount={employees.length}
+        ehsCount={ehsTeams.length}
+      />
+
+      <div className="rounded-b-xl border border-t-0 border-zinc-200 bg-white p-4 sm:p-6">
+        {tab === "fleet" ? (
+          <AdminWhoHasAssetsClient employees={employees} withoutCount={withoutCount} regionOptions={regionOptions} />
+        ) : (
+          <AdminEhsWhoHasClient teams={ehsTeams} />
+        )}
+      </div>
     </div>
   );
 }

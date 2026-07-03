@@ -11,7 +11,7 @@ type EhsAsset = {
   name: string | null;
   category: string | null;
   status: string;
-  ehs_wear_role: string | null;
+  ehs_wear_role?: string | null;
   ehs_tool_type: string | null;
   en_code: string | null;
   assigned_to_employee_id?: string | null;

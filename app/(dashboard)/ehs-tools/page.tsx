@@ -72,7 +72,7 @@ export default async function EhsToolsPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/ehs-tools/assign"
+              href="/assets/assign?tab=ehs"
               className="rounded border border-orange-300 bg-white px-4 py-2 text-sm font-medium text-orange-900 hover:bg-orange-50"
             >
               Assign EHS tools
@@ -127,7 +127,7 @@ export default async function EhsToolsPage() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-900">All EHS tools</h2>
-          <Link href="/ehs-tools/who-has" className="text-sm text-indigo-700 hover:underline">
+          <Link href="/assets/who-has?tab=ehs" className="text-sm text-indigo-700 hover:underline">
             Who has EHS tools (by team) →
           </Link>
         </div>

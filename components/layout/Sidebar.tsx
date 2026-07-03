@@ -94,16 +94,6 @@ const navStructure: NavEntry[] = [
         { href: "/assets", label: "Assets", permission: "assets.manage" },
         { href: "/ehs-tools", label: "EHS Tools", permission: "assets.manage" },
         {
-          href: "/ehs-tools/assign",
-          label: "Assign EHS tools",
-          permissionAnyOf: ["assets.manage", "assets.assign"],
-        },
-        {
-          href: "/ehs-tools/who-has",
-          label: "Who has EHS tools",
-          permissionAnyOf: ["assets.manage", "assets.assign"],
-        },
-        {
           href: "/assets/assign",
           label: "Assign assets",
           permissionAnyOf: ["assets.manage", "assets.assign"],
