@@ -15,6 +15,7 @@ export default async function AdminWhoHasAssetsPage() {
   const { data: assignedAssets } = await supabase
     .from("assets")
     .select("id, name, model, serial, category, status, assigned_to_employee_id")
+    .eq("is_ehs_tool", false)
     .not("assigned_to_employee_id", "is", null)
     .in("status", ["Assigned", "Under_Maintenance", "Damaged", "With_QC"])
     .order("name");
@@ -121,7 +122,10 @@ export default async function AdminWhoHasAssetsPage() {
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
               Active employees with at least one tool assigned (including under maintenance, damaged, or with QC). Each
               asset shows whether the employee has confirmed receipt or it is still pending. Filter by region, search by
-              person or asset details, and open the employee record when you need to make changes.
+              person or asset details, and open the employee record when you need to make changes.{" "}
+              <Link href="/ehs-tools/who-has" className="font-medium text-orange-700 hover:underline">
+                View EHS tools by team →
+              </Link>
             </p>
           </div>
         </div>

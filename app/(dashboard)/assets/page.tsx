@@ -71,6 +71,7 @@ export default async function AssetsPage() {
   const { data: assets } = await supabase
     .from("assets")
     .select("id, asset_id, name, category, model, serial, imei_1, imei_2, status, assigned_to_employee_id, software_connectivity, created_at")
+    .eq("is_ehs_tool", false)
     .order("name");
 
   const byType = countByType(assets ?? []);

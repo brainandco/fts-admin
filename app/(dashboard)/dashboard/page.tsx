@@ -26,11 +26,19 @@ export default async function DashboardPage() {
     return q.then((r) => ({ count: r.count }));
   });
 
-  const assetsCount = await safeCount(async () => {
-    let q = supabase.from("assets").select("id", { count: "exact", head: true });
+  const regularAssetsCount = await safeCount(async () => {
+    let q = supabase.from("assets").select("id", { count: "exact", head: true }).eq("is_ehs_tool", false);
     if (regionId && !isSuper) q = q.eq("assigned_region_id", regionId);
     return q.then((r) => ({ count: r.count }));
   });
+
+  const ehsToolsCount = await safeCount(async () => {
+    let q = supabase.from("assets").select("id", { count: "exact", head: true }).eq("is_ehs_tool", true);
+    if (regionId && !isSuper) q = q.eq("assigned_region_id", regionId);
+    return q.then((r) => ({ count: r.count }));
+  });
+
+  const totalFleetAssetsCount = regularAssetsCount + ehsToolsCount;
 
   const simsCount = await safeCount(async () => {
     const q = supabase.from("sim_cards").select("id", { count: "exact", head: true });
@@ -134,7 +142,9 @@ export default async function DashboardPage() {
     {
       label: "Fleet & assets",
       cards: [
-        { title: "Active assets", value: assetsCount, href: "/assets", accent: "cyan" },
+        { title: "Active assets", value: regularAssetsCount, href: "/assets", accent: "cyan" },
+        { title: "EHS tools", value: ehsToolsCount, href: "/ehs-tools", accent: "amber" },
+        { title: "All assets (EHS + fleet)", value: totalFleetAssetsCount, href: "/assets", accent: "rose" },
         { title: "Total vehicles", value: totalVehiclesCount, href: "/vehicles", accent: "indigo" },
         { title: "Assigned vehicles", value: assignedVehiclesCount, href: "/vehicles", accent: "violet" },
         { title: "Total SIMs", value: simsCount, href: "/sims", accent: "emerald" },

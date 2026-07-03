@@ -28,6 +28,7 @@ export default async function AdminAssignAssetsPage() {
   const { data: catalogRows } = await supabase
     .from("assets")
     .select("id, name, category, model, serial, imei_1, imei_2, status, assigned_to_employee_id")
+    .eq("is_ehs_tool", false)
     .order("name");
 
   const empIds = [...new Set((catalogRows ?? []).map((r) => r.assigned_to_employee_id).filter(Boolean) as string[])];
