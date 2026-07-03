@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
-import { getEhsToolType } from "@/lib/assets/ehs-tool-catalog";
+import { getEhsToolType, type EhsWearRole } from "@/lib/assets/ehs-tool-catalog";
 
 type EhsAsset = {
   id: string;
@@ -51,6 +51,7 @@ export function AdminBulkAssignEhsToolsClient({
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [teamId, setTeamId] = useState("");
+  const [assignWearRole, setAssignWearRole] = useState<EhsWearRole | "">("");
   const [activeType, setActiveType] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -87,13 +88,17 @@ export function AdminBulkAssignEhsToolsClient({
     return [...selected].map((id) => map.get(id)).filter(Boolean) as EhsAsset[];
   }, [selected, assets]);
 
-  const needsDriver = selectedRows.some((a) => a.ehs_wear_role === "driver_rigger");
+  const needsDriver = assignWearRole === "driver_rigger";
 
   async function submit() {
     setError("");
     setMessage("");
     if (!selectedTeam) {
       setError("Select a team (DT).");
+      return;
+    }
+    if (!assignWearRole) {
+      setError("Select whether these tools are for DT or Driver/Rigger.");
       return;
     }
     if (selected.size === 0) {
@@ -113,6 +118,7 @@ export function AdminBulkAssignEhsToolsClient({
           asset_ids: [...selected],
           dt_employee_id: selectedTeam.dt.id,
           driver_employee_id: selectedTeam.driver?.id ?? null,
+          assign_wear_role: assignWearRole,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -166,6 +172,19 @@ export function AdminBulkAssignEhsToolsClient({
         ) : null}
       </div>
 
+      <div className="rounded-xl border border-zinc-200 bg-white p-4">
+        <label className="mb-1 block text-sm font-medium text-zinc-700">Assign as</label>
+        <select
+          value={assignWearRole}
+          onChange={(e) => setAssignWearRole(e.target.value as EhsWearRole | "")}
+          className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm"
+        >
+          <option value="">Select wear context…</option>
+          <option value="dt">DT wear (held by DT)</option>
+          <option value="driver_rigger">Driver / Rigger wear (held by DT, for team driver)</option>
+        </select>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         {typeTabs.map((tab) => (
           <button
@@ -214,7 +233,6 @@ export function AdminBulkAssignEhsToolsClient({
               <th className="px-3 py-2">Select</th>
               <th className="px-3 py-2">Asset ID</th>
               <th className="px-3 py-2">Tool</th>
-              <th className="px-3 py-2">Wear</th>
               <th className="px-3 py-2">EN</th>
             </tr>
           </thead>
@@ -226,7 +244,6 @@ export function AdminBulkAssignEhsToolsClient({
                 </td>
                 <td className="px-3 py-2 font-mono text-xs">{a.asset_id}</td>
                 <td className="px-3 py-2">{a.name}</td>
-                <td className="px-3 py-2">{a.ehs_wear_role === "driver_rigger" ? "Driver/Rigger" : "DT"}</td>
                 <td className="px-3 py-2 text-xs">{a.en_code}</td>
               </tr>
             ))}

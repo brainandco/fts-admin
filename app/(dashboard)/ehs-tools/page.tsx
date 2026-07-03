@@ -5,8 +5,7 @@ import Link from "next/link";
 import { getEhsToolType } from "@/lib/assets/ehs-tool-catalog";
 
 type CountRow = {
-  ehs_tool_type: string | null;
-  ehs_wear_role: string | null;
+  ehs_tool_type: string;
   total: number;
   unassigned: number;
   assigned: number;
@@ -15,19 +14,16 @@ type CountRow = {
 function countByType(
   assets: {
     ehs_tool_type: string | null;
-    ehs_wear_role: string | null;
     status: string;
     assigned_to_employee_id: string | null;
   }[]
 ): CountRow[] {
   const map = new Map<string, CountRow>();
   for (const a of assets) {
-    const key = `${a.ehs_tool_type ?? "?"}:${a.ehs_wear_role ?? "?"}`;
     const def = a.ehs_tool_type ? getEhsToolType(a.ehs_tool_type) : undefined;
     const label = def?.label ?? a.ehs_tool_type ?? "Other";
-    const cur = map.get(key) ?? {
+    const cur = map.get(label) ?? {
       ehs_tool_type: label,
-      ehs_wear_role: a.ehs_wear_role,
       total: 0,
       unassigned: 0,
       assigned: 0,
@@ -35,9 +31,9 @@ function countByType(
     cur.total += 1;
     if (a.status === "Available" && !a.assigned_to_employee_id) cur.unassigned += 1;
     else cur.assigned += 1;
-    map.set(key, cur);
+    map.set(label, cur);
   }
-  return [...map.values()].sort((a, b) => String(a.ehs_tool_type).localeCompare(String(b.ehs_tool_type)));
+  return [...map.values()].sort((a, b) => a.ehs_tool_type.localeCompare(b.ehs_tool_type));
 }
 
 export default async function EhsToolsPage() {
@@ -109,7 +105,6 @@ export default async function EhsToolsPage() {
             <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500">
               <tr>
                 <th className="px-4 py-2">Tool</th>
-                <th className="px-4 py-2">Wear</th>
                 <th className="px-4 py-2">Total</th>
                 <th className="px-4 py-2">Available</th>
                 <th className="px-4 py-2">Assigned</th>
@@ -117,9 +112,8 @@ export default async function EhsToolsPage() {
             </thead>
             <tbody>
               {byType.map((row) => (
-                <tr key={`${row.ehs_tool_type}-${row.ehs_wear_role}`} className="border-t border-zinc-100">
+                <tr key={row.ehs_tool_type} className="border-t border-zinc-100">
                   <td className="px-4 py-2">{row.ehs_tool_type}</td>
-                  <td className="px-4 py-2">{row.ehs_wear_role === "driver_rigger" ? "Driver/Rigger" : "DT"}</td>
                   <td className="px-4 py-2">{row.total}</td>
                   <td className="px-4 py-2">{row.unassigned}</td>
                   <td className="px-4 py-2">{row.assigned}</td>
@@ -143,7 +137,7 @@ export default async function EhsToolsPage() {
               <tr>
                 <th className="px-4 py-2">Asset ID</th>
                 <th className="px-4 py-2">Tool</th>
-                <th className="px-4 py-2">Wear</th>
+                <th className="px-4 py-2">Assigned as</th>
                 <th className="px-4 py-2">EN Code</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Assigned to (DT)</th>
@@ -158,7 +152,15 @@ export default async function EhsToolsPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-2">{r.name}</td>
-                  <td className="px-4 py-2">{r.ehs_wear_role === "driver_rigger" ? "Driver/Rigger" : "DT"}</td>
+                  <td className="px-4 py-2">
+                    {!r.assigned_to_employee_id
+                      ? "—"
+                      : r.ehs_wear_role === "driver_rigger"
+                        ? "Driver/Rigger"
+                        : r.ehs_wear_role === "dt"
+                          ? "DT"
+                          : "—"}
+                  </td>
                   <td className="px-4 py-2 text-xs">{r.en_code}</td>
                   <td className="px-4 py-2">{r.status.replace(/_/g, " ")}</td>
                   <td className="px-4 py-2">

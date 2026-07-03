@@ -4,38 +4,29 @@ import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 import { assetIdentifierConflictMessage } from "@/lib/data-uniqueness";
-import {
-  ehsCategoryLabel,
-  ehsDisplayName,
-  getEhsToolType,
-  type EhsWearRole,
-} from "@/lib/assets/ehs-tool-catalog";
+import { ehsCategoryLabel, ehsDisplayName, getEhsToolType } from "@/lib/assets/ehs-tool-catalog";
 import { computeNextEhsAssetId } from "@/lib/assets/ehs-id-scheme";
 
-/** Create one EHS tool (Available). */
+/** Create one EHS tool (Available, global pool). Wear role is set at assignment. */
 export async function POST(req: Request) {
   if (!(await can("assets.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const toolTypeKey = typeof body.ehs_tool_type === "string" ? body.ehs_tool_type.trim() : "";
-  const wearRole = body.ehs_wear_role === "driver_rigger" ? "driver_rigger" : body.ehs_wear_role === "dt" ? "dt" : "";
   const def = getEhsToolType(toolTypeKey);
   if (!def) return NextResponse.json({ message: "Invalid EHS tool type" }, { status: 400 });
-  if (!wearRole || !def.wearRoles.includes(wearRole as EhsWearRole)) {
-    return NextResponse.json({ message: "Invalid wear role for this tool type" }, { status: 400 });
-  }
 
   const purchaseUrls = parseImageUrlArray(body.purchase_image_urls);
   const supabase = await createServerSupabaseClient();
   const dataClient = await getDataClient();
 
-  const resolvedAssetId = await computeNextEhsAssetId(dataClient, toolTypeKey, wearRole as EhsWearRole);
+  const resolvedAssetId = await computeNextEhsAssetId(dataClient, toolTypeKey);
   if (!resolvedAssetId) {
     return NextResponse.json({ message: "Could not generate EHS asset ID." }, { status: 400 });
   }
 
-  const category = ehsCategoryLabel(def, wearRole as EhsWearRole);
-  const name = ehsDisplayName(def, wearRole as EhsWearRole);
+  const category = ehsCategoryLabel(def);
+  const name = ehsDisplayName(def);
   const condition = typeof body.condition === "string" ? body.condition.trim() || null : null;
 
   const insert: Record<string, unknown> = {
@@ -47,7 +38,7 @@ export async function POST(req: Request) {
     specs: {},
     purchase_image_urls: purchaseUrls,
     is_ehs_tool: true,
-    ehs_wear_role: wearRole,
+    ehs_wear_role: null,
     ehs_tool_type: def.key,
     en_code: def.enCode,
   };

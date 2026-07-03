@@ -4,11 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PurchasePhotoUploader } from "@/components/assets/PurchasePhotoUploader";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
-import {
-  EHS_TOOL_TYPES,
-  getEhsToolType,
-  type EhsWearRole,
-} from "@/lib/assets/ehs-tool-catalog";
+import { EHS_TOOL_TYPES, getEhsToolType } from "@/lib/assets/ehs-tool-catalog";
 import { FormActions, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
 
 type EhsAsset = {
@@ -18,7 +14,6 @@ type EhsAsset = {
   category: string;
   condition: string | null;
   status: string;
-  ehs_wear_role: EhsWearRole | null;
   ehs_tool_type: string | null;
   en_code: string | null;
   purchase_image_urls?: unknown;
@@ -30,7 +25,6 @@ const inputClass = "w-full rounded border border-zinc-300 px-3 py-2 text-sm";
 export function EhsToolForm({ existing }: { existing: EhsAsset }) {
   const router = useRouter();
   const [toolTypeKey, setToolTypeKey] = useState(existing?.ehs_tool_type ?? "");
-  const [wearRole, setWearRole] = useState<EhsWearRole | "">(existing?.ehs_wear_role ?? "");
   const [condition, setCondition] = useState(existing?.condition ?? "");
   const [purchaseImageUrls, setPurchaseImageUrls] = useState<string[]>(() =>
     parseImageUrlArray(existing?.purchase_image_urls)
@@ -41,17 +35,16 @@ export function EhsToolForm({ existing }: { existing: EhsAsset }) {
   const [error, setError] = useState("");
 
   const toolDef = useMemo(() => (toolTypeKey ? getEhsToolType(toolTypeKey) : undefined), [toolTypeKey]);
-  const wearRoleOptions = toolDef?.wearRoles ?? [];
 
   useEffect(() => {
     if (existing) return;
-    if (!toolTypeKey || !wearRole) {
+    if (!toolTypeKey) {
       setPreviewAssetId("");
       return;
     }
     let cancelled = false;
     setPreviewLoading(true);
-    const qs = new URLSearchParams({ ehs_tool_type: toolTypeKey, ehs_wear_role: wearRole });
+    const qs = new URLSearchParams({ ehs_tool_type: toolTypeKey });
     fetch(`/api/ehs-tools/next-id?${qs.toString()}`)
       .then((r) => r.json())
       .then((d) => {
@@ -66,13 +59,7 @@ export function EhsToolForm({ existing }: { existing: EhsAsset }) {
     return () => {
       cancelled = true;
     };
-  }, [toolTypeKey, wearRole, existing]);
-
-  useEffect(() => {
-    if (!existing && wearRole && toolDef && !toolDef.wearRoles.includes(wearRole)) {
-      setWearRole("");
-    }
-  }, [toolTypeKey, wearRole, toolDef, existing]);
+  }, [toolTypeKey, existing]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -101,7 +88,6 @@ export function EhsToolForm({ existing }: { existing: EhsAsset }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ehs_tool_type: toolTypeKey,
-          ehs_wear_role: wearRole,
           condition,
           purchase_image_urls: purchaseImageUrls,
         }),
@@ -121,7 +107,10 @@ export function EhsToolForm({ existing }: { existing: EhsAsset }) {
     <form onSubmit={onSubmit}>
       <FormCard>
         <FormCardSection>
-          <FormSection title="EHS tool details">
+          <FormSection
+            title="EHS tool details"
+            description="Tools are added to a global pool. Choose DT or Driver/Rigger when assigning."
+          >
             <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700">Tool type</label>
               <select
@@ -147,31 +136,11 @@ export function EhsToolForm({ existing }: { existing: EhsAsset }) {
             ) : null}
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Wear role</label>
-              <select
-                value={wearRole}
-                onChange={(e) => setWearRole(e.target.value as EhsWearRole | "")}
-                required={!existing}
-                disabled={!!existing}
-                className={selectClass}
-              >
-                {!existing ? <option value="">Select wear role…</option> : null}
-                {wearRoleOptions.includes("dt") ? <option value="dt">DT wear</option> : null}
-                {wearRoleOptions.includes("driver_rigger") ? (
-                  <option value="driver_rigger">Driver / Rigger wear</option>
-                ) : null}
-              </select>
-              <p className="mt-1 text-xs text-zinc-500">
-                Driver/Rigger tools are assigned to the team DT but tracked for the team driver.
-              </p>
-            </div>
-
-            <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700">Asset ID</label>
               <input
                 readOnly
                 value={existing?.asset_id ?? previewAssetId}
-                placeholder={previewLoading ? "Calculating…" : "Select type and wear role"}
+                placeholder={previewLoading ? "Calculating…" : "Select tool type"}
                 className={`${inputClass} bg-zinc-50 font-mono text-sm`}
               />
             </div>

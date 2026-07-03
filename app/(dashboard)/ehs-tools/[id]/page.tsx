@@ -71,7 +71,6 @@ export default async function EhsToolDetailPage({ params }: { params: Promise<{ 
           category: asset.category,
           condition: asset.condition,
           status: asset.status,
-          ehs_wear_role: asset.ehs_wear_role,
           ehs_tool_type: asset.ehs_tool_type,
           en_code: asset.en_code,
           purchase_image_urls: asset.purchase_image_urls,

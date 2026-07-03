@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { EHS_ID_PREFIX, getEhsToolType, type EhsWearRole } from "@/lib/assets/ehs-tool-catalog";
+import { EHS_ID_PREFIX, getEhsToolType } from "@/lib/assets/ehs-tool-catalog";
 
 function maxForEhsPrefix(assetIds: (string | null)[], abbrev: string): number {
   const esc = `${EHS_ID_PREFIX}-${abbrev}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -19,26 +19,23 @@ export function formatEhsAssetId(abbrev: string, num: number): string {
   return `${EHS_ID_PREFIX}-${abbrev}-${num}`;
 }
 
-/** Next ASTEHS-{ABBREV}-{num} for a tool type + wear role pool. */
+/** Next ASTEHS-{ABBREV}-{num} for a tool type (global pool). */
 export async function computeNextEhsAssetId(
   supabase: SupabaseClient,
-  toolTypeKey: string,
-  wearRole: EhsWearRole
+  toolTypeKey: string
 ): Promise<string | null> {
   const def = getEhsToolType(toolTypeKey);
   if (!def) return null;
-  if (!def.wearRoles.includes(wearRole)) return null;
 
   const { data: rows, error } = await supabase
     .from("assets")
     .select("asset_id")
     .eq("is_ehs_tool", true)
-    .eq("ehs_tool_type", def.key)
-    .eq("ehs_wear_role", wearRole);
+    .eq("ehs_tool_type", def.key);
   if (error) return null;
 
   const ids = (rows ?? []).map((r) => r.asset_id as string | null);
   const max = maxForEhsPrefix(ids, def.idAbbrev);
-  const next = max > 0 ? max + 1 : def.idStart;
+  const next = max >= def.idStart ? max + 1 : def.idStart;
   return formatEhsAssetId(def.idAbbrev, next);
 }

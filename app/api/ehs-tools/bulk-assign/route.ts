@@ -5,7 +5,6 @@ import { auditLog } from "@/lib/audit/log";
 import { assertEmployeesActiveForAssignment } from "@/lib/employees/active-for-assignment";
 import { resolveAssetAssignmentRegion } from "@/lib/admin-assignment/validate-assignee";
 import { upsertPendingReceipts } from "@/lib/resource-receipts";
-import type { EhsWearRole } from "@/lib/assets/ehs-tool-catalog";
 
 async function assertDtEmployee(supabase: Awaited<ReturnType<typeof getDataClient>>, employeeId: string) {
   const { data: roles } = await supabase.from("employee_roles").select("role").eq("employee_id", employeeId);
@@ -46,6 +45,8 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const assetIds = Array.isArray(body.asset_ids) ? body.asset_ids.filter((id: unknown) => typeof id === "string") : [];
   const dtEmployeeId = typeof body.dt_employee_id === "string" ? body.dt_employee_id.trim() : "";
+  const assignWearRole =
+    body.assign_wear_role === "driver_rigger" ? "driver_rigger" : body.assign_wear_role === "dt" ? "dt" : "";
   const driverEmployeeId =
     typeof body.driver_employee_id === "string" && body.driver_employee_id.trim()
       ? body.driver_employee_id.trim()
@@ -53,6 +54,9 @@ export async function POST(req: Request) {
 
   if (!dtEmployeeId || assetIds.length === 0) {
     return NextResponse.json({ message: "asset_ids and dt_employee_id required" }, { status: 400 });
+  }
+  if (!assignWearRole) {
+    return NextResponse.json({ message: "assign_wear_role (dt|driver_rigger) required" }, { status: 400 });
   }
 
   const supabase = await getDataClient();
@@ -76,8 +80,7 @@ export async function POST(req: Request) {
   const skipped = assetIds.length - available.length;
 
   let teamDriverId: string | null = null;
-  const needsDriver = available.some((a) => a.ehs_wear_role === "driver_rigger");
-  if (needsDriver) {
+  if (assignWearRole === "driver_rigger") {
     const driverResolved = await resolveDriverForDt(supabase, dtEmployeeId, driverEmployeeId);
     if (!driverResolved.ok) return NextResponse.json({ message: driverResolved.message }, { status: 400 });
     teamDriverId = driverResolved.driverId;
@@ -92,14 +95,14 @@ export async function POST(req: Request) {
   const assignedIds: string[] = [];
 
   for (const row of available) {
-    const wearRole = row.ehs_wear_role as EhsWearRole | null;
     const updates: Record<string, unknown> = {
       assigned_to_employee_id: dtEmployeeId,
       assigned_region_id: regionResolved.regionId,
       status: "Assigned",
       assigned_by: user?.id ?? null,
       assigned_at: now,
-      ehs_for_employee_id: wearRole === "driver_rigger" ? teamDriverId : null,
+      ehs_wear_role: assignWearRole,
+      ehs_for_employee_id: assignWearRole === "driver_rigger" ? teamDriverId : null,
     };
 
     await supabase.from("assets").update(updates).eq("id", row.id);
@@ -111,7 +114,7 @@ export async function POST(req: Request) {
         to_employee_id: dtEmployeeId,
         assigned_by_user_id: user.id,
         notes:
-          wearRole === "driver_rigger" && teamDriverId
+          assignWearRole === "driver_rigger" && teamDriverId
             ? `EHS driver/rigger tool for team driver (${teamDriverId})`
             : "EHS DT tool",
       });
