@@ -64,10 +64,6 @@ export function EhsToolForm({ existing }: { existing: EhsAsset }) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!existing && purchaseImageUrls.length < 2) {
-      setError("Upload at least two intake photos.");
-      return;
-    }
     setSaving(true);
     try {
       if (existing) {
@@ -153,7 +149,10 @@ export function EhsToolForm({ existing }: { existing: EhsAsset }) {
         </FormCardSection>
 
         <FormCardSection>
-          <FormSection title="Intake photos">
+          <FormSection
+            title="Intake photos (optional)"
+            description="Photos are not required when adding stock. The assigned employee must upload condition photos when they confirm receipt."
+          >
             <PurchasePhotoUploader
               purpose="asset-purchase"
               urls={purchaseImageUrls}
