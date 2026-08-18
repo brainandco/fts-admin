@@ -54,7 +54,8 @@ export function OdometerDriverStatusTable({
       <div>
         <h2 className="text-lg font-semibold text-zinc-900">Driver/Rigger status — {date}</h2>
         <p className="text-sm text-zinc-600">
-          Who submitted morning and evening plate + odometer photos today. Pending = not submitted yet.
+          Who is on duty (start photos saved) and who has ended (end photos saved). Night shifts that started yesterday
+          still show here until they end.
         </p>
       </div>
       <div className="flex flex-wrap gap-2 text-xs">
@@ -71,8 +72,8 @@ export function OdometerDriverStatusTable({
               <th className="px-3 py-2">Driver/Rigger</th>
               <th className="px-3 py-2">Region</th>
               <th className="px-3 py-2">Plate</th>
-              <th className="px-3 py-2">Morning</th>
-              <th className="px-3 py-2">Evening</th>
+              <th className="px-3 py-2">Start duty</th>
+              <th className="px-3 py-2">End duty</th>
             </tr>
           </thead>
           <tbody>

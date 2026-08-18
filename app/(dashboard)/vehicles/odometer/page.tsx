@@ -19,7 +19,7 @@ export default async function OdometerTrackingPage() {
   const { data: rawRows } = await supabase
     .from("vehicle_odometer_readings")
     .select(
-      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, accuracy_m, location_label, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status"
+      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, accuracy_m, location_label, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status, duty_shift_id"
     )
     .order("reading_date", { ascending: false })
     .limit(8000);
@@ -29,7 +29,7 @@ export default async function OdometerTrackingPage() {
     employee_id: String(row.employee_id),
     team_id: (row.team_id as string | null) ?? null,
     reading_date: String(row.reading_date),
-    slot: row.slot === "evening" ? "evening" : "morning",
+    slot: row.slot === "end" || row.slot === "evening" ? "end" : "start",
     captured_at: String(row.captured_at),
     lat: typeof row.lat === "number" ? row.lat : row.lat != null ? Number(row.lat) : null,
     lng: typeof row.lng === "number" ? row.lng : row.lng != null ? Number(row.lng) : null,
@@ -40,6 +40,7 @@ export default async function OdometerTrackingPage() {
     plate_photo_url: String(row.plate_photo_url ?? ""),
     odometer_photo_urls: row.odometer_photo_urls,
     ocr_status: String(row.ocr_status ?? ""),
+    duty_shift_id: typeof row.duty_shift_id === "string" ? row.duty_shift_id : null,
   }));
 
   const employeeIds = [...new Set(readings.map((r) => r.employee_id))];
@@ -114,46 +115,61 @@ export default async function OdometerTrackingPage() {
     ? await supabase.from("vehicles").select("id, plate_number").in("id", assignedVehicleIds)
     : { data: [] };
   const plateByVehicle = new Map((assignedVehicles ?? []).map((v) => [v.id, v.plate_number ?? ""]));
-  type TodaySlotRow = {
+  const yesterdayIso = new Date(`${todayIso}T12:00:00+03:00`);
+  yesterdayIso.setDate(yesterdayIso.getDate() - 1);
+  const yesterday = yesterdayIso.toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
+  const { data: dutyRows } = assignedVehicleIds.length
+    ? await supabase
+        .from("vehicle_duty_shifts")
+        .select("id, vehicle_id, employee_id, started_at, ended_at, start_km, end_km, status, shift_date")
+        .in("vehicle_id", assignedVehicleIds)
+        .or(`status.eq.open,shift_date.eq.${todayIso},shift_date.eq.${yesterday}`)
+    : { data: [] };
+  type DutyRow = {
+    id: string;
     vehicle_id: string;
     employee_id: string;
-    slot: string;
-    captured_at: string;
-    odometer_km_final: number;
+    started_at: string;
+    ended_at: string | null;
+    start_km: number;
+    end_km: number | null;
+    status: string;
+    shift_date: string;
   };
-  const { data: todaySlotsData } = assignedVehicleIds.length
-    ? await supabase
-        .from("vehicle_odometer_readings")
-        .select("vehicle_id, employee_id, slot, captured_at, odometer_km_final")
-        .in("vehicle_id", assignedVehicleIds)
-        .eq("reading_date", todayIso)
-    : { data: [] as TodaySlotRow[] };
-  const todaySlots: TodaySlotRow[] = (todaySlotsData ?? []).map((s) => ({
+  const duties: DutyRow[] = (dutyRows ?? []).map((s) => ({
+    id: String(s.id),
     vehicle_id: String(s.vehicle_id),
     employee_id: String(s.employee_id),
-    slot: String(s.slot),
-    captured_at: String(s.captured_at),
-    odometer_km_final: Number(s.odometer_km_final) || 0,
+    started_at: String(s.started_at),
+    ended_at: s.ended_at ? String(s.ended_at) : null,
+    start_km: Number(s.start_km) || 0,
+    end_km: s.end_km != null ? Number(s.end_km) : null,
+    status: String(s.status),
+    shift_date: String(s.shift_date),
   }));
-  const submitterIds = [...new Set(todaySlots.map((s) => s.employee_id))];
+  const submitterIds = [...new Set(duties.map((s) => s.employee_id))];
   const { data: submitters } = submitterIds.length
     ? await supabase.from("employees").select("id, full_name").in("id", submitterIds)
     : { data: [] };
   const submitterName = new Map((submitters ?? []).map((e) => [e.id, e.full_name ?? ""]));
-  const slotMap = new Map<string, { morning?: TodaySlotRow; evening?: TodaySlotRow }>();
-  for (const s of todaySlots) {
-    const cur = slotMap.get(s.vehicle_id) ?? {};
-    if (s.slot === "morning") cur.morning = s;
-    if (s.slot === "evening") cur.evening = s;
-    slotMap.set(s.vehicle_id, cur);
+
+  function pickDutyForDriver(employeeId: string, vehicleId: string | null): DutyRow | undefined {
+    if (!vehicleId) return undefined;
+    const mine = duties.filter((d) => d.vehicle_id === vehicleId);
+    return (
+      mine.find((d) => d.status === "open" && d.employee_id === employeeId) ??
+      mine.find((d) => d.status === "open") ??
+      mine.find((d) => d.shift_date === todayIso) ??
+      mine.find((d) => d.ended_at && new Date(d.ended_at).toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }) === todayIso)
+    );
   }
 
   const driverStatusRows = driverList
     .map((d) => {
       const vehicleId = assignByEmp.get(d.id) ?? null;
-      const slots = vehicleId ? slotMap.get(vehicleId) : undefined;
-      const m = slots?.morning;
-      const e = slots?.evening;
+      const duty = pickDutyForDriver(d.id, vehicleId);
+      const startOn = Boolean(duty);
+      const endOn = Boolean(duty?.ended_at);
       return {
         employeeId: d.id,
         name: d.full_name ?? "—",
@@ -161,16 +177,16 @@ export default async function OdometerTrackingPage() {
         plate: vehicleId ? plateByVehicle.get(vehicleId) ?? null : null,
         vehicleId,
         morning: {
-          submitted: !!m,
-          at: m ? String(m.captured_at) : null,
-          byName: m ? submitterName.get(m.employee_id) ?? null : null,
-          km: m ? Number(m.odometer_km_final) : null,
+          submitted: startOn,
+          at: duty ? duty.started_at : null,
+          byName: duty ? submitterName.get(duty.employee_id) ?? null : null,
+          km: duty ? duty.start_km : null,
         },
         evening: {
-          submitted: !!e,
-          at: e ? String(e.captured_at) : null,
-          byName: e ? submitterName.get(e.employee_id) ?? null : null,
-          km: e ? Number(e.odometer_km_final) : null,
+          submitted: endOn,
+          at: duty?.ended_at ?? null,
+          byName: endOn ? submitterName.get(duty!.employee_id) ?? null : null,
+          km: duty?.end_km ?? null,
         },
       };
     })
@@ -181,9 +197,10 @@ export default async function OdometerTrackingPage() {
       <div>
         <h1 className="text-2xl font-semibold text-zinc-900">Odometer tracking</h1>
         <p className="mt-1 max-w-3xl text-sm text-zinc-600">
-          Every morning and evening reading is kept in the database. Same-day km is evening minus morning. vs previous
-          day is that day’s total minus the last logged day’s total. The Google Sheet <strong>Today</strong> tab shows
-          only the current date; <strong>History</strong> keeps every day.
+          Duty starts only when start odometer photos are saved, and ends only when end photos are saved. Night shifts
+          stay on the start date. Shift km is end minus start. vs previous is this shift’s total minus the last closed
+          shift. Google Sheet <strong>Today</strong> shows open duties plus today’s starts/ends; <strong>History</strong>{" "}
+          keeps every shift.
         </p>
       </div>
       <OdometerDriverStatusTable date={todayIso} rows={driverStatusRows} />

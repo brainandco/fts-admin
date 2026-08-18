@@ -73,17 +73,17 @@ export function OdometerTrackingTable({ rows }: { rows: DailyOdoSummary[] }) {
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Rows shown</p>
           <p className="mt-1 text-2xl font-semibold text-zinc-900">{filtered.length}</p>
-          <p className="text-xs text-zinc-500">{complete.length} complete (morning + evening)</p>
+          <p className="text-xs text-zinc-500">{complete.length} complete (start + end)</p>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">Today km (sum)</p>
           <p className="mt-1 text-2xl font-semibold text-emerald-950">{todayKmSum.toLocaleString()} km</p>
-          <p className="text-xs text-emerald-800">Evening − morning for complete days</p>
+          <p className="text-xs text-emerald-800">End − start for complete duties</p>
         </div>
         <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-sky-800">vs previous day (sum)</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-sky-800">vs previous shift (sum)</p>
           <p className="mt-1 text-2xl font-semibold text-sky-950">{vsPrevSum.toLocaleString()} km</p>
-          <p className="text-xs text-sky-800">Day total − previous logged day total</p>
+          <p className="text-xs text-sky-800">Shift total − previous shift total</p>
         </div>
       </div>
 
@@ -136,9 +136,9 @@ export function OdometerTrackingTable({ rows }: { rows: DailyOdoSummary[] }) {
               <th className="px-3 py-2">Date</th>
               <th className="px-3 py-2">Driver</th>
               <th className="px-3 py-2">Plate</th>
-              <th className="px-3 py-2">Morning</th>
-              <th className="px-3 py-2">Evening</th>
-              <th className="px-3 py-2">Today km</th>
+              <th className="px-3 py-2">Start</th>
+              <th className="px-3 py-2">End</th>
+              <th className="px-3 py-2">Shift km</th>
               <th className="px-3 py-2">vs previous</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2"> </th>
@@ -153,7 +153,7 @@ export function OdometerTrackingTable({ rows }: { rows: DailyOdoSummary[] }) {
               </tr>
             ) : (
               filtered.map((r) => {
-                const key = `${r.vehicle_id}|${r.reading_date}`;
+                const key = `${r.vehicle_id}|${r.reading_date}|${r.morningAt ?? r.eveningAt ?? ""}`;
                 const open = openKey === key;
                 return (
                   <FragmentRow
@@ -212,7 +212,7 @@ function FragmentRow({
         <td className="px-3 py-2">
           <div className="font-semibold text-sky-900">{km(r.vsPreviousKm)}</div>
           <div className="text-xs text-zinc-500">
-            {r.previousDate ? `${r.previousDate} · ${km(r.previousTotalKm)}` : "no previous day"}
+                {r.previousDate ? `${r.previousDate} · ${km(r.previousTotalKm)}` : "no previous shift"}
           </div>
         </td>
         <td className="px-3 py-2">
@@ -220,7 +220,9 @@ function FragmentRow({
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
               r.status === "Complete"
                 ? "bg-emerald-100 text-emerald-800"
-                : "bg-amber-100 text-amber-900"
+                : r.status === "On duty"
+                  ? "bg-sky-100 text-sky-800"
+                  : "bg-amber-100 text-amber-900"
             }`}
           >
             {r.status}
@@ -237,10 +239,10 @@ function FragmentRow({
           <td colSpan={9} className="px-4 py-3 text-xs text-zinc-700">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <p>
-                <span className="font-medium">Day total:</span> {km(r.dayTotalKm)} km
+                <span className="font-medium">Shift total:</span> {km(r.dayTotalKm)} km
               </p>
               <p>
-                <span className="font-medium">Morning location:</span>{" "}
+                <span className="font-medium">Start location:</span>{" "}
                 {r.morningGps || "—"}{" "}
                 {r.morningMapsUrl ? (
                   <a href={r.morningMapsUrl} target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
@@ -249,7 +251,7 @@ function FragmentRow({
                 ) : null}
               </p>
               <p>
-                <span className="font-medium">Evening location:</span>{" "}
+                <span className="font-medium">End location:</span>{" "}
                 {r.eveningGps || "—"}{" "}
                 {r.eveningMapsUrl ? (
                   <a href={r.eveningMapsUrl} target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
@@ -258,19 +260,19 @@ function FragmentRow({
                 ) : null}
               </p>
               <div>
-                <p className="font-medium">Morning plate</p>
+                <p className="font-medium">Start plate</p>
                 <PhotoLinks urls={r.morningPlatePhoto} />
               </div>
               <div>
-                <p className="font-medium">Morning odometer</p>
+                <p className="font-medium">Start odometer</p>
                 <PhotoLinks urls={r.morningOdoPhotos} />
               </div>
               <div>
-                <p className="font-medium">Evening plate</p>
+                <p className="font-medium">End plate</p>
                 <PhotoLinks urls={r.eveningPlatePhoto} />
               </div>
               <div>
-                <p className="font-medium">Evening odometer</p>
+                <p className="font-medium">End odometer</p>
                 <PhotoLinks urls={r.eveningOdoPhotos} />
               </div>
             </div>

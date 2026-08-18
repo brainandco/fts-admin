@@ -31,7 +31,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const { data: odoRaw } = await dataClient
     .from("vehicle_odometer_readings")
     .select(
-      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, location_label, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status"
+      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, location_label, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status, duty_shift_id"
     )
     .eq("vehicle_id", id)
     .order("reading_date", { ascending: false })
@@ -41,7 +41,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
     employee_id: String(row.employee_id),
     team_id: (row.team_id as string | null) ?? null,
     reading_date: String(row.reading_date),
-    slot: row.slot === "evening" ? "evening" : "morning",
+    slot: row.slot === "end" || row.slot === "evening" ? "end" : "start",
     captured_at: String(row.captured_at),
     lat: typeof row.lat === "number" ? row.lat : row.lat != null ? Number(row.lat) : null,
     lng: typeof row.lng === "number" ? row.lng : row.lng != null ? Number(row.lng) : null,
@@ -51,6 +51,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
     plate_photo_url: String(row.plate_photo_url ?? ""),
     odometer_photo_urls: row.odometer_photo_urls,
     ocr_status: String(row.ocr_status ?? ""),
+    duty_shift_id: typeof (row as { duty_shift_id?: string }).duty_shift_id === "string" ? (row as { duty_shift_id?: string }).duty_shift_id : null,
   }));
   const odoEmpIds = [...new Set(odoReadings.map((r) => r.employee_id))];
   const { data: odoEmps } = odoEmpIds.length
@@ -145,7 +146,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
           </Link>
         </div>
         {odoSummaries.length === 0 ? (
-          <p className="text-sm text-zinc-500">No morning/evening odometer submissions yet.</p>
+          <p className="text-sm text-zinc-500">No start/end odometer submissions yet.</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
             <table className="min-w-full text-left text-sm">
@@ -153,16 +154,16 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
                 <tr>
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Driver</th>
-                  <th className="px-3 py-2">Morning</th>
-                  <th className="px-3 py-2">Evening</th>
-                  <th className="px-3 py-2">Today km</th>
+                  <th className="px-3 py-2">Start</th>
+                  <th className="px-3 py-2">End</th>
+                  <th className="px-3 py-2">Shift km</th>
                   <th className="px-3 py-2">vs previous</th>
                   <th className="px-3 py-2">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {odoSummaries.map((r) => (
-                  <tr key={r.reading_date} className="border-t border-zinc-100">
+                  <tr key={`${r.reading_date}|${r.morningAt ?? ""}|${r.employee_id}`} className="border-t border-zinc-100">
                     <td className="px-3 py-2 font-medium">{r.reading_date}</td>
                     <td className="px-3 py-2">{r.driver || "—"}</td>
                     <td className="px-3 py-2">{r.morningKm ?? "—"}</td>
