@@ -31,7 +31,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const { data: odoRaw } = await dataClient
     .from("vehicle_odometer_readings")
     .select(
-      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status"
+      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, location_label, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status"
     )
     .eq("vehicle_id", id)
     .order("reading_date", { ascending: false })
@@ -45,6 +45,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
     captured_at: String(row.captured_at),
     lat: typeof row.lat === "number" ? row.lat : row.lat != null ? Number(row.lat) : null,
     lng: typeof row.lng === "number" ? row.lng : row.lng != null ? Number(row.lng) : null,
+    location_label: typeof (row as { location_label?: string }).location_label === "string" ? (row as { location_label?: string }).location_label ?? null : null,
     plate_number_final: String(row.plate_number_final ?? ""),
     odometer_km_final: Number(row.odometer_km_final) || 0,
     plate_photo_url: String(row.plate_photo_url ?? ""),

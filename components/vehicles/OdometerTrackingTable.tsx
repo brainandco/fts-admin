@@ -240,10 +240,22 @@ function FragmentRow({
                 <span className="font-medium">Day total:</span> {km(r.dayTotalKm)} km
               </p>
               <p>
-                <span className="font-medium">Morning GPS:</span> {r.morningGps || "—"}
+                <span className="font-medium">Morning location:</span>{" "}
+                {r.morningGps || "—"}{" "}
+                {r.morningMapsUrl ? (
+                  <a href={r.morningMapsUrl} target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
+                    Map
+                  </a>
+                ) : null}
               </p>
               <p>
-                <span className="font-medium">Evening GPS:</span> {r.eveningGps || "—"}
+                <span className="font-medium">Evening location:</span>{" "}
+                {r.eveningGps || "—"}{" "}
+                {r.eveningMapsUrl ? (
+                  <a href={r.eveningMapsUrl} target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
+                    Map
+                  </a>
+                ) : null}
               </p>
               <div>
                 <p className="font-medium">Morning plate</p>
