@@ -113,24 +113,38 @@ export default async function OdometerTrackingPage() {
     ? await supabase.from("vehicles").select("id, plate_number").in("id", assignedVehicleIds)
     : { data: [] };
   const plateByVehicle = new Map((assignedVehicles ?? []).map((v) => [v.id, v.plate_number ?? ""]));
-  const { data: todaySlots } = assignedVehicleIds.length
+  type TodaySlotRow = {
+    vehicle_id: string;
+    employee_id: string;
+    slot: string;
+    captured_at: string;
+    odometer_km_final: number;
+  };
+  const { data: todaySlotsData } = assignedVehicleIds.length
     ? await supabase
         .from("vehicle_odometer_readings")
         .select("vehicle_id, employee_id, slot, captured_at, odometer_km_final")
         .in("vehicle_id", assignedVehicleIds)
         .eq("reading_date", todayIso)
-    : { data: [] };
-  const submitterIds = [...new Set((todaySlots ?? []).map((s) => s.employee_id as string))];
+    : { data: [] as TodaySlotRow[] };
+  const todaySlots: TodaySlotRow[] = (todaySlotsData ?? []).map((s) => ({
+    vehicle_id: String(s.vehicle_id),
+    employee_id: String(s.employee_id),
+    slot: String(s.slot),
+    captured_at: String(s.captured_at),
+    odometer_km_final: Number(s.odometer_km_final) || 0,
+  }));
+  const submitterIds = [...new Set(todaySlots.map((s) => s.employee_id))];
   const { data: submitters } = submitterIds.length
     ? await supabase.from("employees").select("id, full_name").in("id", submitterIds)
     : { data: [] };
   const submitterName = new Map((submitters ?? []).map((e) => [e.id, e.full_name ?? ""]));
-  const slotMap = new Map<string, { morning?: (typeof todaySlots)[number]; evening?: (typeof todaySlots)[number] }>();
-  for (const s of todaySlots ?? []) {
-    const cur = slotMap.get(s.vehicle_id as string) ?? {};
+  const slotMap = new Map<string, { morning?: TodaySlotRow; evening?: TodaySlotRow }>();
+  for (const s of todaySlots) {
+    const cur = slotMap.get(s.vehicle_id) ?? {};
     if (s.slot === "morning") cur.morning = s;
     if (s.slot === "evening") cur.evening = s;
-    slotMap.set(s.vehicle_id as string, cur);
+    slotMap.set(s.vehicle_id, cur);
   }
 
   const driverStatusRows = driverList
@@ -148,13 +162,13 @@ export default async function OdometerTrackingPage() {
         morning: {
           submitted: !!m,
           at: m ? String(m.captured_at) : null,
-          byName: m ? submitterName.get(m.employee_id as string) ?? null : null,
+          byName: m ? submitterName.get(m.employee_id) ?? null : null,
           km: m ? Number(m.odometer_km_final) : null,
         },
         evening: {
           submitted: !!e,
           at: e ? String(e.captured_at) : null,
-          byName: e ? submitterName.get(e.employee_id as string) ?? null : null,
+          byName: e ? submitterName.get(e.employee_id) ?? null : null,
           km: e ? Number(e.odometer_km_final) : null,
         },
       };
