@@ -260,6 +260,14 @@ function FragmentRow({
                 ) : null}
               </p>
               <div>
+                <p className="font-medium">Start activity</p>
+                <p className="mt-0.5 whitespace-pre-wrap text-zinc-800">{r.morningNotes || "—"}</p>
+              </div>
+              <div>
+                <p className="font-medium">End activity</p>
+                <p className="mt-0.5 whitespace-pre-wrap text-zinc-800">{r.eveningNotes || "—"}</p>
+              </div>
+              <div>
                 <p className="font-medium">Start plate</p>
                 <PhotoLinks urls={r.morningPlatePhoto} />
               </div>

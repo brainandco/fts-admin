@@ -47,6 +47,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     credentialsSent: boolean;
     credentialsError?: string;
     temporaryPassword?: string;
+    shareManually?: boolean;
+    iqamaLogin?: string;
     error?: string;
   }> = [];
 
@@ -76,6 +78,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       credentialsSent: result.credentialsSent,
       credentialsError: result.credentialsError,
       temporaryPassword: result.temporaryPassword,
+      shareManually: result.shareManually,
+      iqamaLogin: result.iqamaLogin,
     });
     if (result.credentialsSent) {
       await recordPortalCredentialsEmailSent(employeeId, "team_bulk");

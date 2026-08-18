@@ -5,6 +5,8 @@ import { auditLog } from "@/lib/audit/log";
 import { deleteEmployeeById } from "@/lib/employees/delete-employee-internal";
 import { normalizeEmployeeRolePayload, ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
 import { employeeIdentityConflict } from "@/lib/data-uniqueness";
+import { DRIVER_RIGGER_ROLE, driverPortalEmail } from "@/lib/employees/driver-iqama";
+import { ensureDriverRiggerIqamaLogin } from "@/lib/employees/ensure-driver-iqama-login";
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await can("employees.manage"))) {
     return NextResponse.json({ message: "You do not have permission to edit employees." }, { status: 403 });
@@ -35,18 +37,42 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     updates.accommodations = typeof body.accommodations === "string" ? body.accommodations.trim() || null : null;
   }
 
+  const { data: existingRoles } = await supabase.from("employee_roles").select("role").eq("employee_id", id);
+  let nextRole = (existingRoles ?? [])[0]?.role as string | undefined;
+
+  if (Array.isArray(body.roles)) {
+    const roleNorm = normalizeEmployeeRolePayload({
+      roles: body.roles,
+      role_custom: body.role_custom,
+    });
+    if (!roleNorm.ok) {
+      return NextResponse.json({ message: roleNorm.message }, { status: 400 });
+    }
+    nextRole = roleNorm.role;
+  }
+
+  const isDriverRigger = nextRole === DRIVER_RIGGER_ROLE;
   const final = { ...old, ...updates } as Record<string, unknown>;
-  const required = ["full_name", "country", "email", "phone", "iqama_number", "onboarding_date"];
+  const required = isDriverRigger
+    ? ["full_name", "country", "phone", "iqama_number", "onboarding_date"]
+    : ["full_name", "country", "email", "phone", "iqama_number", "onboarding_date"];
   for (const key of required) {
     const v = final[key];
     if (v === undefined || v === null || String(v).trim() === "") {
       return NextResponse.json({ message: `${key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} is required` }, { status: 400 });
     }
   }
+
+  if (isDriverRigger) {
+    const portalEmail = driverPortalEmail(String(final.iqama_number), String(final.email ?? ""));
+    updates.email = portalEmail;
+    final.email = portalEmail;
+  }
+
   const identityClash = await employeeIdentityConflict(
     supabase,
     {
-      email: String(final.email).trim(),
+      email: String(final.email ?? "").trim(),
       passport_number: String(final.passport_number).trim(),
       iqama_number: String(final.iqama_number).trim(),
     },
@@ -57,6 +83,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { error } = await supabase.from("employees").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
+  const previousRole = (existingRoles ?? [])[0]?.role as string | undefined;
   if (Array.isArray(body.roles)) {
     const roleNorm = normalizeEmployeeRolePayload({
       roles: body.roles,
@@ -65,8 +92,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!roleNorm.ok) {
       return NextResponse.json({ message: roleNorm.message }, { status: 400 });
     }
-    const nextRole = roleNorm.role;
-    if (ROLES_NOT_ALLOWED_ON_TEAM.has(nextRole)) {
+    if (ROLES_NOT_ALLOWED_ON_TEAM.has(roleNorm.role)) {
       const { data: teamRows } = await supabase
         .from("teams")
         .select("id")
@@ -91,6 +117,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   await auditLog({ actionType: "update", entityType: "employee", entityId: id, oldValue: old, newValue: { ...old, ...updates }, description: "Employee updated" });
+
+  if (isDriverRigger) {
+    const becameDriver = previousRole !== DRIVER_RIGGER_ROLE;
+    const login = await ensureDriverRiggerIqamaLogin({
+      employeeId: id,
+      resetPassword: becameDriver,
+    });
+    if (!login.ok) {
+      return NextResponse.json({ ok: true, loginWarning: login.message });
+    }
+    return NextResponse.json({
+      ok: true,
+      ...(login.password
+        ? {
+            shareManually: true,
+            iqamaLogin: login.iqama,
+            portalUrl: login.portalUrl,
+            temporaryPassword: login.password,
+          }
+        : {}),
+    });
+  }
+
   return NextResponse.json({ ok: true });
 }
 

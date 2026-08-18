@@ -19,7 +19,7 @@ export default async function OdometerTrackingPage() {
   const { data: rawRows } = await supabase
     .from("vehicle_odometer_readings")
     .select(
-      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, accuracy_m, location_label, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status, duty_shift_id"
+      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, accuracy_m, location_label, activity_notes, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status, duty_shift_id"
     )
     .order("reading_date", { ascending: false })
     .limit(8000);
@@ -35,6 +35,7 @@ export default async function OdometerTrackingPage() {
     lng: typeof row.lng === "number" ? row.lng : row.lng != null ? Number(row.lng) : null,
     accuracy_m: typeof row.accuracy_m === "number" ? row.accuracy_m : null,
     location_label: typeof row.location_label === "string" ? row.location_label : null,
+    activity_notes: typeof row.activity_notes === "string" ? row.activity_notes : null,
     plate_number_final: String(row.plate_number_final ?? ""),
     odometer_km_final: Number(row.odometer_km_final) || 0,
     plate_photo_url: String(row.plate_photo_url ?? ""),

@@ -12,6 +12,8 @@ type ResultRow = {
   credentialsSent?: boolean;
   credentialsError?: string;
   temporaryPassword?: string;
+  shareManually?: boolean;
+  iqamaLogin?: string;
   error?: string;
 };
 
@@ -106,10 +108,31 @@ export function SendTeamMemberCredentialsButton({
                   {r.email ? <span className="ml-1 font-normal text-zinc-600">({r.email})</span> : null}
                 </div>
                 {r.error && <p className="mt-1 text-rose-700">{r.error}</p>}
+                {!r.error && r.shareManually && r.temporaryPassword && (
+                  <div className="mt-1 text-emerald-800">
+                    <p>Share Iqama + password (do not email).</p>
+                    {r.iqamaLogin ? (
+                      <p className="mt-1">
+                        Iqama: <code className="rounded bg-white px-2 py-0.5 font-mono text-xs">{r.iqamaLogin}</code>
+                      </p>
+                    ) : null}
+                    <p className="mt-1 flex flex-wrap items-center gap-2">
+                      <span>Password:</span>
+                      <code className="rounded bg-white px-2 py-0.5 font-mono text-xs">{r.temporaryPassword}</code>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(r.temporaryPassword!)}
+                        className="rounded border border-emerald-300 px-2 py-0.5 text-xs"
+                      >
+                        Copy
+                      </button>
+                    </p>
+                  </div>
+                )}
                 {!r.error && r.credentialsSent && (
                   <p className="mt-1 text-emerald-800">Credentials email sent.</p>
                 )}
-                {!r.error && r.credentialsSent === false && (
+                {!r.error && r.credentialsSent === false && !r.shareManually && (
                   <div className="mt-1 text-amber-900">
                     <p>Email not delivered{r.credentialsError ? `: ${r.credentialsError}` : ""}.</p>
                     {r.temporaryPassword && (

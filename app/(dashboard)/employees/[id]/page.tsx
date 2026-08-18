@@ -86,7 +86,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-2xl font-semibold tracking-tight text-zinc-900">{displayName}</h1>
-            {employee.email && (
+            {employee.email && !String(employee.email).toLowerCase().endsWith("@driver.fts-ksa.com") && (
               <p className="mt-1 text-sm text-zinc-500">{employee.email}</p>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -123,9 +123,13 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
               </div>
             )}
           </div>
-          {employee.email && (
+          {(employee.email || roles.includes("Driver/Rigger")) && (
             <div className="shrink-0 space-y-2 text-right">
-              {lastCredAt ? (
+              {roles.includes("Driver/Rigger") ? (
+                <p className="max-w-xs text-xs text-zinc-500">
+                  Portal login is Iqama + password. Generate a new password for this person only — it does not reset other drivers.
+                </p>
+              ) : lastCredAt ? (
                 <p className="max-w-xs text-xs text-zinc-500">
                   Last portal credentials email:{" "}
                   <span className="font-medium text-zinc-700">{new Date(String(lastCredAt)).toLocaleString()}</span>
@@ -139,7 +143,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
               ) : (
                 <p className="max-w-xs text-xs text-zinc-500">No portal credentials email recorded yet.</p>
               )}
-              <ResendCredentialsButton employeeId={id} />
+              <ResendCredentialsButton employeeId={id} isDriverRigger={roles.includes("Driver/Rigger")} />
             </div>
           )}
         </div>

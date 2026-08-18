@@ -4,6 +4,7 @@ import { PERMISSION_EMPLOYEE_MANAGE } from "@/lib/rbac/permission-codes";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { EmployeeImport } from "@/components/employees/EmployeeImport";
+import { ProvisionDriverLoginsButton } from "@/components/employees/ProvisionDriverLoginsButton";
 import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 import { EmployeesDirectoryTable } from "@/components/employees/EmployeesDirectoryTable";
 
@@ -95,6 +96,7 @@ export default async function EmployeesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {profile?.is_super_user ? <ProvisionDriverLoginsButton /> : null}
             {canCreateOrImport ? (
               <>
                 <EmployeeImport />

@@ -31,7 +31,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const { data: odoRaw } = await dataClient
     .from("vehicle_odometer_readings")
     .select(
-      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, location_label, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status, duty_shift_id"
+      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, location_label, activity_notes, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status, duty_shift_id"
     )
     .eq("vehicle_id", id)
     .order("reading_date", { ascending: false })
@@ -46,6 +46,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
     lat: typeof row.lat === "number" ? row.lat : row.lat != null ? Number(row.lat) : null,
     lng: typeof row.lng === "number" ? row.lng : row.lng != null ? Number(row.lng) : null,
     location_label: typeof (row as { location_label?: string }).location_label === "string" ? (row as { location_label?: string }).location_label ?? null : null,
+    activity_notes: typeof (row as { activity_notes?: string }).activity_notes === "string" ? (row as { activity_notes?: string }).activity_notes ?? null : null,
     plate_number_final: String(row.plate_number_final ?? ""),
     odometer_km_final: Number(row.odometer_km_final) || 0,
     plate_photo_url: String(row.plate_photo_url ?? ""),
@@ -155,7 +156,9 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Driver</th>
                   <th className="px-3 py-2">Start</th>
+                  <th className="px-3 py-2">Start activity</th>
                   <th className="px-3 py-2">End</th>
+                  <th className="px-3 py-2">End activity</th>
                   <th className="px-3 py-2">Shift km</th>
                   <th className="px-3 py-2">vs previous</th>
                   <th className="px-3 py-2">Status</th>
@@ -167,7 +170,9 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
                     <td className="px-3 py-2 font-medium">{r.reading_date}</td>
                     <td className="px-3 py-2">{r.driver || "—"}</td>
                     <td className="px-3 py-2">{r.morningKm ?? "—"}</td>
+                    <td className="max-w-xs px-3 py-2 text-xs text-zinc-700">{r.morningNotes || "—"}</td>
                     <td className="px-3 py-2">{r.eveningKm ?? "—"}</td>
+                    <td className="max-w-xs px-3 py-2 text-xs text-zinc-700">{r.eveningNotes || "—"}</td>
                     <td className="px-3 py-2 font-semibold text-emerald-800">{r.todayKm ?? "—"}</td>
                     <td className="px-3 py-2">
                       {r.vsPreviousKm ?? "—"}

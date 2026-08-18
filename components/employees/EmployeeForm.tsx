@@ -9,6 +9,7 @@ import {
   EMPLOYEE_ROLE_GROUPS,
   EMPLOYEE_ROLE_OTHER,
 } from "@/lib/employees/employee-role-options";
+import { DRIVER_RIGGER_ROLE } from "@/lib/employees/driver-iqama";
 
 type Employee = {
   id: string;
@@ -61,6 +62,14 @@ export function EmployeeForm({
   const [error, setError] = useState("");
   const [teamsBlockingDelete, setTeamsBlockingDelete] = useState<{ id: string; name: string }[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [createdLogin, setCreatedLogin] = useState<{
+    employeeId?: string;
+    password: string;
+    iqama: string;
+    portalUrl?: string;
+    name: string;
+  } | null>(null);
+  const isDriverRigger = roles[0] === DRIVER_RIGGER_ROLE;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +78,7 @@ export function EmployeeForm({
     const required = [
       { val: fullName.trim(), name: "Full name" },
       { val: country.trim(), name: "Country" },
-      { val: email.trim(), name: "Email" },
+      ...(!isDriverRigger ? [{ val: email.trim(), name: "Email" }] : []),
       { val: phone.trim(), name: "Phone number" },
       { val: iqamaNumber.trim(), name: "Iqama number" },
       { val: onboardingDate.trim(), name: "Onboarding date" },
@@ -108,7 +117,22 @@ export function EmployeeForm({
       return;
     }
     setError("");
-    router.push("/employees");
+    if (typeof data.temporaryPassword === "string" && data.temporaryPassword && (data.shareManually === true || isDriverRigger)) {
+      setCreatedLogin({
+        employeeId: typeof data.id === "string" ? data.id : existing?.id,
+        password: data.temporaryPassword,
+        iqama: typeof data.iqamaLogin === "string" ? data.iqamaLogin : iqamaNumber.trim(),
+        portalUrl: typeof data.portalUrl === "string" ? data.portalUrl : undefined,
+        name: fullName.trim(),
+      });
+      return;
+    }
+    if (existing) {
+      router.push(`/employees/${existing.id}`);
+      router.refresh();
+      return;
+    }
+    router.push(typeof data.id === "string" ? `/employees/${data.id}` : "/employees");
     router.refresh();
   }
 
@@ -134,6 +158,55 @@ export function EmployeeForm({
 
   const fieldClass =
     "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
+
+  if (createdLogin) {
+    return (
+      <div className="max-w-xl rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-emerald-950">Driver/Rigger login ready</h2>
+        <p className="mt-1 text-sm text-emerald-900">
+          Share Iqama + this password with {createdLogin.name} one by one. This password is shown once.
+        </p>
+        <dl className="mt-4 space-y-2 text-sm text-emerald-950">
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-emerald-800">Iqama</dt>
+            <dd>
+              <code className="rounded bg-white px-2 py-1 font-mono text-sm">{createdLogin.iqama}</code>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-emerald-800">Password</dt>
+            <dd className="mt-1 flex flex-wrap items-center gap-2">
+              <code className="rounded bg-white px-2 py-1 font-mono text-sm">{createdLogin.password}</code>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(createdLogin.password)}
+                className="rounded border border-emerald-300 bg-white px-2 py-0.5 text-xs font-medium hover:bg-emerald-100"
+              >
+                Copy
+              </button>
+            </dd>
+          </div>
+          {createdLogin.portalUrl ? (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-emerald-800">Portal</dt>
+              <dd className="text-xs">{createdLogin.portalUrl}</dd>
+            </div>
+          ) : null}
+        </dl>
+        <button
+          type="button"
+          onClick={() => {
+            const next = createdLogin.employeeId ? `/employees/${createdLogin.employeeId}` : "/employees";
+            router.push(next);
+            router.refresh();
+          }}
+          className="mt-5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+        >
+          Done
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -178,9 +251,21 @@ export function EmployeeForm({
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
-              Email <span className="text-red-600">*</span>
+              Email {isDriverRigger ? <span className="font-normal text-zinc-500">(optional)</span> : <span className="text-red-600">*</span>}
             </label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={fieldClass} />
+            <input
+              type={isDriverRigger ? "text" : "email"}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required={!isDriverRigger}
+              placeholder={isDriverRigger ? "Leave blank — they log in with Iqama" : ""}
+              className={fieldClass}
+            />
+            {isDriverRigger ? (
+              <p className="mt-1 text-xs text-zinc-500">
+                Driver/Rigger portal login is Iqama + a password shown after save. No email needed.
+              </p>
+            ) : null}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">

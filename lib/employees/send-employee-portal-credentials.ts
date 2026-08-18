@@ -2,6 +2,8 @@ import { getDataClient } from "@/lib/supabase/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/admin";
 import { normalizeEmployeeEmail } from "@/lib/auth/employee-email";
 import { randomPassword, sendEmployeeCredentials } from "@/lib/email/send-employee-credentials";
+import { DRIVER_RIGGER_ROLE } from "@/lib/employees/driver-iqama";
+import { ensureDriverRiggerIqamaLogin } from "@/lib/employees/ensure-driver-iqama-login";
 
 export type SendEmployeePortalCredentialsResult =
   | {
@@ -12,12 +14,16 @@ export type SendEmployeePortalCredentialsResult =
       credentialsSent: boolean;
       credentialsError?: string;
       temporaryPassword?: string;
+      shareManually?: boolean;
+      iqamaLogin?: string;
+      portalUrl?: string;
     }
   | { ok: false; code: "not_found" | "no_email"; employeeId: string; message: string }
   | { ok: false; code: "auth_error"; employeeId: string; message: string };
 
 /**
  * Same behavior as POST /api/employees/[id]/resend-credentials: new password, update/create auth user, email credentials.
+ * Driver/Rigger: no email — admin shares Iqama + password.
  */
 export async function sendEmployeePortalCredentials(employeeId: string): Promise<SendEmployeePortalCredentialsResult> {
   const supabase = await getDataClient();
@@ -29,6 +35,25 @@ export async function sendEmployeePortalCredentials(employeeId: string): Promise
 
   if (empError || !employee) {
     return { ok: false, code: "not_found", employeeId, message: "Employee not found" };
+  }
+
+  const { data: roles } = await supabase.from("employee_roles").select("role").eq("employee_id", employeeId);
+  if ((roles ?? []).some((r) => r.role === DRIVER_RIGGER_ROLE)) {
+    const login = await ensureDriverRiggerIqamaLogin({ employeeId, resetPassword: true });
+    if (!login.ok) {
+      return { ok: false, code: "auth_error", employeeId, message: login.message };
+    }
+    return {
+      ok: true,
+      employeeId,
+      email: login.email,
+      fullName: login.fullName,
+      credentialsSent: false,
+      shareManually: true,
+      iqamaLogin: login.iqama,
+      portalUrl: login.portalUrl,
+      temporaryPassword: login.password ?? undefined,
+    };
   }
 
   const rawEmail = (employee.email ?? "").trim();

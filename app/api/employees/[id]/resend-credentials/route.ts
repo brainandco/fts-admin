@@ -37,8 +37,9 @@ export async function POST(
     credentialsSent: result.credentialsSent,
   };
   if (result.credentialsError) body.credentialsError = result.credentialsError;
-  if (!result.credentialsSent && result.temporaryPassword) {
-    body.temporaryPassword = result.temporaryPassword;
-  }
+  if (result.shareManually) body.shareManually = true;
+  if (result.iqamaLogin) body.iqamaLogin = result.iqamaLogin;
+  if (result.portalUrl) body.portalUrl = result.portalUrl;
+  if (result.temporaryPassword) body.temporaryPassword = result.temporaryPassword;
   return NextResponse.json(body);
 }

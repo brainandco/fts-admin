@@ -3,13 +3,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function ResendCredentialsButton({ employeeId }: { employeeId: string }) {
+export function ResendCredentialsButton({
+  employeeId,
+  isDriverRigger = false,
+}: {
+  employeeId: string;
+  isDriverRigger?: boolean;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     credentialsSent: boolean;
     credentialsError?: string;
     temporaryPassword?: string;
+    shareManually?: boolean;
+    iqamaLogin?: string;
+    portalUrl?: string;
   } | null>(null);
 
   async function handleClick() {
@@ -29,6 +38,9 @@ export function ResendCredentialsButton({ employeeId }: { employeeId: string }) 
         credentialsSent: data.credentialsSent === true,
         credentialsError: data.credentialsError,
         temporaryPassword: data.temporaryPassword,
+        shareManually: data.shareManually === true,
+        iqamaLogin: typeof data.iqamaLogin === "string" ? data.iqamaLogin : undefined,
+        portalUrl: typeof data.portalUrl === "string" ? data.portalUrl : undefined,
       });
       if (data.credentialsSent === true) {
         router.refresh();
@@ -46,17 +58,44 @@ export function ResendCredentialsButton({ employeeId }: { employeeId: string }) 
         disabled={loading}
         className="rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
       >
-        {loading ? "Sending…" : "Resend credentials email"}
+        {loading
+          ? isDriverRigger
+            ? "Generating…"
+            : "Sending…"
+          : isDriverRigger
+            ? "New Iqama login password"
+            : "Resend credentials email"}
       </button>
       {result && (
         <div
           className={`rounded border p-3 text-sm ${
-            result.credentialsSent
+            result.credentialsSent || result.shareManually
               ? "border-emerald-200 bg-emerald-50 text-emerald-800"
               : "border-amber-200 bg-amber-50 text-amber-800"
           }`}
         >
-          {result.credentialsSent ? (
+          {result.shareManually && result.temporaryPassword ? (
+            <div className="space-y-2 text-left">
+              <p className="font-medium">Share Iqama + this password one by one. Do not email.</p>
+              {result.iqamaLogin ? (
+                <p>
+                  <strong>Iqama:</strong> <code className="rounded bg-white/80 px-2 py-0.5 font-mono text-xs">{result.iqamaLogin}</code>
+                </p>
+              ) : null}
+              <p className="flex flex-wrap items-center gap-2">
+                <strong>Password:</strong>
+                <code className="rounded bg-white/80 px-2 py-0.5 font-mono text-xs">{result.temporaryPassword}</code>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(result.temporaryPassword!)}
+                  className="rounded border border-emerald-300 px-2 py-0.5 text-xs hover:bg-white/50"
+                >
+                  Copy
+                </button>
+              </p>
+              {result.portalUrl ? <p className="text-xs text-emerald-900/80">{result.portalUrl}</p> : null}
+            </div>
+          ) : result.credentialsSent ? (
             <p>Credentials email sent. The employee can use the new password in the email to log in.</p>
           ) : (
             <>
