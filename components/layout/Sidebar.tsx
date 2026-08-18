@@ -115,6 +115,11 @@ const navStructure: NavEntry[] = [
           permissionAnyOf: ["assets.manage", "assets.assign", "vehicles.manage", "vehicles.assign"],
         },
         { href: "/vehicles", label: "Vehicles", permissionAnyOf: ["vehicles.manage", "vehicles.assign"] },
+        {
+          href: "/vehicles/odometer",
+          label: "Odometer tracking",
+          permissionAnyOf: ["vehicles.manage", "vehicles.assign"],
+        },
       ],
     },
   },

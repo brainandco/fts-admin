@@ -147,6 +147,14 @@ export function AdminNavGlyph({ href, className }: { href: string; className?: s
           <path d="M8 17h8m-8-4h8m-4-9v4m-5 9h10l1-5H4l1 5Z" />
         </svg>
       );
+    case "/vehicles/odometer":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden {...p}>
+          <path d="M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18Z" />
+          <path d="m12 12 4-3" />
+          <path d="M8 15h8" />
+        </svg>
+      );
     case "/exports":
       return (
         <svg viewBox="0 0 24 24" aria-hidden {...p}>

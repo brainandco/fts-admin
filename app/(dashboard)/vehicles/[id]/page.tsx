@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { VehicleForm } from "@/components/vehicles/VehicleForm";
@@ -9,6 +9,7 @@ import { AdminRegionEmployeeAssignCard } from "@/components/admin-assignment/Adm
 import { can } from "@/lib/rbac/permissions";
 import { ConditionPhotosGallery } from "@/components/assets/ConditionPhotosGallery";
 import { parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { buildDailySummaries, type OdometerReadingRow } from "@/lib/odometer/daily-summary";
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const canManage = await can("vehicles.manage");
@@ -26,6 +27,38 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const { data: regions } = await supabase.from("regions").select("id, name").order("name");
   const { data: projects } = await supabase.from("projects").select("id, name").order("name");
   const { data: maintenance } = await supabase.from("vehicle_maintenance").select("*").eq("vehicle_id", id).order("service_date", { ascending: false });
+  const dataClient = await getDataClient();
+  const { data: odoRaw } = await dataClient
+    .from("vehicle_odometer_readings")
+    .select(
+      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status"
+    )
+    .eq("vehicle_id", id)
+    .order("reading_date", { ascending: false })
+    .limit(120);
+  const odoReadings: OdometerReadingRow[] = (odoRaw ?? []).map((row) => ({
+    vehicle_id: String(row.vehicle_id),
+    employee_id: String(row.employee_id),
+    team_id: (row.team_id as string | null) ?? null,
+    reading_date: String(row.reading_date),
+    slot: row.slot === "evening" ? "evening" : "morning",
+    captured_at: String(row.captured_at),
+    lat: typeof row.lat === "number" ? row.lat : row.lat != null ? Number(row.lat) : null,
+    lng: typeof row.lng === "number" ? row.lng : row.lng != null ? Number(row.lng) : null,
+    plate_number_final: String(row.plate_number_final ?? ""),
+    odometer_km_final: Number(row.odometer_km_final) || 0,
+    plate_photo_url: String(row.plate_photo_url ?? ""),
+    odometer_photo_urls: row.odometer_photo_urls,
+    ocr_status: String(row.ocr_status ?? ""),
+  }));
+  const odoEmpIds = [...new Set(odoReadings.map((r) => r.employee_id))];
+  const { data: odoEmps } = odoEmpIds.length
+    ? await dataClient.from("employees").select("id, full_name").in("id", odoEmpIds)
+    : { data: [] };
+  const odoPeople = new Map(
+    (odoEmps ?? []).map((e) => [e.id, { full_name: e.full_name ?? "", region_name: "", team_name: "" }])
+  );
+  const odoSummaries = buildDailySummaries(odoReadings, odoPeople, new Map([[id, { make: vehicle.make ?? "", model: vehicle.model ?? "" }]]));
   const { data: returnEvents } = await supabase
     .from("vehicle_return_events")
     .select("id, employee_comment, return_image_urls, created_at, from_employee_id")
@@ -103,6 +136,51 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
         )}
       </section>
       {canManage ? <VehicleMaintenance vehicleId={id} logs={maintenance ?? []} /> : null}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-medium text-zinc-900">Odometer tracking</h2>
+          <Link href="/vehicles/odometer" className="text-sm font-medium text-sky-700 hover:underline">
+            All vehicles →
+          </Link>
+        </div>
+        {odoSummaries.length === 0 ? (
+          <p className="text-sm text-zinc-500">No morning/evening odometer submissions yet.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Driver</th>
+                  <th className="px-3 py-2">Morning</th>
+                  <th className="px-3 py-2">Evening</th>
+                  <th className="px-3 py-2">Today km</th>
+                  <th className="px-3 py-2">vs previous</th>
+                  <th className="px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {odoSummaries.map((r) => (
+                  <tr key={r.reading_date} className="border-t border-zinc-100">
+                    <td className="px-3 py-2 font-medium">{r.reading_date}</td>
+                    <td className="px-3 py-2">{r.driver || "—"}</td>
+                    <td className="px-3 py-2">{r.morningKm ?? "—"}</td>
+                    <td className="px-3 py-2">{r.eveningKm ?? "—"}</td>
+                    <td className="px-3 py-2 font-semibold text-emerald-800">{r.todayKm ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      {r.vsPreviousKm ?? "—"}
+                      {r.previousDate ? (
+                        <span className="block text-xs text-zinc-500">{r.previousDate}</span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 text-xs">{r.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
       <EntityHistory entityType="vehicle" entityId={id} />
     </div>
   );
