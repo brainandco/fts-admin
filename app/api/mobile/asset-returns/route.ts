@@ -3,7 +3,7 @@ import { pmEmployeeIdSet } from "@/lib/employees/pm-role";
 import { resolveApiAuthContext } from "@/lib/mobile/api-auth-context";
 import { getDataClient } from "@/lib/supabase/server";
 
-/** GET — PM asset returns pending admin confirmation (Admin Lite mobile). */
+/** GET — PM asset returns for Admin Lite (pending by default; ?status=all for recent history). */
 export async function GET(req: Request) {
   const ctx = await resolveApiAuthContext(req);
   if (!ctx) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -11,16 +11,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ message: "You do not have access to asset returns." }, { status: 403 });
   }
 
-  const supabase = await getDataClient();
-  const { data: queue, error } = await supabase
-    .from("asset_return_requests")
-    .select(
-      "id, asset_id, from_employee_id, employee_comment, return_image_urls, status, created_at"
-    )
-    .eq("status", "pending")
-    .order("created_at", { ascending: true })
-    .limit(100);
+  const url = new URL(req.url);
+  const statusParam = url.searchParams.get("status");
+  const statusFilter =
+    statusParam === "all" ? null : statusParam && statusParam !== "pending" ? statusParam : "pending";
 
+  const supabase = await getDataClient();
+  let query = supabase
+    .from("asset_return_requests")
+    .select("id, asset_id, from_employee_id, employee_comment, return_image_urls, status, created_at")
+    .order("created_at", { ascending: statusFilter === "pending" })
+    .limit(100);
+  if (statusFilter) query = query.eq("status", statusFilter);
+
+  const { data: queue, error } = await query;
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 
   const pmIds = await pmEmployeeIdSet(
@@ -63,5 +67,6 @@ export async function GET(req: Request) {
     };
   });
 
-  return NextResponse.json({ items, pendingCount: items.length });
+  const pendingCount = items.filter((i) => i.status === "pending").length;
+  return NextResponse.json({ items, pendingCount });
 }

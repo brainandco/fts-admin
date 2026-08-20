@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveApiAuthContext } from "@/lib/mobile/api-auth-context";
 import { getDataClient } from "@/lib/supabase/server";
+import type { UsersProfileWithRegion } from "@/lib/types/database";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -49,7 +50,8 @@ export async function GET(req: Request, { params }: Params) {
     .maybeSingle();
 
   if (!task) return NextResponse.json({ message: "Not found" }, { status: 404 });
-  if (ctx.profile.region_id && !ctx.isSuper && task.region_id !== ctx.profile.region_id) {
+  const profileRegion = (ctx.profile as UsersProfileWithRegion).region_id ?? null;
+  if (profileRegion && !ctx.isSuper && task.region_id !== profileRegion) {
     return NextResponse.json({ message: "Not found" }, { status: 404 });
   }
 

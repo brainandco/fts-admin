@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { approvalCanAct, type ApprovalRow } from "@/lib/mobile/approval-workflow";
 import type { ApiAuthContext } from "@/lib/mobile/api-auth-context";
 import { pmEmployeeIdSet } from "@/lib/employees/pm-role";
+import type { UsersProfileWithRegion } from "@/lib/types/database";
 
 export type AdminMobileDashboard = {
   fullName: string | null;
@@ -21,6 +22,7 @@ export type AdminMobileDashboard = {
     canManageEmployees: boolean;
     canViewVehicleDuty: boolean;
     canViewTasks: boolean;
+    canViewInventory: boolean;
   };
 };
 
@@ -39,7 +41,7 @@ export async function buildAdminMobileDashboard(
   ctx: ApiAuthContext,
   supabase: SupabaseClient
 ): Promise<AdminMobileDashboard> {
-  const regionId = ctx.profile.region_id ?? null;
+  const regionId = (ctx.profile as UsersProfileWithRegion).region_id ?? null;
   const actor = { isSuper: ctx.isSuper, canApprove: ctx.canApprove, canReject: ctx.canReject };
 
   const canViewApprovals = ctx.canViewApprovals;
@@ -48,6 +50,12 @@ export async function buildAdminMobileDashboard(
   const canViewVehicleDuty =
     ctx.isSuper || ctx.permissions.has("vehicles.manage") || ctx.permissions.has("vehicles.assign");
   const canViewTasks = ctx.isSuper || ctx.permissions.has("tasks.view_all") || ctx.permissions.has("tasks.edit");
+  const canViewInventory =
+    ctx.isSuper ||
+    ctx.permissions.has("assets.manage") ||
+    ctx.permissions.has("assets.assign") ||
+    ctx.permissions.has("vehicles.manage") ||
+    ctx.permissions.has("vehicles.assign");
 
   const unreadNotifications = await safeCount(() =>
     supabase
@@ -138,6 +146,7 @@ export async function buildAdminMobileDashboard(
       canManageEmployees,
       canViewVehicleDuty,
       canViewTasks,
+      canViewInventory,
     },
   };
 }

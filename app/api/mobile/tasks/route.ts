@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveApiAuthContext } from "@/lib/mobile/api-auth-context";
 import { getDataClient } from "@/lib/supabase/server";
+import type { UsersProfileWithRegion } from "@/lib/types/database";
 
 /** GET — overdue/open tasks list for Admin Lite mobile. */
 export async function GET(req: Request) {
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode") === "all" ? "all" : "overdue";
-  const regionId = ctx.profile.region_id ?? null;
+  const regionId = (ctx.profile as UsersProfileWithRegion).region_id ?? null;
 
   const supabase = await getDataClient();
   let query = supabase
