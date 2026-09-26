@@ -242,8 +242,8 @@ export function AdminProfileSettings({ initialFullName, email, initialAvatarUrl 
           <p className="mt-2 text-xs text-slate-500">
             To use a different address, enter it below. We will send a confirmation link only to that address; your email
             updates after you open the link. Messages come from the same address as other portal mail (e.g.{" "}
-            <span className="font-mono text-slate-600">noreply@admin.fts-ksa.com</span> when configured in{" "}
-            <code className="rounded bg-slate-100 px-1">RESEND_FROM_EMAIL</code>).
+            <span className="font-mono text-slate-600">noreply@fts-ksa.com</span> when configured in{" "}
+            <code className="rounded bg-slate-100 px-1">SMTP_FROM</code>).
           </p>
           {pendingConfigError && (
             <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">

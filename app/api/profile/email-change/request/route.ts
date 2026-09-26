@@ -92,7 +92,7 @@ export async function POST(req: Request) {
       {
         error:
           sendResult.error ??
-          "Could not send verification email. Check RESEND_API_KEY and RESEND_FROM_EMAIL on the server (e.g. Vercel env).",
+          "Could not send verification email. Check SMTP_HOST / SMTP_USER / SMTP_PASSWORD on the server (e.g. Vercel env).",
       },
       { status: 502 }
     );

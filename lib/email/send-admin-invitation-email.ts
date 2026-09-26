@@ -2,26 +2,15 @@
  * First email: invitation link only (no password). User accepts on /invite/accept?token=…
  */
 
-import { Resend } from "resend";
+import { sendSmtpMail, type SendEmailResult } from "@/lib/email/smtp";
 
-export type SendEmailResult = { sent: boolean; error?: string };
+export type { SendEmailResult };
 
 export async function sendAdminInvitationEmail(
   email: string,
   fullName: string,
-  acceptInvitationUrl: string
+  acceptInvitationUrl: string,
 ): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-
-  if (!apiKey?.trim()) {
-    return {
-      sent: false,
-      error:
-        "RESEND_API_KEY not set. Locally: fts-admin/.env.local + restart dev. On Vercel: Project → Environment Variables.",
-    };
-  }
-
   const html = `
     <p>Hello${fullName ? ` ${fullName}` : ""},</p>
     <p>You have been invited to the <strong>Admin Portal</strong>.</p>
@@ -33,21 +22,9 @@ export async function sendAdminInvitationEmail(
     <p>If you did not expect this email, contact your administrator.</p>
   `;
 
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: fromEmail,
+  return sendSmtpMail({
     to: email,
     subject: "You're invited to the Admin Portal",
     html,
   });
-
-  if (error) {
-    const raw = error.message || String(error);
-    const hint =
-      /verify a domain|testing emails|only send testing/i.test(raw)
-        ? " Add your domain at https://resend.com/domains (DNS), then set RESEND_FROM_EMAIL to an address on that domain."
-        : "";
-    return { sent: false, error: raw + hint };
-  }
-  return { sent: true };
 }

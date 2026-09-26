@@ -2,28 +2,18 @@
  * Second email: after invitation is accepted — portal URL + email + password.
  */
 
-import { Resend } from "resend";
 import { getAdminPortalBaseUrl } from "@/lib/email/admin-portal-base-url";
+import { sendSmtpMail, type SendEmailResult } from "@/lib/email/smtp";
 
-export type SendEmailResult = { sent: boolean; error?: string };
+export type { SendEmailResult };
 
 export async function sendAdminPortalCredentialsEmail(
   email: string,
   fullName: string,
-  password: string
+  password: string,
 ): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
   const portalUrl = getAdminPortalBaseUrl();
   const loginUrl = `${portalUrl}/login`;
-
-  if (!apiKey?.trim()) {
-    return {
-      sent: false,
-      error:
-        "RESEND_API_KEY not set. Locally: fts-admin/.env.local + restart dev. On Vercel: Project → Environment Variables.",
-    };
-  }
 
   const html = `
     <p>Hello${fullName ? ` ${fullName}` : ""},</p>
@@ -36,21 +26,9 @@ export async function sendAdminPortalCredentialsEmail(
     <p>If you did not expect this email, contact your administrator.</p>
   `;
 
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from: fromEmail,
+  return sendSmtpMail({
     to: email,
     subject: "Your Admin Portal login details",
     html,
   });
-
-  if (error) {
-    const raw = error.message || String(error);
-    const hint =
-      /verify a domain|testing emails|only send testing/i.test(raw)
-        ? " Add your domain at https://resend.com/domains (DNS), then set RESEND_FROM_EMAIL to an address on that domain."
-        : "";
-    return { sent: false, error: raw + hint };
-  }
-  return { sent: true };
 }
