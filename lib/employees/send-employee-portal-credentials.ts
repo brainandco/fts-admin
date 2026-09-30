@@ -109,7 +109,7 @@ export async function sendEmployeePortalCredentials(employeeId: string): Promise
 
     await admin.from("employees").update({ must_change_password: true }).eq("id", employeeId);
 
-    const sendResult = await sendEmployeeCredentials(email, fullName, password);
+    const sendResult = await sendEmployeeCredentials(email, fullName, password, { kind: "resend" });
     const credentialsSent = sendResult.sent;
     const credentialsError = sendResult.sent ? undefined : sendResult.error ?? "Email could not be sent";
 

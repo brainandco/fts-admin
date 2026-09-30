@@ -54,11 +54,21 @@ export async function sendSmtpMail(opts: {
 
   try {
     const transporter = getTransporter();
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"FTS Admin" <${fromAddress()}>`,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
+      // Helps avoid clients treating create + resend as one collapsed thread.
+      headers: {
+        "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      },
+    });
+    console.info("[email] SMTP accepted", {
+      to: opts.to,
+      subject: opts.subject,
+      messageId: info.messageId,
+      response: info.response,
     });
     return { sent: true };
   } catch (err) {

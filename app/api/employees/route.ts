@@ -123,7 +123,7 @@ export async function POST(req: Request) {
       if (portalUserId) {
         await admin.from("users_profile").update({ must_change_password: true }).eq("id", portalUserId);
       }
-      const sendResult = await sendEmployeeCredentials(email, full_name, password);
+      const sendResult = await sendEmployeeCredentials(email, full_name, password, { kind: "create" });
       credentialsSent = sendResult.sent;
       if (!sendResult.sent) credentialsError = sendResult.error ?? "Email could not be sent";
       else await recordPortalCredentialsEmailSent(data.id, "employee_create");

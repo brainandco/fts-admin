@@ -21,13 +21,23 @@ export async function sendEmployeeCredentials(
   email: string,
   fullName: string,
   password: string,
+  opts?: { kind?: "create" | "resend" },
 ): Promise<SendEmailResult> {
   const portalUrl = getEmployeePortalBaseUrl();
   const loginUrl = `${portalUrl}/login`;
+  const isResend = opts?.kind === "resend";
+
+  // Distinct subject/body so clients don't collapse/spam-filter a duplicate of the create mail.
+  const subject = isResend
+    ? "Employee Portal — new temporary password"
+    : "Your Employee Portal Login";
+  const intro = isResend
+    ? "Your administrator reset your Employee Portal password. Use the new temporary password below to sign in."
+    : "Your employee portal account has been created. Use the details below to sign in.";
 
   const html = `
     <p>Hello${fullName ? ` ${fullName}` : ""},</p>
-    <p>Your employee portal account has been created. Use the details below to sign in.</p>
+    <p>${intro}</p>
     <p><strong>Portal:</strong> <a href="${portalUrl}">${portalUrl}</a></p>
     <p><strong>Sign in:</strong> <a href="${loginUrl}">${loginUrl}</a></p>
     <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
@@ -38,7 +48,7 @@ export async function sendEmployeeCredentials(
 
   return sendSmtpMail({
     to: email,
-    subject: "Your Employee Portal Login",
+    subject,
     html,
   });
 }
