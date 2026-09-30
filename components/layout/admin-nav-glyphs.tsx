@@ -14,6 +14,13 @@ export function AdminNavGlyph({ href, className }: { href: string; className?: s
           <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5Z" />
         </svg>
       );
+    case "/mobile-app":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden {...p}>
+          <path d="M9 2.5h6a2 2 0 0 1 2 2v15a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-15a2 2 0 0 1 2-2Z" />
+          <path d="M11 18h2" />
+        </svg>
+      );
     case "/leave":
       return (
         <svg viewBox="0 0 24 24" aria-hidden {...p}>

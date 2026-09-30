@@ -1,6 +1,7 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { countActiveAdminPortalUsers, getTotalFtsPeopleCount } from "@/lib/admin-portal-user-counts";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
+import { MobileAppDownloadCard } from "@/components/mobile/MobileAppDownloadCard";
 import Link from "next/link";
 
 async function safeCount(
@@ -195,6 +196,8 @@ export default async function DashboardPage() {
           Snapshot of your workspace. Open any card to jump to the full list.
         </p>
       </div>
+
+      <MobileAppDownloadCard audience="admin" compact />
 
       {showCompanyDocuments ? (
         <section className="max-w-3xl rounded-xl border border-indigo-200/90 bg-indigo-50/40 p-4 sm:p-5">

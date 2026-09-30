@@ -26,6 +26,7 @@ type NavEntry = { type: "link"; item: NavLink } | { type: "group"; key: string; 
 
 const navStructure: NavEntry[] = [
   { type: "link", item: { href: "/dashboard", label: "Dashboard" } },
+  { type: "link", item: { href: "/mobile-app", label: "Mobile app" } },
   { type: "link", item: { href: "/leave", label: "Leave" } },
   { type: "link", item: { href: "/settings/profile", label: "My profile" } },
   {
