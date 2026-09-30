@@ -137,6 +137,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { data: old } = await supabase.from("sim_cards").select("*").eq("id", id).single();
   if (!old) return NextResponse.json({ message: "Not found" }, { status: 404 });
 
+  await deleteReceiptForResource(supabase, "sim_card", id);
+
   const { error } = await supabase.from("sim_cards").delete().eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
 

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { can } from "@/lib/rbac/permissions";
 import { EhsToolForm } from "@/components/ehs/EhsToolForm";
+import { InventoryDeleteButton } from "@/components/inventory/InventoryDeleteButton";
 import { ConditionPhotosGallery } from "@/components/assets/ConditionPhotosGallery";
 
 export default async function EhsToolDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -47,6 +48,12 @@ export default async function EhsToolDetailPage({ params }: { params: Promise<{ 
         <span className="rounded bg-orange-100 px-2 py-0.5 text-sm text-orange-900">{asset.status}</span>
         <span className="font-mono text-sm text-zinc-600">{asset.asset_id}</span>
         <span className="text-sm text-zinc-500">EN: {asset.en_code}</span>
+        <InventoryDeleteButton
+          apiPath={`/api/assets/${id}`}
+          entityLabel="EHS tool"
+          displayName={String(asset.asset_id || asset.name || id)}
+          redirectTo="/ehs-tools"
+        />
       </div>
 
       {assigneeName ? (

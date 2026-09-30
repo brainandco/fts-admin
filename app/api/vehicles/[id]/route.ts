@@ -167,6 +167,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const supabase = await getDataClient();
   const { data: vehicle } = await supabase.from("vehicles").select("*").eq("id", id).single();
   if (!vehicle) return NextResponse.json({ message: "Not found" }, { status: 404 });
+  await deleteReceiptForResource(supabase, "vehicle", id);
   const { error } = await supabase.from("vehicles").delete().eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
   await auditLog({ actionType: "delete", entityType: "vehicle", entityId: id, oldValue: vehicle, description: "Vehicle deleted" });

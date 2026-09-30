@@ -1,6 +1,10 @@
 "use client";
 
-import { DataTable } from "@/components/ui/DataTable";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { DataTable, type RowAction } from "@/components/ui/DataTable";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { InfoModal } from "@/components/ui/InfoModal";
 import { companyGroupingKey, companySectionAnchorId } from "@/lib/assets/company-display";
 
 export type AssetCategoryRow = Record<string, unknown> & { id: string };
@@ -29,9 +33,14 @@ function groupRowsByCompanyLabel(rows: AssetCategoryRow[]): Map<string, { displa
   );
 }
 
+function rowLabel(row: AssetCategoryRow): string {
+  return String(row.asset_id || row.name || row.id);
+}
+
 export function AssetCategoryTables({
   showImei,
   canBulkDelete,
+  canDelete = true,
   activeRows,
   maintenanceRows,
   damagedRows,
@@ -41,6 +50,8 @@ export function AssetCategoryTables({
   showImei: boolean;
   /** Super User grants "Execute bulk deletes" on a role; without it, row selection delete is hidden. */
   canBulkDelete: boolean;
+  /** Individual row Delete (assets.manage). Independent of bulk_delete.execute. */
+  canDelete?: boolean;
   activeRows: AssetCategoryRow[];
   maintenanceRows: AssetCategoryRow[];
   damagedRows: AssetCategoryRow[];
@@ -49,6 +60,11 @@ export function AssetCategoryTables({
   /** After assigning from asset detail, return here (e.g. `/assets/type/Mobile`). */
   returnToPath?: string;
 }) {
+  const router = useRouter();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [failMessage, setFailMessage] = useState<string | null>(null);
+
   const hrefSuffix = returnToPath ? `?returnTo=${encodeURIComponent(returnToPath)}` : "";
   const imeiCols = showImei
     ? ([{ key: "imei_1", label: "IMEI 1" }, { key: "imei_2", label: "IMEI 2" }] as const)
@@ -75,6 +91,39 @@ export function AssetCategoryTables({
     { key: "status", label: "Status" },
   ];
 
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/assets/${deleteTarget.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDeleting(false);
+        setFailMessage(typeof data.message === "string" ? data.message : "Failed to delete asset");
+        return;
+      }
+      setDeleteTarget(null);
+      setDeleting(false);
+      router.refresh();
+    } catch {
+      setDeleting(false);
+      setFailMessage("Failed to delete asset");
+    }
+  }
+
+  const rowActions = (row: AssetCategoryRow): RowAction<AssetCategoryRow>[] => {
+    const actions: RowAction<AssetCategoryRow>[] = [
+      { label: "View", href: `/assets/${row.id}${hrefSuffix}` },
+    ];
+    if (canDelete) {
+      actions.push({
+        label: "Delete",
+        onClick: () => setDeleteTarget({ id: row.id, label: rowLabel(row) }),
+      });
+    }
+    return actions;
+  };
+
   function renderActiveTables(rows: AssetCategoryRow[]) {
     if (rows.length === 0) {
       return (
@@ -92,6 +141,7 @@ export function AssetCategoryTables({
           searchPlaceholder="Search by name, serial, asset ID…"
           multiSelect={canBulkDelete}
           bulkDelete={canBulkDelete ? bulk : undefined}
+          rowActions={rowActions}
           columns={activeColumns}
         />
       );
@@ -111,6 +161,7 @@ export function AssetCategoryTables({
               searchPlaceholder="Search by name, serial, asset ID…"
               multiSelect={canBulkDelete}
               bulkDelete={canBulkDelete ? bulk : undefined}
+              rowActions={rowActions}
               columns={activeColumns}
             />
           </div>
@@ -133,6 +184,7 @@ export function AssetCategoryTables({
           searchPlaceholder="Search by name, serial, asset ID…"
           multiSelect={canBulkDelete}
           bulkDelete={canBulkDelete ? bulk : undefined}
+          rowActions={rowActions}
           columns={maintenanceDamagedColumns}
         />
       );
@@ -151,6 +203,7 @@ export function AssetCategoryTables({
               searchPlaceholder="Search by name, serial, asset ID…"
               multiSelect={canBulkDelete}
               bulkDelete={canBulkDelete ? bulk : undefined}
+              rowActions={rowActions}
               columns={maintenanceDamagedColumns}
             />
           </div>
@@ -175,6 +228,25 @@ export function AssetCategoryTables({
         <h2 className="mb-2 text-lg font-medium text-zinc-900">Damaged</h2>
         {renderMaintenanceDamaged(damagedRows, "No damaged assets in this type.")}
       </section>
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Delete asset"
+        message={`Are you sure you want to delete this asset (${deleteTarget?.label ?? ""})? This cannot be undone.`}
+        confirmLabel="Yes, delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => !deleting && setDeleteTarget(null)}
+      />
+      <InfoModal
+        open={!!failMessage}
+        title="Could not delete"
+        message={failMessage ?? ""}
+        variant="danger"
+        onClose={() => setFailMessage(null)}
+      />
     </>
   );
 }

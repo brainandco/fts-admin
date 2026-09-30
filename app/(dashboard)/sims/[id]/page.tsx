@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { SimForm } from "@/components/sims/SimForm";
+import { InventoryDeleteButton } from "@/components/inventory/InventoryDeleteButton";
 import { AdminRegionEmployeeAssignCard } from "@/components/admin-assignment/AdminRegionEmployeeAssignCard";
 
 export default async function SimDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,6 +20,7 @@ export default async function SimDetailPage({ params }: { params: Promise<{ id: 
     : { data: null };
 
   const canAssign = (await can("assets.manage")) || (await can("assets.assign"));
+  const canDelete = await can("assets.manage");
 
   return (
     <div className="space-y-6">
@@ -26,6 +28,14 @@ export default async function SimDetailPage({ params }: { params: Promise<{ id: 
         <Link href="/sims" className="text-sm text-zinc-500 hover:text-zinc-900">← SIM cards</Link>
         <h1 className="text-2xl font-semibold text-zinc-900">{sim.sim_number}</h1>
         <span className="rounded bg-zinc-200 px-2 py-0.5 text-sm text-zinc-700">{sim.status}</span>
+        {canDelete ? (
+          <InventoryDeleteButton
+            apiPath={`/api/sims/${id}`}
+            entityLabel="SIM card"
+            displayName={String(sim.sim_number || id)}
+            redirectTo="/sims"
+          />
+        ) : null}
       </div>
 
       {sim.status === "Assigned" ? (

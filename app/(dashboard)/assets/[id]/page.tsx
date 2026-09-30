@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AssetForm } from "@/components/assets/AssetForm";
 import { ClearMaintenanceButton } from "@/components/assets/ClearMaintenanceButton";
+import { InventoryDeleteButton } from "@/components/inventory/InventoryDeleteButton";
 import { EntityHistory } from "@/components/audit/EntityHistory";
 import { can } from "@/lib/rbac/permissions";
 import { AdminRegionEmployeeAssignCard } from "@/components/admin-assignment/AdminRegionEmployeeAssignCard";
@@ -23,6 +24,7 @@ export default async function AssetDetailPage({
   const { data: asset } = await supabase.from("assets").select("*").eq("id", id).single();
   if (!asset) notFound();
   const canAssignAsset = (await can("assets.manage")) || (await can("assets.assign"));
+  const canDeleteAsset = await can("assets.manage");
   const { data: history } = await supabase
     .from("asset_assignment_history")
     .select("id, to_employee_id, assigned_by_user_id, assigned_at, notes")
@@ -36,6 +38,7 @@ export default async function AssetDetailPage({
   const empMap = new Map((empRows ?? []).map((e) => [e.id, e.full_name]));
   const userMap = new Map((userRows ?? []).map((u) => [u.id, u.full_name || u.email]));
   const canClearMaintenance = await can("assets.manage");
+  const deleteLabel = String(asset.asset_id || asset.name || id);
 
   return (
     <div className="space-y-8">
@@ -49,6 +52,14 @@ export default async function AssetDetailPage({
         {asset.model && <span className="text-sm text-zinc-500">Model: {asset.model}</span>}
         {asset.imei_1 && <span className="text-sm font-mono text-zinc-500">IMEI 1: {asset.imei_1}</span>}
         {asset.imei_2 && <span className="text-sm font-mono text-zinc-500">IMEI 2: {asset.imei_2}</span>}
+        {canDeleteAsset ? (
+          <InventoryDeleteButton
+            apiPath={`/api/assets/${id}`}
+            entityLabel="asset"
+            displayName={deleteLabel}
+            redirectTo={returnTo ?? "/assets"}
+          />
+        ) : null}
       </div>
       {asset.status === "Under_Maintenance" ? (
         <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-4">

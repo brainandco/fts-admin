@@ -3,6 +3,7 @@ import { can } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getEhsToolType } from "@/lib/assets/ehs-tool-catalog";
+import { EhsToolsListTable } from "@/components/ehs/EhsToolsListTable";
 
 type CountRow = {
   ehs_tool_type: string;
@@ -131,49 +132,20 @@ export default async function EhsToolsPage() {
             Who has EHS tools (by team) →
           </Link>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-zinc-200">
-          <table className="min-w-full text-sm">
-            <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500">
-              <tr>
-                <th className="px-4 py-2">Asset ID</th>
-                <th className="px-4 py-2">Tool</th>
-                <th className="px-4 py-2">Assigned as</th>
-                <th className="px-4 py-2">EN Code</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Assigned to (DT)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-2">
-                    <Link href={`/ehs-tools/${r.id}`} className="font-mono text-xs text-indigo-700 hover:underline">
-                      {r.asset_id}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2">{r.name}</td>
-                  <td className="px-4 py-2">
-                    {!r.assigned_to_employee_id
-                      ? "—"
-                      : r.ehs_wear_role === "driver_rigger"
-                        ? "Driver/Rigger"
-                        : r.ehs_wear_role === "dt"
-                          ? "DT"
-                          : "—"}
-                  </td>
-                  <td className="px-4 py-2 text-xs">{r.en_code}</td>
-                  <td className="px-4 py-2">{r.status.replace(/_/g, " ")}</td>
-                  <td className="px-4 py-2">
-                    {r.assigned_to_employee_id ? employeeMap.get(r.assigned_to_employee_id) ?? "—" : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {rows.length === 0 ? (
-            <p className="p-6 text-center text-sm text-zinc-500">No EHS tools yet. Add the first tool above.</p>
-          ) : null}
-        </div>
+        <EhsToolsListTable
+          rows={rows.map((r) => ({
+            id: r.id,
+            asset_id: r.asset_id,
+            name: r.name,
+            en_code: r.en_code,
+            status: r.status,
+            ehs_wear_role: r.ehs_wear_role,
+            assigned_to_employee_id: r.assigned_to_employee_id,
+            assignee_name: r.assigned_to_employee_id
+              ? employeeMap.get(r.assigned_to_employee_id) ?? "—"
+              : "—",
+          }))}
+        />
       </section>
     </div>
   );
