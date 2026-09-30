@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -164,6 +165,7 @@ export function DataTable<T extends Record<string, unknown>>({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [openActionsKey, setOpenActionsKey] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean } | null>(null);
   const [selectedRow, setSelectedRow] = useState<T | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
@@ -171,9 +173,36 @@ export function DataTable<T extends Record<string, unknown>>({
   const [bulkResult, setBulkResult] = useState<{ title: string; message: string; variant: "success" | "danger" } | null>(
     null
   );
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const actionBtnRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   const selectableEffective = selectable && !multiSelect;
+
+  const closeActionsMenu = useCallback(() => {
+    setOpenActionsKey(null);
+    setMenuPos(null);
+  }, []);
+
+  const openActionsMenu = useCallback((key: string) => {
+    if (openActionsKey === key) {
+      closeActionsMenu();
+      return;
+    }
+    const btn = actionBtnRefs.current.get(key);
+    if (!btn) {
+      setOpenActionsKey(key);
+      return;
+    }
+    const rect = btn.getBoundingClientRect();
+    const menuWidth = 176;
+    const menuHeightApprox = 96;
+    const gap = 6;
+    const openUp = window.innerHeight - rect.bottom < menuHeightApprox + gap && rect.top > menuHeightApprox;
+    const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+    const top = openUp ? rect.top - gap : rect.bottom + gap;
+    setMenuPos({ top, left, openUp });
+    setOpenActionsKey(key);
+  }, [openActionsKey, closeActionsMenu]);
 
   const effectiveRowActions = useMemo((): ((row: T) => RowAction<T>[]) => {
     if (rowActionsProp) return rowActionsProp;
@@ -189,12 +218,25 @@ export function DataTable<T extends Record<string, unknown>>({
 
   useEffect(() => {
     if (!openActionsKey) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpenActionsKey(null);
+    function handlePointerDown(e: MouseEvent) {
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t)) return;
+      const btn = actionBtnRefs.current.get(openActionsKey!);
+      if (btn?.contains(t)) return;
+      closeActionsMenu();
     }
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [openActionsKey]);
+    function handleRepositionClose() {
+      closeActionsMenu();
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("scroll", handleRepositionClose, true);
+    window.addEventListener("resize", handleRepositionClose);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("scroll", handleRepositionClose, true);
+      window.removeEventListener("resize", handleRepositionClose);
+    };
+  }, [openActionsKey, closeActionsMenu]);
 
   const dataIdSet = useMemo(() => new Set(data.map((r) => String(r[keyField]))), [data, keyField]);
   useEffect(() => {
@@ -408,7 +450,6 @@ export function DataTable<T extends Record<string, unknown>>({
             ) : (
               paginatedData.map((row) => {
                 const key = String(row[keyField]);
-                const actions = effectiveRowActions(row);
                 const isSelected = selectableEffective && selectedRow && String(selectedRow[keyField]) === key;
                 const checked = selectedIds.has(key);
                 return (
@@ -446,32 +487,21 @@ export function DataTable<T extends Record<string, unknown>>({
                     })}
                     {showActionsColumn && (
                       <td className={stickyActionsTdClass({ selected: !!isSelected })} onClick={(e) => e.stopPropagation()}>
-                        <div className="relative inline-block" ref={openActionsKey === key ? dropdownRef : undefined}>
+                        <div className="inline-flex">
                           <button
                             type="button"
-                            onClick={() => setOpenActionsKey(openActionsKey === key ? null : key)}
-                            className="flex items-center justify-center rounded text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 p-1.5"
+                            ref={(el) => {
+                              if (el) actionBtnRefs.current.set(key, el);
+                              else actionBtnRefs.current.delete(key);
+                            }}
+                            onClick={() => openActionsMenu(key)}
+                            className="flex items-center justify-center rounded border border-zinc-200 bg-white p-1.5 text-zinc-700 shadow-sm hover:bg-zinc-50 hover:text-zinc-900"
                             aria-label="Actions"
+                            aria-expanded={openActionsKey === key}
+                            aria-haspopup="menu"
                           >
                             <IconEllipsis />
                           </button>
-                          {openActionsKey === key && (
-                            <div className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded border border-zinc-200 bg-white py-1 shadow-lg">
-                              {actions.map((action, i) => (
-                                action.href ? (
-                                  <Link key={i} href={action.href} className="flex items-center gap-2 px-4 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50" onClick={() => setOpenActionsKey(null)}>
-                                    <ActionIcon action={action as RowAction<Record<string, unknown>>} />
-                                    {action.label}
-                                  </Link>
-                                ) : action.onClick ? (
-                                  <button key={i} type="button" className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50" onClick={() => { action.onClick?.(); setOpenActionsKey(null); }}>
-                                    <ActionIcon action={action as RowAction<Record<string, unknown>>} />
-                                    {action.label}
-                                  </button>
-                                ) : null
-                              ))}
-                            </div>
-                          )}
                         </div>
                       </td>
                     )}
@@ -482,6 +512,57 @@ export function DataTable<T extends Record<string, unknown>>({
           </tbody>
         </table>
       </div>
+
+      {typeof document !== "undefined" &&
+        openActionsKey &&
+        menuPos &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            className="fixed z-[80] min-w-[11rem] rounded-lg border border-zinc-200 bg-white py-1 shadow-xl ring-1 ring-black/5"
+            style={{
+              left: menuPos.left,
+              ...(menuPos.openUp
+                ? { bottom: window.innerHeight - menuPos.top, top: "auto" }
+                : { top: menuPos.top }),
+            }}
+          >
+            {(() => {
+              const openRow = paginatedData.find((r) => String(r[keyField]) === openActionsKey);
+              const actions = openRow ? effectiveRowActions(openRow) : [];
+              return actions.map((action, i) =>
+                action.href ? (
+                  <Link
+                    key={i}
+                    href={action.href}
+                    role="menuitem"
+                    className="flex items-center gap-2 px-4 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                    onClick={() => closeActionsMenu()}
+                  >
+                    <ActionIcon action={action as RowAction<Record<string, unknown>>} />
+                    {action.label}
+                  </Link>
+                ) : action.onClick ? (
+                  <button
+                    key={i}
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                    onClick={() => {
+                      action.onClick?.();
+                      closeActionsMenu();
+                    }}
+                  >
+                    <ActionIcon action={action as RowAction<Record<string, unknown>>} />
+                    {action.label}
+                  </button>
+                ) : null
+              );
+            })()}
+          </div>,
+          document.body
+        )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-600">
         <span>
