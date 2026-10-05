@@ -186,7 +186,7 @@ export interface Vehicle {
   assigned_at: string | null;
   next_service_due_date: string | null;
   next_service_due_mileage: number | null;
-  /** Public URLs for intake condition photos (min 2 for new/edited vehicles via UI). */
+  /** Public URLs for intake condition photos (optional in admin UI). */
   purchase_image_urls?: string[] | null;
   created_at: string;
   updated_at: string;

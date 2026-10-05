@@ -19,7 +19,8 @@ export function PurchasePhotoUploader({
   onUrlsChange: (urls: string[]) => void;
   disabled?: boolean;
 }) {
-  const assetPhotosOptional = purpose === "asset-purchase";
+  // Admin portal intake photos are optional (employee receipt flow can still require photos).
+  const photosOptional = purpose === "asset-purchase" || purpose === "vehicle-purchase";
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -57,17 +58,17 @@ export function PurchasePhotoUploader({
     <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4">
       <label className="mb-2 block text-sm font-medium text-zinc-800">
         Condition photos (purchase / intake)
-        {assetPhotosOptional ? (
+        {photosOptional ? (
           <span className="font-normal text-zinc-500"> (optional)</span>
         ) : (
           <span className="text-red-600"> *</span>
         )}
       </label>
       <p className="mb-3 text-xs text-zinc-600">
-        {assetPhotosOptional ? (
+        {photosOptional ? (
           <>
-            Clear photos as received help with returns and dispute review. You can add them when registering new stock
-            or later from the asset record.
+            Clear photos as received help with returns and dispute review. You can add them when registering or later
+            from the record.
           </>
         ) : (
           <>
@@ -112,14 +113,14 @@ export function PurchasePhotoUploader({
       ) : null}
       <p
         className={`mt-2 text-xs ${
-          assetPhotosOptional
+          photosOptional
             ? "text-zinc-600"
             : urls.length >= MIN_RESOURCE_PHOTOS
               ? "text-emerald-700"
               : "text-amber-800"
         }`}
       >
-        {assetPhotosOptional ? (
+        {photosOptional ? (
           <>
             {urls.length} photo{urls.length === 1 ? "" : "s"} — optional for now; recommended when you can.
           </>

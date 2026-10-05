@@ -2,7 +2,7 @@ import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
-import { hasMinimumPhotos, MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 import { vehiclePlateTaken } from "@/lib/data-uniqueness";
 
 export async function GET() {
@@ -33,12 +33,6 @@ export async function POST(req: Request) {
   const plate_number = typeof body.plate_number === "string" ? body.plate_number.trim() : "";
   if (!plate_number) return NextResponse.json({ message: "Vehicle plate number is required" }, { status: 400 });
   const purchaseUrls = parseImageUrlArray(body.purchase_image_urls);
-  if (!hasMinimumPhotos(purchaseUrls)) {
-    return NextResponse.json(
-      { message: `Add at least ${MIN_RESOURCE_PHOTOS} condition photos before saving the vehicle.` },
-      { status: 400 }
-    );
-  }
   const supabase = await createServerSupabaseClient();
   const dataClient = await getDataClient();
   if (await vehiclePlateTaken(dataClient, plate_number)) {
