@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PurchasePhotoUploader } from "@/components/assets/PurchasePhotoUploader";
 import { FormActions, FormCard, FormCardSection, FormSection } from "@/components/ui/FormSection";
-import { MIN_RESOURCE_PHOTOS, parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 
 type Vehicle = {
   id: string;
@@ -47,10 +47,6 @@ export function VehicleForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (purchaseImageUrls.length < MIN_RESOURCE_PHOTOS) {
-      setError(`Add at least ${MIN_RESOURCE_PHOTOS} condition photos before saving.`);
-      return;
-    }
     setSaving(true);
     const url = existing ? `/api/vehicles/${existing.id}` : "/api/vehicles";
     const body = {

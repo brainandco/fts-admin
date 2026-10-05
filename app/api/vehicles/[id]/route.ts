@@ -5,7 +5,7 @@ import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { assertAssigneeAllowedInRegion } from "@/lib/admin-assignment/validate-assignee";
 import { deleteReceiptForResource, upsertPendingReceipt } from "@/lib/resource-receipts";
-import { hasMinimumPhotos, parseImageUrlArray } from "@/lib/assets/resource-photos";
+import { parseImageUrlArray } from "@/lib/assets/resource-photos";
 import { vehiclePlateTaken } from "@/lib/data-uniqueness";
 
 const VEHICLE_KEYS = [
@@ -134,16 +134,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   if (body.purchase_image_urls !== undefined) {
     updates.purchase_image_urls = parseImageUrlArray(body.purchase_image_urls);
-  }
-  const mergedPurchase =
-    updates.purchase_image_urls !== undefined
-      ? parseImageUrlArray(updates.purchase_image_urls)
-      : parseImageUrlArray((old as { purchase_image_urls?: unknown }).purchase_image_urls);
-  if (Object.keys(updates).length > 0 && !hasMinimumPhotos(mergedPurchase)) {
-    return NextResponse.json(
-      { message: "At least 2 condition photos are required. Add them in the vehicle form before saving." },
-      { status: 400 }
-    );
   }
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ ok: true });
