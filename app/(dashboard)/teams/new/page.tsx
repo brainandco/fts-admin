@@ -4,8 +4,10 @@ import Link from "next/link";
 import { can } from "@/lib/rbac/permissions";
 import { TeamForm } from "@/components/teams/TeamForm";
 import { FormCallout } from "@/components/ui/FormSection";
+import { TEAMS_FEATURE_DISABLED } from "@/lib/teams/feature-flag";
 
 export default async function NewTeamPage() {
+  if (TEAMS_FEATURE_DISABLED) redirect("/dashboard");
   if (!(await can("teams.manage"))) redirect("/dashboard");
   const supabase = await getDataClient();
 

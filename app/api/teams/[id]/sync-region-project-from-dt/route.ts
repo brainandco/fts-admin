@@ -7,12 +7,14 @@ import {
   assertDtAssignmentCompatibleWithTeams,
   syncTeammateDriversRegionFromDt,
 } from "@/lib/teams/syncTeamsRegionProjectFromDt";
+import { TEAMS_FEATURE_DISABLED, teamsFeatureDisabledJson } from "@/lib/teams/feature-flag";
 
 /**
  * POST — Super User only. Re-reads region/project from the team's DT (or Self DT) employee row and updates this team.
  * Teammate Driver/Rigger primary region is aligned with the DT when they differ.
  */
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   const superResult = await requireSuper();
   if (!superResult.allowed) return NextResponse.json({ message: "Only Super User can sync team project." }, { status: 403 });
 

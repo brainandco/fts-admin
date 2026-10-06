@@ -14,8 +14,10 @@ import {
 } from "@/lib/teams/teamRegionProjectFromDt";
 import { assertEmployeeHasNoAssignmentsForTeamChange } from "@/lib/teams/employeeAssignments";
 import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
+import { TEAMS_FEATURE_DISABLED, teamsFeatureDisabledJson } from "@/lib/teams/feature-flag";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   const superResult = await requireSuper();
   if (!superResult.allowed) return NextResponse.json({ message: "Only Super User can edit teams." }, { status: 403 });
   const { id } = await params;
@@ -113,6 +115,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   if (!(await can(PERMISSION_TEAMS_TERMINATE))) {
     return NextResponse.json({ message: "You do not have permission to terminate teams." }, { status: 403 });
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { TeamEhsBlock, EhsToolLine } from "@/lib/assets/load-team-ehs-assignments";
+import type { DriverEhsBlock, EhsToolLine } from "@/lib/assets/load-driver-ehs-assignments";
 
 function ToolList({ tools, emptyLabel }: { tools: EhsToolLine[]; emptyLabel: string }) {
   if (tools.length === 0) {
@@ -23,35 +23,24 @@ function ToolList({ tools, emptyLabel }: { tools: EhsToolLine[]; emptyLabel: str
   );
 }
 
-export function AdminEhsWhoHasClient({ teams }: { teams: TeamEhsBlock[] }) {
-  if (teams.length === 0) {
+export function AdminEhsWhoHasClient({ drivers }: { drivers: DriverEhsBlock[] }) {
+  if (drivers.length === 0) {
     return (
       <p className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-600">
-        No assigned EHS tools on active teams yet.
+        No EHS tools currently assigned to Driver/Riggers.
       </p>
     );
   }
 
   return (
     <div className="space-y-4">
-      {teams.map((team) => (
-        <article key={team.teamId} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+      {drivers.map((driver) => (
+        <article key={driver.employeeId} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
           <header className="mb-4 border-b border-zinc-100 pb-3">
-            <h2 className="text-lg font-semibold text-zinc-900">{team.teamName}</h2>
-            <p className="text-sm text-zinc-500">{team.regionLabel}</p>
+            <h2 className="text-lg font-semibold text-zinc-900">{driver.full_name}</h2>
+            <p className="text-sm text-zinc-500">{driver.regionLabel}</p>
           </header>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div>
-              <h3 className="mb-2 text-sm font-semibold text-zinc-800">DT — {team.dt.full_name}</h3>
-              <ToolList tools={team.dtTools} emptyLabel="No DT wear tools assigned." />
-            </div>
-            <div>
-              <h3 className="mb-2 text-sm font-semibold text-zinc-800">
-                Driver/Rigger — {team.driver?.full_name ?? "No driver on team"}
-              </h3>
-              <ToolList tools={team.driverTools} emptyLabel="No driver/rigger wear tools assigned." />
-            </div>
-          </div>
+          <ToolList tools={driver.tools} emptyLabel="No EHS tools assigned." />
         </article>
       ))}
     </div>

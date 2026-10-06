@@ -15,22 +15,13 @@ export default async function EhsToolDetailPage({ params }: { params: Promise<{ 
   if (!asset) notFound();
 
   let assigneeName: string | null = null;
-  let driverName: string | null = null;
   if (asset.assigned_to_employee_id) {
-    const { data: dt } = await supabase
+    const { data: holder } = await supabase
       .from("employees")
       .select("full_name")
       .eq("id", asset.assigned_to_employee_id)
       .maybeSingle();
-    assigneeName = dt?.full_name ?? null;
-  }
-  if (asset.ehs_for_employee_id) {
-    const { data: driver } = await supabase
-      .from("employees")
-      .select("full_name")
-      .eq("id", asset.ehs_for_employee_id)
-      .maybeSingle();
-    driverName = driver?.full_name ?? null;
+    assigneeName = holder?.full_name ?? null;
   }
 
   return (
@@ -58,13 +49,7 @@ export default async function EhsToolDetailPage({ params }: { params: Promise<{ 
 
       {assigneeName ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm text-zinc-700">
-          Assigned to DT: <strong>{assigneeName}</strong>
-          {asset.ehs_wear_role === "driver_rigger" && driverName ? (
-            <>
-              {" "}
-              · Worn by Driver/Rigger: <strong>{driverName}</strong>
-            </>
-          ) : null}
+          Assigned to Driver/Rigger: <strong>{assigneeName}</strong>
         </div>
       ) : null}
 

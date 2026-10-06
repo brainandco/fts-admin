@@ -8,12 +8,14 @@ import {
 } from "@/lib/employees/record-portal-credentials-email";
 import { sendEmployeePortalCredentials } from "@/lib/employees/send-employee-portal-credentials";
 import { auditLog } from "@/lib/audit/log";
+import { TEAMS_FEATURE_DISABLED, teamsFeatureDisabledJson } from "@/lib/teams/feature-flag";
 
 /**
  * POST /api/teams/[id]/send-member-credentials
  * Sends employee portal credentials (same as per-employee resend) to each current team member (DT + Driver/Rigger).
  */
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   if (!(await can("teams.manage"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }

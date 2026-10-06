@@ -106,11 +106,7 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
           <span className="font-medium text-zinc-800">Inactive</span> employees cannot be assigned a region or project here — reactivate them on their employee profile first.
-          Someone who is only the <span className="font-medium text-zinc-800">Driver/Rigger</span> on a team (with a separate DT) cannot change region or project here — replace them in{" "}
-          <Link href="/teams" className="font-medium text-indigo-700 hover:underline">
-            Teams
-          </Link>{" "}
-          first. <span className="font-medium text-zinc-800">DT</span> on a team (including Self DT) can update region and project here; compatible changes sync to their team&apos;s assignment.
+          Driver/Rigger and QC remain region-only on the employee record.
         </p>
       </header>
       <EmployeeRegionProjectAssignmentsClient employees={employees} regions={regions ?? []} projects={projects ?? []} />

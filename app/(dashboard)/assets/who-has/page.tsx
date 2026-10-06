@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AdminWhoHasAssetsClient, type AdminEmployeeWithAssets, type AssetLine } from "@/components/assets/AdminWhoHasAssetsClient";
 import { AdminEhsWhoHasClient } from "@/components/ehs/AdminEhsWhoHasClient";
 import { loadAssetReceiptStatusMap } from "@/lib/assets/asset-receipt-status";
-import { loadTeamEhsAssignments } from "@/lib/assets/load-team-ehs-assignments";
+import { loadDriverEhsAssignments } from "@/lib/assets/load-driver-ehs-assignments";
 import { getDataClient } from "@/lib/supabase/server";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { FleetEhsSectionTabs } from "@/components/ui/FleetEhsSectionTabs";
@@ -25,7 +25,7 @@ export default async function AdminWhoHasAssetsPage({
   const { profile } = await getCurrentUserProfile();
   const regionId = profile?.is_super_user ? null : profile?.region_id ?? null;
 
-  const [{ data: assignedAssets }, ehsTeams] = await Promise.all([
+  const [{ data: assignedAssets }, ehsDrivers] = await Promise.all([
     supabase
       .from("assets")
       .select("id, name, model, serial, category, status, assigned_to_employee_id")
@@ -33,7 +33,7 @@ export default async function AdminWhoHasAssetsPage({
       .not("assigned_to_employee_id", "is", null)
       .in("status", ["Assigned", "Under_Maintenance", "Damaged", "With_QC"])
       .order("name"),
-    loadTeamEhsAssignments(supabase, { regionId }),
+    loadDriverEhsAssignments(supabase, { regionId }),
   ]);
 
   const empIdsFromAssets = [
@@ -137,7 +137,7 @@ export default async function AdminWhoHasAssetsPage({
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Who has assets & EHS tools</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
               {tab === "ehs"
-                ? "Team-wise EHS view: DT wear and Driver/Rigger wear tools per team (held by DT)."
+                ? "EHS tools held by each Driver/Rigger (direct custody). Receipt confirmation is on that employee."
                 : "Active employees with fleet assets assigned. Receipt status shown per asset. Filter by region or search."}
             </p>
           </div>
@@ -148,14 +148,14 @@ export default async function AdminWhoHasAssetsPage({
         activeTab={tab}
         basePath="/assets/who-has"
         fleetCount={employees.length}
-        ehsCount={ehsTeams.length}
+        ehsCount={ehsDrivers.length}
       />
 
       <div className="rounded-b-xl border border-t-0 border-zinc-200 bg-white p-4 sm:p-6">
         {tab === "fleet" ? (
           <AdminWhoHasAssetsClient employees={employees} withoutCount={withoutCount} regionOptions={regionOptions} />
         ) : (
-          <AdminEhsWhoHasClient teams={ehsTeams} />
+          <AdminEhsWhoHasClient drivers={ehsDrivers} />
         )}
       </div>
     </div>

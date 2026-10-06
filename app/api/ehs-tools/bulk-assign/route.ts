@@ -3,88 +3,66 @@ import { can } from "@/lib/rbac/permissions";
 import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit/log";
 import { assertEmployeesActiveForAssignment } from "@/lib/employees/active-for-assignment";
-import { resolveAssetAssignmentRegion } from "@/lib/admin-assignment/validate-assignee";
+import { resolveEhsAssignmentRegion } from "@/lib/admin-assignment/validate-assignee";
 import { upsertPendingReceipts } from "@/lib/resource-receipts";
+import { DRIVER_RIGGER_ROLE } from "@/lib/employees/driver-iqama";
 
-async function assertDtEmployee(supabase: Awaited<ReturnType<typeof getDataClient>>, employeeId: string) {
+async function assertDriverRigger(
+  supabase: Awaited<ReturnType<typeof getDataClient>>,
+  employeeId: string
+) {
   const { data: roles } = await supabase.from("employee_roles").select("role").eq("employee_id", employeeId);
   const set = new Set((roles ?? []).map((r) => r.role as string));
-  const isDt =
-    set.has("DT") || set.has("Junior DT") || set.has("Self DT");
-  if (!isDt) return { ok: false as const, message: "EHS tools must be assigned to a DT (including Junior DT / Self DT)." };
+  // Self DT covers driver slot historically; include for continuity.
+  if (!set.has(DRIVER_RIGGER_ROLE) && !set.has("Self DT")) {
+    return {
+      ok: false as const,
+      message: "EHS tools must be assigned directly to a Driver/Rigger (or Self DT).",
+    };
+  }
   return { ok: true as const };
 }
 
-async function resolveDriverForDt(
-  supabase: Awaited<ReturnType<typeof getDataClient>>,
-  dtEmployeeId: string,
-  driverEmployeeId: string | null
-) {
-  const { data: team } = await supabase
-    .from("teams")
-    .select("id, driver_rigger_employee_id")
-    .eq("dt_employee_id", dtEmployeeId)
-    .maybeSingle();
-
-  if (!team?.driver_rigger_employee_id) {
-    return { ok: false as const, message: "This DT has no Driver/Rigger on their team. Add a driver to the team first." };
-  }
-
-  if (driverEmployeeId && driverEmployeeId !== team.driver_rigger_employee_id) {
-    return { ok: false as const, message: "Selected driver does not belong to this DT's team." };
-  }
-
-  return { ok: true as const, driverId: team.driver_rigger_employee_id as string };
-}
-
+/** Assign available EHS tools directly to a Driver/Rigger (receipt on that employee). */
 export async function POST(req: Request) {
   if (!(await can("assets.manage")) && !(await can("assets.assign"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
-  const assetIds = Array.isArray(body.asset_ids) ? body.asset_ids.filter((id: unknown) => typeof id === "string") : [];
-  const dtEmployeeId = typeof body.dt_employee_id === "string" ? body.dt_employee_id.trim() : "";
-  const assignWearRole =
-    body.assign_wear_role === "driver_rigger" ? "driver_rigger" : body.assign_wear_role === "dt" ? "dt" : "";
-  const driverEmployeeId =
-    typeof body.driver_employee_id === "string" && body.driver_employee_id.trim()
-      ? body.driver_employee_id.trim()
-      : null;
+  const assetIds = Array.isArray(body.asset_ids)
+    ? body.asset_ids.filter((id: unknown) => typeof id === "string")
+    : [];
+  const employeeId =
+    typeof body.employee_id === "string"
+      ? body.employee_id.trim()
+      : typeof body.driver_employee_id === "string"
+        ? body.driver_employee_id.trim()
+        : "";
 
-  if (!dtEmployeeId || assetIds.length === 0) {
-    return NextResponse.json({ message: "asset_ids and dt_employee_id required" }, { status: 400 });
-  }
-  if (!assignWearRole) {
-    return NextResponse.json({ message: "assign_wear_role (dt|driver_rigger) required" }, { status: 400 });
+  if (!employeeId || assetIds.length === 0) {
+    return NextResponse.json({ message: "asset_ids and employee_id (Driver/Rigger) required" }, { status: 400 });
   }
 
   const supabase = await getDataClient();
-  const active = await assertEmployeesActiveForAssignment(supabase, [dtEmployeeId]);
+  const active = await assertEmployeesActiveForAssignment(supabase, [employeeId]);
   if (!active.ok) return NextResponse.json({ message: active.message }, { status: 400 });
 
-  const dtCheck = await assertDtEmployee(supabase, dtEmployeeId);
-  if (!dtCheck.ok) return NextResponse.json({ message: dtCheck.message }, { status: 400 });
+  const roleCheck = await assertDriverRigger(supabase, employeeId);
+  if (!roleCheck.ok) return NextResponse.json({ message: roleCheck.message }, { status: 400 });
 
-  const regionResolved = await resolveAssetAssignmentRegion(supabase, dtEmployeeId);
+  const regionResolved = await resolveEhsAssignmentRegion(supabase, employeeId);
   if (!regionResolved.ok) return NextResponse.json({ message: regionResolved.message }, { status: 400 });
 
   const { data: assets } = await supabase
     .from("assets")
-    .select("id, status, assigned_to_employee_id, ehs_wear_role, is_ehs_tool")
+    .select("id, status, assigned_to_employee_id, is_ehs_tool")
     .in("id", assetIds)
     .eq("is_ehs_tool", true)
     .eq("status", "Available");
 
   const available = (assets ?? []).filter((a) => !a.assigned_to_employee_id);
   const skipped = assetIds.length - available.length;
-
-  let teamDriverId: string | null = null;
-  if (assignWearRole === "driver_rigger") {
-    const driverResolved = await resolveDriverForDt(supabase, dtEmployeeId, driverEmployeeId);
-    if (!driverResolved.ok) return NextResponse.json({ message: driverResolved.message }, { status: 400 });
-    teamDriverId = driverResolved.driverId;
-  }
 
   const userClient = await createServerSupabaseClient();
   const {
@@ -96,13 +74,14 @@ export async function POST(req: Request) {
 
   for (const row of available) {
     const updates: Record<string, unknown> = {
-      assigned_to_employee_id: dtEmployeeId,
+      assigned_to_employee_id: employeeId,
       assigned_region_id: regionResolved.regionId,
       status: "Assigned",
       assigned_by: user?.id ?? null,
       assigned_at: now,
-      ehs_wear_role: assignWearRole,
-      ehs_for_employee_id: assignWearRole === "driver_rigger" ? teamDriverId : null,
+      // Direct custody on driver; wear metadata kept for catalog compatibility.
+      ehs_wear_role: "driver_rigger",
+      ehs_for_employee_id: null,
     };
 
     await supabase.from("assets").update(updates).eq("id", row.id);
@@ -111,12 +90,9 @@ export async function POST(req: Request) {
     if (user?.id) {
       await supabase.from("asset_assignment_history").insert({
         asset_id: row.id,
-        to_employee_id: dtEmployeeId,
+        to_employee_id: employeeId,
         assigned_by_user_id: user.id,
-        notes:
-          assignWearRole === "driver_rigger" && teamDriverId
-            ? `EHS driver/rigger tool for team driver (${teamDriverId})`
-            : "EHS DT tool",
+        notes: "EHS tool assigned directly to Driver/Rigger",
       });
     }
 
@@ -125,13 +101,13 @@ export async function POST(req: Request) {
       entityType: "asset",
       entityId: row.id as string,
       newValue: updates,
-      description: "EHS tool assigned (bulk)",
+      description: "EHS tool assigned (bulk, direct to driver)",
     });
   }
 
   if (assignedIds.length > 0) {
     await upsertPendingReceipts(supabase, {
-      employeeId: dtEmployeeId,
+      employeeId,
       assignedByUserId: user?.id ?? null,
       items: assignedIds.map((resourceId) => ({ resourceType: "asset" as const, resourceId })),
     });
@@ -142,56 +118,38 @@ export async function POST(req: Request) {
     skipped,
     message:
       skipped > 0
-        ? `Assigned ${assignedIds.length} EHS tool(s). ${skipped} were not available and skipped.`
-        : `Assigned ${assignedIds.length} EHS tool(s).`,
+        ? `Assigned ${assignedIds.length} EHS tool(s) to Driver/Rigger. ${skipped} were not available and skipped.`
+        : `Assigned ${assignedIds.length} EHS tool(s) to Driver/Rigger.`,
   });
 }
 
-/** GET teams with DT + driver for assign UI */
+/** Active Driver/Rigger (and Self DT) employees for EHS assign UI — no teams. */
 export async function GET() {
   if (!(await can("assets.manage")) && !(await can("assets.assign"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
   const supabase = await getDataClient();
-  const { data: teams } = await supabase
-    .from("teams")
-    .select("id, name, region_id, dt_employee_id, driver_rigger_employee_id")
-    .not("dt_employee_id", "is", null)
-    .order("name");
+  const { data: roleRows } = await supabase
+    .from("employee_roles")
+    .select("employee_id, role")
+    .in("role", [DRIVER_RIGGER_ROLE, "Self DT"]);
 
-  const empIds = [
-    ...new Set(
-      (teams ?? []).flatMap((t) => [t.dt_employee_id, t.driver_rigger_employee_id].filter(Boolean) as string[])
-    ),
-  ];
+  const empIds = [...new Set((roleRows ?? []).map((r) => r.employee_id as string))];
+  if (empIds.length === 0) return NextResponse.json({ drivers: [] });
 
-  const { data: emps } = empIds.length
-    ? await supabase.from("employees").select("id, full_name, email, region_id, status").in("id", empIds)
-    : { data: [] };
+  const { data: emps } = await supabase
+    .from("employees")
+    .select("id, full_name, email, region_id, status")
+    .in("id", empIds)
+    .eq("status", "ACTIVE")
+    .order("full_name");
 
-  const empMap = new Map(
-    (emps ?? []).map((e) => [e.id, { id: e.id, full_name: e.full_name, email: e.email, region_id: e.region_id, status: e.status }])
-  );
+  const drivers = (emps ?? []).map((e) => ({
+    id: e.id as string,
+    full_name: ((e.full_name as string | null) ?? (e.email as string | null) ?? "Driver/Rigger").trim(),
+    region_id: (e.region_id as string | null) ?? null,
+  }));
 
-  const dtAssignees = (teams ?? [])
-    .filter((t) => {
-      const dt = t.dt_employee_id ? empMap.get(t.dt_employee_id as string) : null;
-      return dt && dt.status === "ACTIVE";
-    })
-    .map((t) => {
-      const dt = empMap.get(t.dt_employee_id as string)!;
-      const driver = t.driver_rigger_employee_id ? empMap.get(t.driver_rigger_employee_id as string) : null;
-      return {
-        teamId: t.id,
-        teamName: t.name,
-        regionId: t.region_id,
-        dt: { id: dt.id, full_name: dt.full_name ?? dt.email ?? "DT" },
-        driver: driver
-          ? { id: driver.id, full_name: driver.full_name ?? driver.email ?? "Driver/Rigger" }
-          : null,
-      };
-    });
-
-  return NextResponse.json({ teams: dtAssignees });
+  return NextResponse.json({ drivers });
 }

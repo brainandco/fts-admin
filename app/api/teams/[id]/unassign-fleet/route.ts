@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { unassignTeamMemberFleet } from "@/lib/teams/unassignTeamMemberFleet";
+import { TEAMS_FEATURE_DISABLED, teamsFeatureDisabledJson } from "@/lib/teams/feature-flag";
 
 async function canUnassignTeamFleet(): Promise<boolean> {
   if (!(await can("teams.manage"))) return false;
@@ -16,6 +17,7 @@ async function canUnassignTeamFleet(): Promise<boolean> {
 
 /** POST — unassign all tools, SIMs, and vehicles from this team's DT and Driver/Rigger. */
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   if (!(await canUnassignTeamFleet())) {
     return NextResponse.json({ message: "You do not have permission to unassign team fleet items." }, { status: 403 });
   }

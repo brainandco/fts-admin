@@ -51,10 +51,9 @@ export function EhsToolsListTable({ rows }: { rows: EhsListRow[] }) {
             <tr>
               <th className="px-4 py-2">Asset ID</th>
               <th className="px-4 py-2">Tool</th>
-              <th className="px-4 py-2">Assigned as</th>
               <th className="px-4 py-2">EN Code</th>
               <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Assigned to (DT)</th>
+              <th className="px-4 py-2">Assigned to</th>
               <th className="px-4 py-2 text-right">Actions</th>
             </tr>
           </thead>
@@ -67,15 +66,6 @@ export function EhsToolsListTable({ rows }: { rows: EhsListRow[] }) {
                   </Link>
                 </td>
                 <td className="px-4 py-2">{r.name}</td>
-                <td className="px-4 py-2">
-                  {!r.assigned_to_employee_id
-                    ? "—"
-                    : r.ehs_wear_role === "driver_rigger"
-                      ? "Driver/Rigger"
-                      : r.ehs_wear_role === "dt"
-                        ? "DT"
-                        : "—"}
-                </td>
                 <td className="px-4 py-2 text-xs">{r.en_code ?? "—"}</td>
                 <td className="px-4 py-2">{r.status.replace(/_/g, " ")}</td>
                 <td className="px-4 py-2">{r.assignee_name}</td>

@@ -2,8 +2,10 @@ import { getDataClient } from "@/lib/supabase/server";
 import { can } from "@/lib/rbac/permissions";
 import { redirect } from "next/navigation";
 import { TeamsListClient, type TeamListRow } from "@/components/teams/TeamsListClient";
+import { TEAMS_FEATURE_DISABLED } from "@/lib/teams/feature-flag";
 
 export default async function TeamsPage() {
+  if (TEAMS_FEATURE_DISABLED) redirect("/dashboard");
   if (!(await can("teams.manage"))) redirect("/dashboard");
   const supabase = await getDataClient();
   const { data: teamsRaw } = await supabase
