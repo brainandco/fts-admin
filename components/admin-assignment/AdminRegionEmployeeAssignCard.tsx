@@ -25,7 +25,7 @@ export function AdminRegionEmployeeAssignCard({
   initialRegionId: string | null;
   statusLabel: string;
   canAssign: boolean;
-  /** For assets: load all eligible employees; assignment region comes from the employee record / team. */
+  /** For assets: load all eligible employees; assignment region comes from the employee profile. */
   employeeListScope?: "region" | "global";
   /** After a successful asset assign, navigate here (e.g. type listing). Only used for variant asset. */
   redirectAfterAssignHref?: string | null;
@@ -210,7 +210,7 @@ export function AdminRegionEmployeeAssignCard({
         : "Assign SIM (by region)";
 
   const description = isAssetGlobal
-    ? "Search and select an employee. The asset’s assignment region is set from their profile or team automatically."
+    ? "Search and select an employee. The asset’s assignment region is set from their primary region on the employee profile."
     : "Choose a region to filter eligible employees, then pick the person. Teams are still used elsewhere for visibility; assignment is always to an individual.";
 
   const assigned =

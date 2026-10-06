@@ -118,19 +118,7 @@ export async function getUserDependencies(
     }
   }
 
-  // Team members
-  const { count: teamMembersCount } = await supabase
-    .from("team_members")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId);
-  if ((teamMembersCount ?? 0) > 0) {
-    blocks.push({
-      key: "team_members",
-      label: "Team membership",
-      count: teamMembersCount ?? 0,
-      action: "Remove this user from all teams (Teams).",
-    });
-  }
+  // Historical team_members rows are ignored — Teams UI is retired and must not block delete/disable.
 
   // Delegations (as delegator or delegatee)
   const { count: delegationsAsDelegator } = await supabase

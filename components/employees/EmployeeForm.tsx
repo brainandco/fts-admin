@@ -115,6 +115,14 @@ export function EmployeeForm({
       return;
     }
     setError("");
+    if (!existing && data.credentialsSent === false && typeof data.credentialsError === "string") {
+      setError(
+        `Employee created, but credentials email failed: ${data.credentialsError}` +
+          (typeof data.temporaryPassword === "string" && data.temporaryPassword
+            ? ` Temporary password: ${data.temporaryPassword}`
+            : "")
+      );
+    }
     if (typeof data.temporaryPassword === "string" && data.temporaryPassword && (data.shareManually === true || isDriverRigger)) {
       setCreatedLogin({
         employeeId: typeof data.id === "string" ? data.id : existing?.id,
@@ -127,6 +135,11 @@ export function EmployeeForm({
     }
     if (existing) {
       router.push(`/employees/${existing.id}`);
+      router.refresh();
+      return;
+    }
+    if (data.credentialsSent === false && typeof data.temporaryPassword === "string" && data.temporaryPassword) {
+      // Stay on form so admin can copy the temporary password from the error banner.
       router.refresh();
       return;
     }
