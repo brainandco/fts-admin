@@ -61,14 +61,6 @@ export default async function DashboardPage() {
   const adminUsersCount = await countActiveAdminPortalUsers(supabase);
   const totalFtsPeople = await getTotalFtsPeopleCount(supabase);
 
-  const showTeamsCard = await can("teams.manage");
-  const teamsCount = showTeamsCard
-    ? await safeCount(async () => {
-        const q = supabase.from("teams").select("id", { count: "exact", head: true });
-        return q.then((r) => ({ count: r.count }));
-      })
-    : 0;
-
   const tasksInProgress = await safeCount(async () => {
     let q = supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["In_Progress", "Assigned_to_PM", "Assigned_to_User"]);
     if (regionId && !isSuper) q = q.eq("region_id", regionId);
@@ -137,7 +129,6 @@ export default async function DashboardPage() {
         },
         { title: "Active employees", value: employeesCount, href: "/employees", accent: "indigo" },
         { title: "Admin users", value: adminUsersCount, href: "/users", accent: "violet" },
-        ...(showTeamsCard ? [{ title: "Teams", value: teamsCount, href: "/teams", accent: "sky" as const }] : []),
       ],
     },
     {

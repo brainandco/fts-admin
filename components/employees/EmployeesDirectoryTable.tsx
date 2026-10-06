@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -35,7 +34,6 @@ export function EmployeesDirectoryTable({
 }) {
   const router = useRouter();
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
-  const [teamsBlockingDelete, setTeamsBlockingDelete] = useState<{ id: string; name: string }[]>([]);
   const [pendingDelete, setPendingDelete] = useState<EmployeeDirectoryRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -44,15 +42,11 @@ export function EmployeesDirectoryTable({
     if (!row) return;
     setDeleting(true);
     setErrorBanner(null);
-    setTeamsBlockingDelete([]);
     const res = await fetch(`/api/employees/${row.id}`, { method: "DELETE" });
     const body = await res.json().catch(() => ({}));
     setDeleting(false);
     if (!res.ok) {
       setErrorBanner(typeof body.message === "string" ? body.message : "Could not delete employee");
-      if (body.code === "EMPLOYEE_IN_USE_IN_TEAMS" && Array.isArray(body.teams)) {
-        setTeamsBlockingDelete(body.teams);
-      }
       setPendingDelete(null);
       return;
     }
@@ -84,20 +78,6 @@ export function EmployeesDirectoryTable({
       {errorBanner ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           <p>{errorBanner}</p>
-          {teamsBlockingDelete.length > 0 ? (
-            <>
-              <p className="mt-2 font-medium">Replace this employee in these teams first:</p>
-              <ul className="mt-1 list-inside list-disc">
-                {teamsBlockingDelete.map((t) => (
-                  <li key={t.id}>
-                    <Link href={`/teams/${t.id}`} className="text-red-700 underline hover:no-underline">
-                      {t.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
         </div>
       ) : null}
       <DataTable

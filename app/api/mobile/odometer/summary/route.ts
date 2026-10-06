@@ -37,7 +37,12 @@ export async function GET(req: Request) {
   const { data: employees } = await supabase.from("employees").select("id, full_name, region_id");
   const { data: regions } = await supabase.from("regions").select("id, name");
   const { data: vehicles } = await supabase.from("vehicles").select("id, plate_number, make, model");
-  const { data: teams } = await supabase.from("teams").select("id, name");
+  const teamIds = [
+    ...new Set((readings ?? []).map((r) => r.team_id).filter(Boolean) as string[]),
+  ];
+  const { data: teams } = teamIds.length
+    ? await supabase.from("teams").select("id, name").in("id", teamIds)
+    : { data: [] as { id: string; name: string | null }[] };
 
   const empMap = new Map(
     (employees ?? []).map((e) => [
@@ -49,11 +54,7 @@ export async function GET(req: Request) {
       },
     ])
   );
-  for (const t of teams ?? []) {
-    /* team names filled via reading team_id below if needed */
-    void t;
-  }
-  const teamMap = new Map((teams ?? []).map((t) => [t.id, t.name as string]));
+  const teamMap = new Map((teams ?? []).map((t) => [t.id, (t.name as string) ?? ""]));
   const vehicleMap = new Map(
     (vehicles ?? []).map((v) => [
       v.id,

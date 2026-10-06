@@ -4,21 +4,11 @@ import { can } from "@/lib/rbac/permissions";
 import { PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT } from "@/lib/rbac/permission-codes";
 import { auditLog } from "@/lib/audit/log";
 import { employeeMayHaveFormalProjectOnRecord } from "@/lib/employees/employee-record-project-roles";
-import {
-  fetchTeamsForEmployee,
-  formatTeamListForMessage,
-} from "@/lib/employees/region-assignment-eligibility";
-import {
-  assertDtAssignmentCompatibleWithTeams,
-  syncTeamsRegionProjectForDtEmployee,
-  syncTeammateDriversRegionFromDt,
-} from "@/lib/teams/syncTeamsRegionProjectFromDt";
-import { TEAMS_FEATURE_DISABLED } from "@/lib/teams/feature-flag";
 
 /**
  * PATCH — requires `employees.assign_region_project` (or Super User). Sets region and formal project for an employee.
- * Driver/Rigger and QC: region only (project_id cleared).
- * All other roles may have project_id; project requires a region. Region without project is allowed (e.g. DT for team matching).
+ * Independent of teams. Driver/Rigger and QC: region only (project_id cleared).
+ * All other roles may have project_id; project requires a region (except Reporting portal roles).
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await can(PERMISSION_EMPLOYEE_ASSIGN_REGION_PROJECT))) {
@@ -51,39 +41,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (fetchErr || !old) return NextResponse.json({ message: "Not found" }, { status: 404 });
 
   const status = String((old as { status?: string }).status ?? "ACTIVE");
-  const teamsForEmp = TEAMS_FEATURE_DISABLED ? [] : await fetchTeamsForEmployee(supabase, id);
-
   if (status !== "ACTIVE") {
-    const teamHint =
-      teamsForEmp.length > 0
-        ? ` They are still listed on team(s): ${formatTeamListForMessage(teamsForEmp)}. After reactivation, update or replace them in Teams if they should not remain on a roster.`
-        : "";
     return NextResponse.json(
       {
-        message: `Inactive employees cannot have region or project assigned or changed. Reactivate the employee on their profile first.${teamHint}`,
+        message:
+          "Inactive employees cannot have region or project assigned or changed. Reactivate the employee on their profile first.",
       },
       { status: 400 }
     );
-  }
-
-  if (!TEAMS_FEATURE_DISABLED) {
-    const { data: driverOnlyTeams } = await supabase
-      .from("teams")
-      .select("id, name, team_code")
-      .eq("driver_rigger_employee_id", id)
-      .neq("dt_employee_id", id);
-
-    if ((driverOnlyTeams ?? []).length > 0) {
-      const labels = (driverOnlyTeams ?? []).map((t) => String(t.team_code ?? "").trim() || t.name || t.id);
-      return NextResponse.json(
-        {
-          message: `This employee is a Driver/Rigger on team(s): ${labels.join(
-            ", "
-          )}. They can only be released from the roster in Teams (or switched to DT there) before changing region or project here.`,
-        },
-        { status: 400 }
-      );
-    }
   }
 
   const { data: roleRows } = await supabase.from("employee_roles").select("role").eq("employee_id", id);
@@ -115,20 +80,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     project_name_other: null,
   };
 
-  if (!TEAMS_FEATURE_DISABLED) {
-    const teamCompat = await assertDtAssignmentCompatibleWithTeams(supabase, id, updates.region_id);
-    if (!teamCompat.ok) {
-      return NextResponse.json({ message: teamCompat.message }, { status: 400 });
-    }
-  }
-
   const { error } = await supabase.from("employees").update(updates).eq("id", id);
   if (error) return NextResponse.json({ message: error.message }, { status: 400 });
-
-  if (!TEAMS_FEATURE_DISABLED) {
-    await syncTeammateDriversRegionFromDt(supabase, id, updates.region_id);
-    await syncTeamsRegionProjectForDtEmployee(supabase, id, updates.region_id, updates.project_id);
-  }
 
   await auditLog({
     actionType: "update",

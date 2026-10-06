@@ -22,7 +22,7 @@ export async function findPortalProfileByEmployeeEmail(
 
 export type DeleteEmployeeResult =
   | { ok: true }
-  | { ok: false; status: number; message: string; code?: string; teams?: { id: string; name: string }[]; blocks?: unknown };
+  | { ok: false; status: number; message: string; code?: string; blocks?: unknown };
 
 /**
  * Same rules as DELETE /api/employees/[id]. Used by that route and bulk-delete.
@@ -32,21 +32,6 @@ export async function deleteEmployeeById(id: string): Promise<DeleteEmployeeResu
   const supabase = await getDataClient();
   const { data: old } = await supabase.from("employees").select("*").eq("id", id).single();
   if (!old) return { ok: false, status: 404, message: "Not found" };
-
-  const { data: teamsUsingEmployee } = await supabase
-    .from("teams")
-    .select("id, name")
-    .or(`dt_employee_id.eq.${id},driver_rigger_employee_id.eq.${id}`);
-  if (teamsUsingEmployee && teamsUsingEmployee.length > 0) {
-    return {
-      ok: false,
-      status: 400,
-      message:
-        "This employee is assigned to one or more teams. To delete this employee, you must first replace them in every team where they are assigned. Go to each team, replace this member (DT or Driver/Rigger) with another employee, then delete the employee.",
-      code: "EMPLOYEE_IN_USE_IN_TEAMS",
-      teams: teamsUsingEmployee,
-    };
-  }
 
   const { count: vehicleAssignmentsCount } = await supabase
     .from("vehicle_assignments")

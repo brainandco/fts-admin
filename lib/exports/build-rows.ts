@@ -638,14 +638,13 @@ async function buildScopeSummaries(
   const { data: vehicles } = await supabase.from("vehicles").select("id, assigned_region_id");
   const { data: assigns } = await supabase.from("vehicle_assignments").select("vehicle_id, employee_id");
   const { data: sims } = await supabase.from("sim_cards").select("id, assigned_to_employee_id");
-  const { data: teams } = await supabase.from("teams").select("id, region_id, project_id");
+  const teamList: { id: string; region_id: string | null; project_id: string | null }[] = [];
 
   const empList = employees ?? [];
   const assetList = assets ?? [];
   const vehicleList = vehicles ?? [];
   const assignList = assigns ?? [];
   const simList = sims ?? [];
-  const teamList = teams ?? [];
 
   if (dataset === "region_wise") {
     return (regions ?? []).map((region) => {
