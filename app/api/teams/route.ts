@@ -8,8 +8,10 @@ import {
   getTeamRegionProjectFromDtEmployee,
 } from "@/lib/teams/teamRegionProjectFromDt";
 import { isValidTeamCodeFormat, normalizeTeamCode } from "@/lib/teams/teamCode";
+import { TEAMS_FEATURE_DISABLED, teamsFeatureDisabledJson } from "@/lib/teams/feature-flag";
 
 export async function POST(req: Request) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   if (!(await can("teams.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   const body = await req.json();
   const { name, dt_employee_id, driver_rigger_employee_id, max_size } = body;

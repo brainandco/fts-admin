@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { getDataClient } from "@/lib/supabase/server";
 import { computeNextTeamCodeForRegion } from "@/lib/teams/autoTeamCode";
+import { TEAMS_FEATURE_DISABLED, teamsFeatureDisabledJson } from "@/lib/teams/feature-flag";
 
 /**
  * GET /api/teams/next-code?region_id=uuid
  * Suggested TEAM-{REGION_SLUG}-NN name/code for new teams (same value for both).
  */
 export async function GET(req: Request) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   if (!(await can("teams.manage"))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }

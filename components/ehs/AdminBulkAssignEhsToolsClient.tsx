@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
-import { getEhsToolType, type EhsWearRole } from "@/lib/assets/ehs-tool-catalog";
+import { getEhsToolType } from "@/lib/assets/ehs-tool-catalog";
 
 type EhsAsset = {
   id: string;
@@ -18,11 +18,11 @@ type EhsAsset = {
 };
 
 type SearchCatalogAsset = EhsAsset & { assigneeName: string | null };
-type DtTeam = {
-  teamId: string;
-  teamName: string;
-  dt: { id: string; full_name: string };
-  driver: { id: string; full_name: string } | null;
+
+type DriverOption = {
+  id: string;
+  full_name: string;
+  region_id?: string | null;
 };
 
 function toolTypeKey(a: Pick<EhsAsset, "ehs_tool_type">): string {
@@ -42,32 +42,27 @@ function matchesSearch(a: EhsAsset, q: string): boolean {
 export function AdminBulkAssignEhsToolsClient({
   assets,
   searchCatalog,
-  dtTeams,
+  drivers,
 }: {
   assets: EhsAsset[];
   searchCatalog: SearchCatalogAsset[];
-  dtTeams: DtTeam[];
+  drivers: DriverOption[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [teamId, setTeamId] = useState("");
-  const [assignWearRole, setAssignWearRole] = useState<EhsWearRole | "">("");
+  const [employeeId, setEmployeeId] = useState("");
   const [activeType, setActiveType] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const teamOptions: SearchableOption[] = useMemo(
-    () =>
-      dtTeams.map((t) => ({
-        id: t.teamId,
-        label: `${t.teamName} — DT: ${t.dt.full_name}${t.driver ? ` · Driver: ${t.driver.full_name}` : ""}`,
-      })),
-    [dtTeams]
+  const driverOptions: SearchableOption[] = useMemo(
+    () => drivers.map((d) => ({ id: d.id, label: d.full_name })),
+    [drivers]
   );
 
-  const selectedTeam = teamId ? dtTeams.find((t) => t.teamId === teamId) : undefined;
+  const selectedDriver = employeeId ? drivers.find((d) => d.id === employeeId) : undefined;
 
   const typeTabs = useMemo(() => {
     const counts = new Map<string, number>();
@@ -83,30 +78,15 @@ export function AdminBulkAssignEhsToolsClient({
     return byType.filter((a) => matchesSearch(a, search));
   }, [assets, activeType, search]);
 
-  const selectedRows = useMemo(() => {
-    const map = new Map(assets.map((a) => [a.id, a]));
-    return [...selected].map((id) => map.get(id)).filter(Boolean) as EhsAsset[];
-  }, [selected, assets]);
-
-  const needsDriver = assignWearRole === "driver_rigger";
-
   async function submit() {
     setError("");
     setMessage("");
-    if (!selectedTeam) {
-      setError("Select a team (DT).");
-      return;
-    }
-    if (!assignWearRole) {
-      setError("Select whether these tools are for DT or Driver/Rigger.");
+    if (!selectedDriver) {
+      setError("Select a Driver/Rigger.");
       return;
     }
     if (selected.size === 0) {
       setError("Select at least one EHS tool.");
-      return;
-    }
-    if (needsDriver && !selectedTeam.driver) {
-      setError("Selected tools include Driver/Rigger wear items but this team has no driver.");
       return;
     }
     setSubmitting(true);
@@ -116,9 +96,7 @@ export function AdminBulkAssignEhsToolsClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           asset_ids: [...selected],
-          dt_employee_id: selectedTeam.dt.id,
-          driver_employee_id: selectedTeam.driver?.id ?? null,
-          assign_wear_role: assignWearRole,
+          employee_id: selectedDriver.id,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -150,39 +128,19 @@ export function AdminBulkAssignEhsToolsClient({
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-zinc-200 bg-white p-4">
-        <label className="mb-1 block text-sm font-medium text-zinc-700">Assign to team (DT)</label>
+        <label className="mb-1 block text-sm font-medium text-zinc-700">Assign to Driver/Rigger</label>
         <SearchableSelect
-          options={teamOptions}
-          value={teamId}
-          onChange={setTeamId}
-          placeholder="Search team or DT name…"
+          options={driverOptions}
+          value={employeeId}
+          onChange={setEmployeeId}
+          placeholder="Search driver name…"
         />
-        {selectedTeam ? (
+        {selectedDriver ? (
           <p className="mt-2 text-xs text-zinc-600">
-            DT: <strong>{selectedTeam.dt.full_name}</strong>
-            {selectedTeam.driver ? (
-              <>
-                {" "}
-                · Driver/Rigger: <strong>{selectedTeam.driver.full_name}</strong>
-              </>
-            ) : (
-              <span className="text-amber-700"> · No driver on team (Driver/Rigger tools cannot be assigned)</span>
-            )}
+            Tools will be assigned directly to <strong>{selectedDriver.full_name}</strong> (receipt confirmation on
+            that employee).
           </p>
         ) : null}
-      </div>
-
-      <div className="rounded-xl border border-zinc-200 bg-white p-4">
-        <label className="mb-1 block text-sm font-medium text-zinc-700">Assign as</label>
-        <select
-          value={assignWearRole}
-          onChange={(e) => setAssignWearRole(e.target.value as EhsWearRole | "")}
-          className="w-full rounded border border-zinc-300 bg-white px-3 py-2 text-sm"
-        >
-          <option value="">Select wear context…</option>
-          <option value="dt">DT wear (held by DT)</option>
-          <option value="driver_rigger">Driver / Rigger wear (held by DT, for team driver)</option>
-        </select>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -263,7 +221,7 @@ export function AdminBulkAssignEhsToolsClient({
         onClick={submit}
         className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {submitting ? "Assigning…" : `Assign ${selected.size} tool(s) to DT`}
+        {submitting ? "Assigning…" : `Assign ${selected.size} tool(s) to Driver/Rigger`}
       </button>
     </div>
   );

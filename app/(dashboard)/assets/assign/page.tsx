@@ -7,6 +7,7 @@ import { AdminBulkAssignAssetsClient } from "@/components/assets/AdminBulkAssign
 import { AdminBulkAssignEhsToolsClient } from "@/components/ehs/AdminBulkAssignEhsToolsClient";
 import { FleetEhsSectionTabs } from "@/components/ui/FleetEhsSectionTabs";
 import { parseFleetEhsTab } from "@/lib/assets/fleet-ehs-tabs";
+import { DRIVER_RIGGER_ROLE } from "@/lib/employees/driver-iqama";
 
 export default async function AdminAssignAssetsPage({
   searchParams,
@@ -35,7 +36,7 @@ export default async function AdminAssignAssetsPage({
   };
   type CatalogRow = AssetRow & { assigneeName: string | null };
 
-  const [{ data: catalogRows }, { data: ehsCatalogRows }, { data: teamsRaw }] = await Promise.all([
+  const [{ data: catalogRows }, { data: ehsCatalogRows }, { data: roleRows }] = await Promise.all([
     supabase
       .from("assets")
       .select("id, name, category, model, serial, imei_1, imei_2, status, assigned_to_employee_id")
@@ -46,11 +47,7 @@ export default async function AdminAssignAssetsPage({
       .select("id, asset_id, name, category, status, assigned_to_employee_id, ehs_tool_type, en_code")
       .eq("is_ehs_tool", true)
       .order("asset_id"),
-    supabase
-      .from("teams")
-      .select("id, name, region_id, dt_employee_id, driver_rigger_employee_id")
-      .not("dt_employee_id", "is", null)
-      .order("name"),
+    supabase.from("employee_roles").select("employee_id, role").in("role", [DRIVER_RIGGER_ROLE, "Self DT"]),
   ]);
 
   const empIds = [...new Set((catalogRows ?? []).map((r) => r.assigned_to_employee_id).filter(Boolean) as string[])];
@@ -63,7 +60,6 @@ export default async function AdminAssignAssetsPage({
   const nameById = new Map(
     (emps ?? []).map((e) => [e.id, (e.full_name ?? e.email ?? "Employee").trim() || "Employee"])
   );
-  const empStatusMap = new Map((emps ?? []).map((e) => [e.id, e.status]));
 
   const searchCatalog: CatalogRow[] = (catalogRows ?? []).map((r) => ({
     ...r,
@@ -77,41 +73,21 @@ export default async function AdminAssignAssetsPage({
   }));
   const ehsAssets = ehsSearchCatalog.filter((a) => a.status === "Available" && !a.assigned_to_employee_id);
 
-  const teamEmpIds = [
-    ...new Set(
-      (teamsRaw ?? []).flatMap((t) => [t.dt_employee_id, t.driver_rigger_employee_id].filter(Boolean) as string[])
-    ),
-  ];
-  const missingTeamEmpIds = teamEmpIds.filter((id) => !empStatusMap.has(id));
-  if (missingTeamEmpIds.length) {
-    const { data: extraEmps } = await supabase
-      .from("employees")
-      .select("id, full_name, email, status")
-      .in("id", missingTeamEmpIds);
-    for (const e of extraEmps ?? []) {
-      empStatusMap.set(e.id, e.status);
-      nameById.set(e.id, (e.full_name ?? e.email ?? "—").trim() || "—");
-    }
-  }
+  const driverIds = [...new Set((roleRows ?? []).map((r) => r.employee_id as string))];
+  const { data: driverEmps } = driverIds.length
+    ? await supabase
+        .from("employees")
+        .select("id, full_name, email, region_id, status")
+        .in("id", driverIds)
+        .eq("status", "ACTIVE")
+        .order("full_name")
+    : { data: [] };
 
-  const dtTeams = (teamsRaw ?? [])
-    .filter((t) => {
-      const dtId = t.dt_employee_id as string;
-      return empStatusMap.get(dtId) === "ACTIVE";
-    })
-    .map((t) => {
-      const dtId = t.dt_employee_id as string;
-      const driverId = t.driver_rigger_employee_id as string | null;
-      return {
-        teamId: t.id as string,
-        teamName: (t.name as string)?.trim() || "Team",
-        dt: { id: dtId, full_name: nameById.get(dtId) ?? "DT" },
-        driver:
-          driverId && empStatusMap.get(driverId) === "ACTIVE"
-            ? { id: driverId, full_name: nameById.get(driverId) ?? "Driver/Rigger" }
-            : null,
-      };
-    });
+  const drivers = (driverEmps ?? []).map((e) => ({
+    id: e.id as string,
+    full_name: ((e.full_name as string | null) ?? (e.email as string | null) ?? "Driver/Rigger").trim(),
+    region_id: (e.region_id as string | null) ?? null,
+  }));
 
   const assigneeRows = await buildGlobalAssetAssignees(supabase);
   const assignees = assigneeRows.map((e) => ({ id: e.id, label: e.display_label }));
@@ -135,12 +111,12 @@ export default async function AdminAssignAssetsPage({
         <h1 className="text-2xl font-semibold text-zinc-900">Assign assets & EHS tools</h1>
         <p className="mt-1 text-sm text-zinc-600">
           {tab === "ehs"
-            ? "Assign EHS tools to a team DT. Choose DT or Driver/Rigger wear context when assigning."
+            ? "Assign EHS tools directly to a Driver/Rigger. Receipt and confirmation sit with that employee."
             : "Assign fleet assets to an eligible employee (QC excluded). Search shows pool vs assigned status."}
         </p>
         <span className="mt-4 inline-block rounded-full bg-white px-3 py-1 text-xs font-medium text-zinc-700 ring-1 ring-zinc-200">
           {tab === "ehs"
-            ? `Teams with DT: ${dtTeams.length} · Available EHS: ${ehsAssets.length}`
+            ? `Driver/Riggers: ${drivers.length} · Available EHS: ${ehsAssets.length}`
             : `Eligible employees: ${assignees.length} · Available fleet: ${assets.length}`}
         </span>
       </div>
@@ -156,7 +132,7 @@ export default async function AdminAssignAssetsPage({
         {tab === "fleet" ? (
           <AdminBulkAssignAssetsClient assets={assets} searchCatalog={searchCatalog} assignees={assignees} />
         ) : (
-          <AdminBulkAssignEhsToolsClient assets={ehsAssets} searchCatalog={ehsSearchCatalog} dtTeams={dtTeams} />
+          <AdminBulkAssignEhsToolsClient assets={ehsAssets} searchCatalog={ehsSearchCatalog} drivers={drivers} />
         )}
       </div>
     </div>

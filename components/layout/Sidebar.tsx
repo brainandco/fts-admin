@@ -37,7 +37,6 @@ const navStructure: NavEntry[] = [
       children: [
         { href: "/regions", label: "Regions", permission: "regions.manage" },
         { href: "/projects", label: "Projects", permission: "projects.manage" },
-        { href: "/teams", label: "Teams", permission: "teams.manage" },
         { href: "/users", label: "Users", superOnly: true },
       ],
     },

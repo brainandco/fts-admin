@@ -1,8 +1,10 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
+import { TEAMS_FEATURE_DISABLED, teamsFeatureDisabledJson } from "@/lib/teams/feature-flag";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   if (!(await can("teams.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   const { id: teamId } = await params;
   const body = await req.json();
@@ -39,6 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (TEAMS_FEATURE_DISABLED) return NextResponse.json(teamsFeatureDisabledJson(), { status: 410 });
   if (!(await can("teams.manage"))) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   const { id: teamId } = await params;
   const url = new URL(req.url);

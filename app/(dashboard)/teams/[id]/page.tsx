@@ -1,5 +1,5 @@
 import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { can, getCurrentUserProfile } from "@/lib/rbac/permissions";
 import { PERMISSION_TEAMS_TERMINATE } from "@/lib/rbac/permission-codes";
@@ -15,8 +15,10 @@ import {
 } from "@/lib/teams/teamTermination";
 import { fetchTeamMemberFleet } from "@/lib/teams/unassignTeamMemberFleet";
 import { FormCallout } from "@/components/ui/FormSection";
+import { TEAMS_FEATURE_DISABLED } from "@/lib/teams/feature-flag";
 
 export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  if (TEAMS_FEATURE_DISABLED) redirect("/dashboard");
   const { id } = await params;
   const userClient = await createServerSupabaseClient();
   const supabase = await getDataClient();

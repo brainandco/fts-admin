@@ -52,3 +52,28 @@ export async function resolveAssetAssignmentRegion(
       "This employee cannot receive this asset. They need the DT or Self DT role and must match a region (on their profile or as DT on a team in that region).",
   };
 }
+
+/**
+ * Region for EHS tools assigned directly to a Driver/Rigger (or Self DT).
+ * Uses the employee's primary region — no team DT lookup required.
+ */
+export async function resolveEhsAssignmentRegion(
+  supabase: SupabaseClient,
+  employeeId: string
+): Promise<{ ok: true; regionId: string } | { ok: false; message: string }> {
+  const active = await assertEmployeesActiveForAssignment(supabase, [employeeId]);
+  if (!active.ok) return active;
+
+  const { data: emp } = await supabase.from("employees").select("region_id").eq("id", employeeId).maybeSingle();
+  if (!emp) return { ok: false, message: "Employee not found." };
+
+  if (emp.region_id) {
+    return { ok: true, regionId: emp.region_id as string };
+  }
+
+  return {
+    ok: false,
+    message:
+      "This Driver/Rigger needs a primary region on their employee profile before EHS tools can be assigned.",
+  };
+}
