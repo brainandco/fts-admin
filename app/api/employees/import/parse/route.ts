@@ -9,6 +9,7 @@ import {
 } from "@/lib/data-uniqueness";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
 import { formatEmployeeRoleDisplay, parseImportRoleToken } from "@/lib/employees/employee-role-options";
+import { DRIVER_RIGGER_ROLE } from "@/lib/employees/driver-iqama";
 import { normalizeHeaderDefault, parseImportFile } from "@/lib/import/spreadsheet";
 
 export async function POST(req: Request) {
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         message:
-          "The file must have headers: full_name, country, email, phone, iqama_number, roles (and optionally passport_number, onboarding_date, status). passport_number may be left blank or use a placeholder like N/A — placeholders are not checked for uniqueness. Assign region and project after import on Employees → Region & project assignments. One role per row: a fixed role (e.g. DT), Other:Label, or any custom text (stored as a custom role).",
+          "The file must have headers: full_name, country, email, phone, iqama_number, roles (and optionally passport_number, onboarding_date, status). Email may be left blank only when roles is Driver/Rigger; for every other role email is required. passport_number may be left blank or use a placeholder like N/A — placeholders are not checked for uniqueness. Assign region and project after import on Employees → Region & project assignments. One role per row: a fixed role (e.g. DT), Other:Label, or any custom text (stored as a custom role).",
         previewRows: [],
       },
       { status: 400 }
@@ -115,9 +116,11 @@ export async function POST(req: Request) {
       }
     }
 
+    const isDriverRigger = roles[0] === DRIVER_RIGGER_ROLE;
+
     if (!full_name) errors.push("Full name required");
     if (!country) errors.push("Country required");
-    if (!email) errors.push("Email required");
+    if (!email && !isDriverRigger) errors.push("Email required (optional only for Driver/Rigger)");
     if (!phone) errors.push("Phone required");
     if (!iqama_number) errors.push("Iqama number required");
 
@@ -176,7 +179,7 @@ export async function POST(req: Request) {
   for (const r of previewRows) {
     if (r._error) continue;
     const em = r._payload.email.trim().toLowerCase();
-    if (identity.emailsLower.has(em)) {
+    if (em && identity.emailsLower.has(em)) {
       appendPreviewRowError(r, "This email is already used by an employee in the database.");
     }
     const pp = r._payload.passport_number.trim();

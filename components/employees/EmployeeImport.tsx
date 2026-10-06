@@ -162,14 +162,20 @@ export function EmployeeImport() {
             <div className="overflow-y-auto max-h-[calc(90vh-8rem)] px-6 py-4 space-y-4">
               <p className="text-sm text-zinc-600">
                 Upload a CSV or Excel file with columns: full_name, country, email, phone, iqama_number, roles, and optionally{" "}
-                <span className="font-medium text-zinc-800">passport_number</span>, onboarding_date, status. Passport is optional;
-                values like N/A are treated as placeholders and do not count as duplicates. Assign region and project after import on{" "}
-                <span className="font-medium text-zinc-800">Employees → Region &amp; project assignments</span>. In the roles column use one value per row, for example{" "}
-                <code className="rounded bg-zinc-100 px-1">QA</code>, a fixed role like <code className="rounded bg-zinc-100 px-1">DT</code>,{" "}
-                <code className="rounded bg-zinc-100 px-1">Other:Mechanic</code>, or any custom label (stored as a custom role). One role per row.{" "}
+                <span className="font-medium text-zinc-800">passport_number</span>, onboarding_date, status.{" "}
+                <span className="font-medium text-zinc-800">Email</span> is required for all roles except{" "}
+                <code className="rounded bg-zinc-100 px-1">Driver/Rigger</code> (leave email blank — they log in with Iqama).
+                Passport is optional; values like N/A are treated as placeholders and do not count as duplicates. Assign region and
+                project after import on{" "}
+                <span className="font-medium text-zinc-800">Employees → Region &amp; project assignments</span>. In the roles column
+                use one value per row, for example <code className="rounded bg-zinc-100 px-1">QA</code>, a fixed role like{" "}
+                <code className="rounded bg-zinc-100 px-1">DT</code>, <code className="rounded bg-zinc-100 px-1">Other:Mechanic</code>,
+                or any custom label (stored as a custom role). One role per row.{" "}
                 <span className="text-zinc-500">
                   Onboarding date: ISO <code className="rounded bg-zinc-100 px-1">YYYY-MM-DD</code> (unchanged), or day-first{" "}
-                  <code className="rounded bg-zinc-100 px-1">DD-MM-YYYY</code>/<code className="rounded bg-zinc-100 px-1">DD/MM/YYYY</code>, year-first with slashes/dots, 2-digit years, and ISO datetimes — all normalized to YYYY-MM-DD.
+                  <code className="rounded bg-zinc-100 px-1">DD-MM-YYYY</code>/
+                  <code className="rounded bg-zinc-100 px-1">DD/MM/YYYY</code>, year-first with slashes/dots, 2-digit years, and ISO
+                  datetimes — all normalized to YYYY-MM-DD.
                 </span>
               </p>
               <div className="flex flex-wrap items-center gap-3">

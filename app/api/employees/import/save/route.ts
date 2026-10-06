@@ -5,6 +5,7 @@ import { auditLog } from "@/lib/audit/log";
 import { normalizeOnboardingDate } from "@/lib/employees/onboarding-date-import";
 import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
 import { isCsvDuplicateSignificantValue, loadEmployeeIdentitySets } from "@/lib/data-uniqueness";
+import { DRIVER_RIGGER_ROLE, driverPortalEmail } from "@/lib/employees/driver-iqama";
 
 const CHUNK_SIZE = 80;
 
@@ -73,10 +74,16 @@ export async function POST(req: Request) {
       onboarding_date = n.value;
     }
 
-    if (!full_name || !country || !email || !phone || !iqama_number) {
+    if (!full_name || !country || !phone || !iqama_number) {
       errors.push({ row: csvRow, message: "Missing required fields" });
       continue;
     }
+    const isDriverRigger = roleNorm.role === DRIVER_RIGGER_ROLE;
+    if (!isDriverRigger && !email) {
+      errors.push({ row: csvRow, message: "Email is required (optional only for Driver/Rigger)" });
+      continue;
+    }
+    const resolvedEmail = isDriverRigger ? driverPortalEmail(iqama_number, email) : email;
 
     prepared.push({
       csvRow,
@@ -84,7 +91,7 @@ export async function POST(req: Request) {
         full_name,
         passport_number,
         country,
-        email,
+        email: resolvedEmail,
         phone,
         iqama_number,
         region_id: null,
@@ -105,7 +112,9 @@ export async function POST(req: Request) {
   for (const p of prepared) {
     const row = p.csvRow;
     const em = p.payload.email.trim().toLowerCase();
-    if (!emailFirstRow.has(em)) emailFirstRow.set(em, row);
+    if (em) {
+      if (!emailFirstRow.has(em)) emailFirstRow.set(em, row);
+    }
     const pp = p.payload.passport_number.trim();
     if (pp && isCsvDuplicateSignificantValue(pp) && !passportFirstRow.has(pp)) passportFirstRow.set(pp, row);
     const iq = p.payload.iqama_number.trim();
@@ -119,17 +128,19 @@ export async function POST(req: Request) {
     const pp = p.payload.passport_number.trim();
     const iq = p.payload.iqama_number.trim();
 
-    const firstEmail = emailFirstRow.get(em);
-    if (firstEmail !== undefined && firstEmail !== row) {
-      errors.push({
-        row,
-        message: `Duplicate email in this import (same as row ${firstEmail}).`,
-      });
-      continue;
-    }
-    if (identity.emailsLower.has(em)) {
-      errors.push({ row, message: "This email is already used by an employee in the database." });
-      continue;
+    if (em) {
+      const firstEmail = emailFirstRow.get(em);
+      if (firstEmail !== undefined && firstEmail !== row) {
+        errors.push({
+          row,
+          message: `Duplicate email in this import (same as row ${firstEmail}).`,
+        });
+        continue;
+      }
+      if (identity.emailsLower.has(em)) {
+        errors.push({ row, message: "This email is already used by an employee in the database." });
+        continue;
+      }
     }
 
     if (pp && isCsvDuplicateSignificantValue(pp)) {
