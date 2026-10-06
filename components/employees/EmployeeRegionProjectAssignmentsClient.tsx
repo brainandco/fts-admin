@@ -1,12 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { employeeMayHaveFormalProjectOnRecord } from "@/lib/employees/employee-record-project-roles";
 import { stickyActionsTdClass, stickyActionsThClassGradientRight } from "@/components/ui/table-sticky-actions";
-
-type TeamRef = { id: string; label: string };
 
 type Row = {
   id: string;
@@ -14,18 +11,13 @@ type Row = {
   region_id: string | null;
   project_id: string | null;
   status: string;
-  team_memberships: TeamRef[];
-  /** Teams where this employee is the DT — assignment edits can sync to the team (API-enforced). */
-  teams_as_dt: TeamRef[];
-  /** Teams where this employee is Driver/Rigger only (separate DT) — blocked until replaced in Teams. */
-  teams_driver_only: TeamRef[];
   role: string;
   /** `employee_roles.role` — use for project eligibility, not display `role`. */
   role_code: string;
 };
 
 function canAssignRegionProject(row: Row): boolean {
-  return row.status === "ACTIVE" && row.teams_driver_only.length === 0;
+  return row.status === "ACTIVE";
 }
 
 type Region = { id: string; name: string };
@@ -43,10 +35,6 @@ function initials(name: string): string {
 function rowAttention(row: Row): "ok" | "no_region" {
   if (!row.region_id) return "no_region";
   return "ok";
-}
-
-function rowBlocked(row: Row): boolean {
-  return !canAssignRegionProject(row);
 }
 
 function roleBadgeClass(role: string): string {
@@ -106,9 +94,6 @@ export function EmployeeRegionProjectAssignmentsClient({
   const sortedRows = useMemo(() => {
     const order = { no_region: 0, ok: 1 };
     return [...filtered].sort((a, b) => {
-      const ba = rowBlocked(a) ? 1 : 0;
-      const bb = rowBlocked(b) ? 1 : 0;
-      if (ba !== bb) return ba - bb;
       const da = rowAttention(a);
       const db = rowAttention(b);
       if (order[da] !== order[db]) return order[da] - order[db];
@@ -128,17 +113,10 @@ export function EmployeeRegionProjectAssignmentsClient({
 
   function startEdit(row: Row) {
     if (!canAssignRegionProject(row)) {
-      if (row.status !== "ACTIVE") {
-        setMessage({
-          type: "err",
-          text: "Inactive employees cannot receive region or project changes. Reactivate them on their employee profile first.",
-        });
-      } else if (row.teams_driver_only.length > 0) {
-        setMessage({
-          type: "err",
-          text: "This employee is the Driver/Rigger on a team with a separate DT. Replace them in Teams before changing region or project.",
-        });
-      }
+      setMessage({
+        type: "err",
+        text: "Inactive employees cannot receive region or project changes. Reactivate them on their employee profile first.",
+      });
       return;
     }
     setEditingId(row.id);
@@ -154,13 +132,7 @@ export function EmployeeRegionProjectAssignmentsClient({
 
   async function save(employeeId: string, roleCode: string, row: Row) {
     if (!canAssignRegionProject(row)) {
-      setMessage({
-        type: "err",
-        text:
-          row.status !== "ACTIVE"
-            ? "Cannot save: employee is inactive."
-            : "Cannot save: replace Driver/Rigger-only roster member in Teams first.",
-      });
+      setMessage({ type: "err", text: "Cannot save: employee is inactive." });
       return;
     }
     setSaving(true);
@@ -200,7 +172,6 @@ export function EmployeeRegionProjectAssignmentsClient({
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-zinc-100 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Employees</p>
@@ -229,7 +200,6 @@ export function EmployeeRegionProjectAssignmentsClient({
         </div>
       ) : null}
 
-      {/* Toolbar */}
       <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0 flex-1 sm:max-w-md">
           <label htmlFor="emp-search" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -277,10 +247,10 @@ export function EmployeeRegionProjectAssignmentsClient({
       </div>
 
       <p className="text-sm text-zinc-500">
-        Showing <span className="font-medium text-zinc-800">{sortedRows.length}</span> of {employees.length} — need attention sorted first
+        Showing <span className="font-medium text-zinc-800">{sortedRows.length}</span> of {employees.length} — need attention
+        sorted first
       </p>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-md shadow-zinc-900/5">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
@@ -297,33 +267,23 @@ export function EmployeeRegionProjectAssignmentsClient({
               {sortedRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-16 text-center">
-                    <p className="text-zinc-500">No employees match your filters.</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuery("");
-                        setRoleFilter("");
-                        setAssignmentFilter("all");
-                      }}
-                      className="mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-                    >
-                      Clear filters
-                    </button>
+                    <p className="text-sm font-medium text-zinc-700">No employees match these filters</p>
+                    <p className="mt-1 text-xs text-zinc-500">Try clearing search or role filters.</p>
                   </td>
                 </tr>
               ) : (
                 sortedRows.map((row, i) => {
-                  const att = rowAttention(row);
                   const isEditing = editingId === row.id;
+                  const att = rowAttention(row);
                   const rowBg = isEditing
-                    ? "bg-indigo-50/60 group-hover:bg-indigo-50/60"
+                    ? "bg-indigo-50/60"
                     : i % 2 === 0
                       ? "bg-white group-hover:bg-indigo-50/30"
                       : "bg-zinc-50/40 group-hover:bg-indigo-50/30";
                   return (
                     <tr
                       key={row.id}
-                      className={`group transition-colors ${isEditing ? "bg-indigo-50/60" : i % 2 === 0 ? "bg-white" : "bg-zinc-50/40"} ${rowBlocked(row) ? "opacity-[0.92]" : ""} hover:bg-indigo-50/30`}
+                      className={`group transition-colors ${isEditing ? "bg-indigo-50/60" : i % 2 === 0 ? "bg-white" : "bg-zinc-50/40"} ${!canAssignRegionProject(row) ? "opacity-[0.92]" : ""} hover:bg-indigo-50/30`}
                     >
                       <td className="px-4 py-3.5 align-middle">
                         <div className="flex items-center gap-3">
@@ -341,59 +301,13 @@ export function EmployeeRegionProjectAssignmentsClient({
                                   Inactive
                                 </span>
                               ) : null}
-                              {row.teams_driver_only.length > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-900">
-                                  Driver on team
-                                </span>
-                              ) : row.teams_as_dt.length > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-900">
-                                  DT on team
-                                </span>
-                              ) : row.team_memberships.length > 0 ? (
-                                <span className="inline-flex items-center rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-800">
-                                  On team
-                                </span>
-                              ) : null}
                               {att === "no_region" && !isEditing && canAssignRegionProject(row) ? (
                                 <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-900">
                                   Needs region
                                 </span>
                               ) : null}
                             </div>
-                            {row.team_memberships.length > 0 ? (
-                              <p
-                                className={`mt-1 max-w-xs text-[11px] leading-snug ${
-                                  row.teams_driver_only.length > 0
-                                    ? "text-rose-800/90"
-                                    : row.teams_as_dt.length > 0 && row.status === "ACTIVE"
-                                      ? "text-indigo-900/85"
-                                      : "text-rose-800/90"
-                                }`}
-                              >
-                                {row.status !== "ACTIVE"
-                                  ? "Inactive and still on a team — replace them in Teams after reactivation if needed."
-                                  : row.teams_driver_only.length > 0
-                                    ? "Driver/Rigger only — open Teams to replace this person before changing region or project."
-                                    : row.teams_as_dt.length > 0
-                                      ? "DT on team — saving region/project here moves the whole team (Driver/Rigger region syncs automatically). Assigned fleet stays as-is."
-                                      : "On a team — open Teams to replace or remove this person before changing region or project."}{" "}
-                                {row.team_memberships.map((tm, idx) => (
-                                  <span key={tm.id}>
-                                    {idx > 0 ? " · " : ""}
-                                    <Link
-                                      href={`/teams/${tm.id}`}
-                                      className={`font-medium underline ${
-                                        row.teams_driver_only.length > 0 || row.status !== "ACTIVE" || row.teams_as_dt.length === 0
-                                          ? "hover:text-rose-950"
-                                          : "hover:text-indigo-950"
-                                      }`}
-                                    >
-                                      {tm.label}
-                                    </Link>
-                                  </span>
-                                ))}
-                              </p>
-                            ) : row.status !== "ACTIVE" ? (
+                            {row.status !== "ACTIVE" ? (
                               <p className="mt-1 max-w-xs text-[11px] text-zinc-500">
                                 Reactivate on the employee profile to assign region or project.
                               </p>
@@ -403,7 +317,9 @@ export function EmployeeRegionProjectAssignmentsClient({
                       </td>
                       <td className="px-4 py-3.5 align-middle">
                         {row.role ? (
-                          <span className={`inline-flex max-w-[200px] truncate rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${roleBadgeClass(row.role)}`}>
+                          <span
+                            className={`inline-flex max-w-[200px] truncate rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${roleBadgeClass(row.role)}`}
+                          >
                             {row.role}
                           </span>
                         ) : (
@@ -498,9 +414,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                               disabled={!canAssignRegionProject(row)}
                               title={
                                 !canAssignRegionProject(row)
-                                  ? row.status !== "ACTIVE"
-                                    ? "Inactive employees cannot be edited here"
-                                    : "Driver/Rigger-only on a team — replace in Teams first"
+                                  ? "Inactive employees cannot be edited here"
                                   : undefined
                               }
                               onClick={() => startEdit(row)}

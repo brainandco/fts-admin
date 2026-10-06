@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac/permissions";
 import { auditLog } from "@/lib/audit/log";
 import { deleteEmployeeById } from "@/lib/employees/delete-employee-internal";
-import { normalizeEmployeeRolePayload, ROLES_NOT_ALLOWED_ON_TEAM } from "@/lib/employees/employee-role-options";
+import { normalizeEmployeeRolePayload } from "@/lib/employees/employee-role-options";
 import { employeeIdentityConflict } from "@/lib/data-uniqueness";
 import { DRIVER_RIGGER_ROLE, driverPortalEmail } from "@/lib/employees/driver-iqama";
 import { ensureDriverRiggerIqamaLogin } from "@/lib/employees/ensure-driver-iqama-login";
@@ -92,22 +92,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!roleNorm.ok) {
       return NextResponse.json({ message: roleNorm.message }, { status: 400 });
     }
-    if (ROLES_NOT_ALLOWED_ON_TEAM.has(roleNorm.role)) {
-      const { data: teamRows } = await supabase
-        .from("teams")
-        .select("id")
-        .or(`dt_employee_id.eq.${id},driver_rigger_employee_id.eq.${id}`)
-        .limit(1);
-      if (teamRows && teamRows.length > 0) {
-        return NextResponse.json(
-          {
-            message:
-              "This role cannot be on a team. Remove this employee from their team first, then change the role.",
-          },
-          { status: 400 }
-        );
-      }
-    }
     await supabase.from("employee_roles").delete().eq("employee_id", id);
     await supabase.from("employee_roles").insert({
       employee_id: id,
@@ -153,7 +137,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!result.ok) {
     const body: Record<string, unknown> = { message: result.message };
     if (result.code) body.code = result.code;
-    if (result.teams) body.teams = result.teams;
     if (result.blocks) body.blocks = result.blocks;
     return NextResponse.json(body, { status: result.status });
   }

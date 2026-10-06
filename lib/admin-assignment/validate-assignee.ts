@@ -3,7 +3,7 @@ import { assertEmployeesActiveForAssignment } from "@/lib/employees/active-for-a
 import { buildRegionFlatAssignees } from "./team-region-lists";
 
 /**
- * Ensures the employee appears in the flat region assignee list for the resource type (same pool as team-grouped views, without requiring a team).
+ * Ensures the employee appears in the flat region assignee list for the resource type.
  */
 export async function assertAssigneeAllowedInRegion(
   supabase: SupabaseClient,
@@ -22,8 +22,7 @@ export async function assertAssigneeAllowedInRegion(
 }
 
 /**
- * Picks a region for `assigned_region_id` when the client does not send one: employee primary region first,
- * then team regions where they are DT, using the same eligibility rules as the assignee list.
+ * Picks a region for `assigned_region_id` from the employee's primary region only.
  */
 export async function resolveAssetAssignmentRegion(
   supabase: SupabaseClient,
@@ -32,30 +31,27 @@ export async function resolveAssetAssignmentRegion(
   const { data: emp } = await supabase.from("employees").select("region_id").eq("id", employeeId).maybeSingle();
   if (!emp) return { ok: false, message: "Employee not found." };
 
-  const candidates: string[] = [];
-  if (emp.region_id) candidates.push(emp.region_id as string);
-
-  const { data: teams } = await supabase.from("teams").select("region_id").eq("dt_employee_id", employeeId);
-  for (const t of teams ?? []) {
-    const rid = t.region_id as string | null;
-    if (rid && !candidates.includes(rid)) candidates.push(rid);
+  if (!emp.region_id) {
+    return {
+      ok: false,
+      message:
+        "This employee needs a primary region on their profile before assets can be assigned.",
+    };
   }
 
-  for (const regionId of candidates) {
-    const check = await assertAssigneeAllowedInRegion(supabase, regionId, "asset", employeeId);
-    if (check.ok) return { ok: true, regionId };
-  }
+  const regionId = emp.region_id as string;
+  const check = await assertAssigneeAllowedInRegion(supabase, regionId, "asset", employeeId);
+  if (check.ok) return { ok: true, regionId };
 
   return {
     ok: false,
     message:
-      "This employee cannot receive this asset. They need the DT or Self DT role and must match a region (on their profile or as DT on a team in that region).",
+      "This employee cannot receive this asset. They need an eligible role (e.g. DT or Self DT) and a primary region on their profile.",
   };
 }
 
 /**
  * Region for EHS tools assigned directly to a Driver/Rigger (or Self DT).
- * Uses the employee's primary region — no team DT lookup required.
  */
 export async function resolveEhsAssignmentRegion(
   supabase: SupabaseClient,

@@ -4,12 +4,12 @@ export const SCOPE_EXPORTS: ExportItem[] = [
   {
     key: "region_wise",
     label: "Region-wise summary",
-    desc: "One row per region: employees, assets, vehicles, SIMs, and teams in that region.",
+    desc: "One row per region: employees, assets, vehicles, and SIMs in that region.",
   },
   {
     key: "project_wise",
     label: "Project-wise summary",
-    desc: "One row per project: employees, assets, vehicles (via assignees), SIMs, and teams.",
+    desc: "One row per project: employees, assets, vehicles (via assignees), and SIMs.",
   },
   {
     key: "region_project_wise",

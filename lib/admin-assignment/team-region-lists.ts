@@ -10,11 +10,6 @@ export type TeamMemberPick = {
 
 type EmpRow = { id: string; full_name: string | null };
 
-function isQc(roles: Set<string>): boolean {
-  return roles.has("QC");
-}
-
-/** DT, Junior DT, Self DT, PP, Reporting Team — tools / assets */
 function isAssetTargetRole(roles: Set<string>): boolean {
   return (
     roles.has("DT") ||
@@ -25,12 +20,10 @@ function isAssetTargetRole(roles: Set<string>): boolean {
   );
 }
 
-/** Driver/Rigger, Self DT, or QA — vehicles */
 function isVehicleTargetRole(roles: Set<string>): boolean {
   return [...roles].some((r) => isVehicleAssigneeRole(r));
 }
 
-/** SIMs: field roles, not QC */
 function isSimTargetRole(roles: Set<string>): boolean {
   if (roles.has("QC")) return false;
   return (
@@ -58,8 +51,8 @@ async function loadRoleMap(supabase: SupabaseClient, employeeIds: string[]) {
 }
 
 /**
- * Build team → member lists and region fallback for a single region.
- * `variant`: which employees appear as assignees.
+ * Region assignee lists (flat, no teams table).
+ * Shape kept as `teams` for older UI that expects grouped pickers — one region bucket only.
  */
 export async function buildTeamRegionAssigneeLists(
   supabase: SupabaseClient,
@@ -75,28 +68,11 @@ export async function buildTeamRegionAssigneeLists(
     .eq("region_id", regionId)
     .eq("status", "ACTIVE");
 
-  const { data: regionTeams } = await supabase
-    .from("teams")
-    .select("id, name, dt_employee_id, driver_rigger_employee_id")
-    .eq("region_id", regionId);
-
-  const teamMemberIds = new Set<string>();
-  for (const t of regionTeams ?? []) {
-    if (t.dt_employee_id) teamMemberIds.add(t.dt_employee_id as string);
-    if (t.driver_rigger_employee_id) teamMemberIds.add(t.driver_rigger_employee_id as string);
-  }
-
   const regionIds = (regionEmployees ?? []).map((e) => e.id);
-  const allIds = [...new Set([...regionIds, ...teamMemberIds])];
-  const roleMap = await loadRoleMap(supabase, allIds);
+  const roleMap = await loadRoleMap(supabase, regionIds);
 
   const empById = new Map<string, EmpRow>();
   for (const e of regionEmployees ?? []) empById.set(e.id, { id: e.id, full_name: e.full_name });
-  const missing = [...teamMemberIds].filter((id) => !empById.has(id));
-  if (missing.length) {
-    const { data: extra } = await supabase.from("employees").select("id, full_name").in("id", missing).eq("status", "ACTIVE");
-    for (const e of extra ?? []) empById.set(e.id, { id: e.id, full_name: e.full_name });
-  }
 
   function eligible(id: string): boolean {
     const roles = roleMap.get(id) ?? new Set<string>();
@@ -105,87 +81,37 @@ export async function buildTeamRegionAssigneeLists(
     return isSimTargetRole(roles);
   }
 
-  const teamsOut: TeamMemberPick[] = [];
-  const covered = new Set<string>();
-
-  if (variant === "asset") {
-    for (const t of regionTeams ?? []) {
-      const dt = t.dt_employee_id as string | null;
-      if (!dt || !eligible(dt)) continue;
-      const row = empById.get(dt);
-      if (!row) continue;
-      covered.add(dt);
-      teamsOut.push({
-        teamId: t.id as string,
-        teamName: (typeof t.name === "string" && t.name.trim()) ? t.name.trim() : "Team",
-        members: [{ id: dt, full_name: row.full_name ?? dt }],
-      });
-    }
-  } else if (variant === "vehicle") {
-    for (const t of regionTeams ?? []) {
-      const dr = t.driver_rigger_employee_id as string | null;
-      if (!dr || !eligible(dr)) continue;
-      const row = empById.get(dr);
-      if (!row) continue;
-      covered.add(dr);
-      teamsOut.push({
-        teamId: t.id as string,
-        teamName: (typeof t.name === "string" && t.name.trim()) ? t.name.trim() : "Team",
-        members: [{ id: dr, full_name: row.full_name ?? dr }],
-      });
-    }
-  } else {
-    for (const t of regionTeams ?? []) {
-      const ids = [t.dt_employee_id, t.driver_rigger_employee_id].filter(Boolean) as string[];
-      const members: { id: string; full_name: string }[] = [];
-      const seen = new Set<string>();
-      for (const eid of ids) {
-        if (seen.has(eid)) continue;
-        seen.add(eid);
-        if (!eligible(eid)) continue;
-        const row = empById.get(eid);
-        if (!row) continue;
-        members.push({ id: eid, full_name: row.full_name ?? eid });
-        covered.add(eid);
-      }
-      if (members.length) {
-        teamsOut.push({
-          teamId: t.id as string,
-          teamName: (typeof t.name === "string" && t.name.trim()) ? t.name.trim() : "Team",
-          members,
-        });
-      }
-    }
-  }
-
-  teamsOut.sort((a, b) => a.teamName.localeCompare(b.teamName));
-
-  const regionOnly: { id: string; full_name: string }[] = [];
+  const members: { id: string; full_name: string }[] = [];
   for (const e of regionEmployees ?? []) {
     if (!eligible(e.id)) continue;
-    if (covered.has(e.id)) continue;
-    regionOnly.push({ id: e.id, full_name: e.full_name ?? e.id });
+    const row = empById.get(e.id);
+    if (!row) continue;
+    members.push({ id: e.id, full_name: row.full_name ?? e.id });
   }
-  regionOnly.sort((a, b) => a.full_name.localeCompare(b.full_name));
+  members.sort((a, b) => a.full_name.localeCompare(b.full_name));
 
-  if (regionOnly.length > 0) {
-    teamsOut.push({
-      teamId: ADMIN_REGION_FALLBACK_TEAM_ID,
-      teamName: variant === "vehicle" ? "Other vehicle assignees in region" : "Other employees in region",
-      members: regionOnly,
-    });
-  }
+  const bucketName =
+    variant === "vehicle" ? "Vehicle assignees in region" : "Employees in region";
 
-  const teamLabels: Record<string, string> = {};
-  for (const t of regionTeams ?? []) {
-    teamLabels[t.id as string] = (typeof t.name === "string" && t.name.trim()) ? t.name.trim() : "Team";
-  }
-  teamLabels[ADMIN_REGION_FALLBACK_TEAM_ID] = "Region (other)";
+  const teamsOut: TeamMemberPick[] =
+    members.length > 0
+      ? [
+          {
+            teamId: ADMIN_REGION_FALLBACK_TEAM_ID,
+            teamName: bucketName,
+            members,
+          },
+        ]
+      : [];
+
+  const teamLabels: Record<string, string> = {
+    [ADMIN_REGION_FALLBACK_TEAM_ID]: "Region",
+  };
 
   return { teams: teamsOut, teamLabels };
 }
 
-/** All eligible assignees in the region as a single sorted list (deduped). Use for direct employee assignment. */
+/** All eligible assignees in the region as a single sorted list (deduped). */
 export async function buildRegionFlatAssignees(
   supabase: SupabaseClient,
   regionId: string,
@@ -204,7 +130,7 @@ export async function buildRegionFlatAssignees(
 }
 
 /**
- * All employees eligible for asset assignment across every region (union of per-region lists).
+ * All employees eligible for asset assignment across every region.
  * `display_label` includes a region hint for disambiguation.
  */
 export async function buildGlobalAssetAssignees(

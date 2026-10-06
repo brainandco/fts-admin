@@ -60,7 +60,6 @@ export function EmployeeForm({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
-  const [teamsBlockingDelete, setTeamsBlockingDelete] = useState<{ id: string; name: string }[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [createdLogin, setCreatedLogin] = useState<{
     employeeId?: string;
@@ -74,7 +73,6 @@ export function EmployeeForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setTeamsBlockingDelete([]);
     const required = [
       { val: fullName.trim(), name: "Full name" },
       { val: country.trim(), name: "Country" },
@@ -141,15 +139,11 @@ export function EmployeeForm({
     setShowDeleteConfirm(false);
     setDeleting(true);
     setError("");
-    setTeamsBlockingDelete([]);
     const res = await fetch(`/api/employees/${existing.id}`, { method: "DELETE" });
     const data = await res.json().catch(() => ({}));
     setDeleting(false);
     if (!res.ok) {
       setError(data.message || "Failed to delete");
-      if (data.code === "EMPLOYEE_IN_USE_IN_TEAMS" && Array.isArray(data.teams)) {
-        setTeamsBlockingDelete(data.teams);
-      }
       return;
     }
     router.push("/employees");
@@ -387,20 +381,6 @@ export function EmployeeForm({
           <FormCardSection>
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               <p>{error}</p>
-              {teamsBlockingDelete.length > 0 ? (
-                <>
-                  <p className="mt-2 font-medium">Replace this employee in these teams first:</p>
-                  <ul className="mt-1 list-inside list-disc">
-                    {teamsBlockingDelete.map((t) => (
-                      <li key={t.id}>
-                        <Link href={`/teams/${t.id}`} className="text-red-700 underline hover:no-underline">
-                          {t.name}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
             </div>
           </FormCardSection>
         )}

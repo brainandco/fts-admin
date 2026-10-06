@@ -17,50 +17,9 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
     .order("full_name");
   const empIds = (employeesRaw ?? []).map((e) => e.id);
 
-  const { data: allTeams } = await supabase
-    .from("teams")
-    .select("id, name, team_code, dt_employee_id, driver_rigger_employee_id");
-  type TeamRef = { id: string; label: string };
-  const teamsByEmployeeId = new Map<string, TeamRef[]>();
-  const teamsAsDtByEmp = new Map<string, TeamRef[]>();
-  const teamsDriverOnlyByEmp = new Map<string, TeamRef[]>();
-
-  function pushTeam(empId: string | null, t: { id: string; name: string; team_code: string | null }) {
-    if (!empId) return;
-    const label = String(t.team_code ?? "").trim() || t.name || t.id;
-    const cur = teamsByEmployeeId.get(empId) ?? [];
-    if (!cur.some((x) => x.id === t.id)) cur.push({ id: t.id, label });
-    teamsByEmployeeId.set(empId, cur);
-  }
-  function pushDtTeams(empId: string | null, t: { id: string; name: string; team_code: string | null }) {
-    if (!empId) return;
-    const label = String(t.team_code ?? "").trim() || t.name || t.id;
-    const cur = teamsAsDtByEmp.get(empId) ?? [];
-    if (!cur.some((x) => x.id === t.id)) cur.push({ id: t.id, label });
-    teamsAsDtByEmp.set(empId, cur);
-  }
-  function pushDriverOnlyTeams(empId: string | null, t: { id: string; name: string; team_code: string | null }) {
-    if (!empId) return;
-    const label = String(t.team_code ?? "").trim() || t.name || t.id;
-    const cur = teamsDriverOnlyByEmp.get(empId) ?? [];
-    if (!cur.some((x) => x.id === t.id)) cur.push({ id: t.id, label });
-    teamsDriverOnlyByEmp.set(empId, cur);
-  }
-
-  for (const t of allTeams ?? []) {
-    pushTeam(t.dt_employee_id, t);
-    pushTeam(t.driver_rigger_employee_id, t);
-    pushDtTeams(t.dt_employee_id, t);
-    const dtId = t.dt_employee_id;
-    const drId = t.driver_rigger_employee_id;
-    if (dtId && drId && dtId !== drId) {
-      pushDriverOnlyTeams(drId, t);
-    }
-  }
-  const { data: roleRows } = await supabase
-    .from("employee_roles")
-    .select("employee_id, role, role_custom")
-    .in("employee_id", empIds);
+  const { data: roleRows } = empIds.length
+    ? await supabase.from("employee_roles").select("employee_id, role, role_custom").in("employee_id", empIds)
+    : { data: [] };
   const roleByEmp = new Map<string, string>();
   const roleCodeByEmp = new Map<string, string>();
   for (const r of roleRows ?? []) {
@@ -75,9 +34,6 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
     region_id: e.region_id,
     project_id: e.project_id,
     status: (e as { status?: string }).status ?? "ACTIVE",
-    team_memberships: teamsByEmployeeId.get(e.id) ?? [],
-    teams_as_dt: teamsAsDtByEmp.get(e.id) ?? [],
-    teams_driver_only: teamsDriverOnlyByEmp.get(e.id) ?? [],
     role: roleByEmp.get(e.id) ?? "",
     role_code: roleCodeByEmp.get(e.id) ?? "",
   }));
@@ -100,13 +56,16 @@ export default async function EmployeeRegionProjectAssignmentsPage() {
         </p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">Region &amp; project assignments</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-          Assign primary region (where the person works) and, when applicable, a formal project. <span className="font-medium text-zinc-800">Driver/Rigger</span> and{" "}
-          <span className="font-medium text-zinc-800">QC</span> are region-only (no project on the record). All other roles — including <span className="font-medium text-zinc-800">DT</span> — may have a project. Projects are not limited by region. For Project Managers, extra regions beyond the primary are set on the employee profile under{" "}
+          Assign primary region (where the person works) and, when applicable, a formal project. Changes here are
+          independent of any historical team records. <span className="font-medium text-zinc-800">Driver/Rigger</span> and{" "}
+          <span className="font-medium text-zinc-800">QC</span> are region-only (no project on the record). All other roles —
+          including <span className="font-medium text-zinc-800">DT</span> — may have a project. Projects are not limited by
+          region. For Project Managers, extra regions beyond the primary are set on the employee profile under{" "}
           <span className="font-medium text-zinc-800">PM scope</span>.
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
-          <span className="font-medium text-zinc-800">Inactive</span> employees cannot be assigned a region or project here — reactivate them on their employee profile first.
-          Driver/Rigger and QC remain region-only on the employee record.
+          <span className="font-medium text-zinc-800">Inactive</span> employees cannot be assigned a region or project here —
+          reactivate them on their employee profile first.
         </p>
       </header>
       <EmployeeRegionProjectAssignmentsClient employees={employees} regions={regions ?? []} projects={projects ?? []} />
