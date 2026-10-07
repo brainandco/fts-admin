@@ -10,6 +10,10 @@ function smtpConfigured(): boolean {
   );
 }
 
+function resendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY?.trim());
+}
+
 function getTransporter() {
   const host = process.env.SMTP_HOST!.trim();
   const port = Number(process.env.SMTP_PORT?.trim() || "465");
@@ -30,6 +34,7 @@ function getTransporter() {
 
 function fromAddress(): string {
   return (
+    process.env.RESEND_FROM_EMAIL?.trim() ||
     process.env.SMTP_FROM?.trim() ||
     process.env.SMTP_USER?.trim() ||
     "noreply@fts-ksa.com"
@@ -37,21 +42,82 @@ function fromAddress(): string {
 }
 
 /**
- * Shared SMTP send for admin portal mail (credentials, invites, etc.).
+ * Prefer Resend HTTP API when RESEND_API_KEY is set (reliable on Vercel).
+ * Otherwise use SMTP (fine for local HostersPK / cPanel).
  */
 export async function sendSmtpMail(opts: {
   to: string;
   subject: string;
   html: string;
 }): Promise<SendEmailResult> {
+  if (resendConfigured()) {
+    return sendViaResend(opts);
+  }
   if (!smtpConfigured()) {
     return {
       sent: false,
       error:
-        "SMTP not configured. Locally: set SMTP_HOST, SMTP_USER, SMTP_PASSWORD in fts-admin/.env.local and restart. On Vercel: Project → Environment Variables.",
+        "Email not configured. On Vercel set RESEND_API_KEY (+ RESEND_FROM_EMAIL or SMTP_FROM). Locally you can use SMTP_HOST / SMTP_USER / SMTP_PASSWORD instead.",
     };
   }
+  return sendViaSmtp(opts);
+}
 
+async function sendViaResend(opts: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<SendEmailResult> {
+  const apiKey = process.env.RESEND_API_KEY!.trim();
+  const from = `"FTS Admin" <${fromAddress()}>`;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [opts.to],
+        subject: opts.subject,
+        html: opts.html,
+        headers: {
+          "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        },
+      }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      id?: string;
+      message?: string;
+      name?: string;
+    };
+    if (!res.ok) {
+      const err =
+        body.message ||
+        body.name ||
+        `Resend HTTP ${res.status}`;
+      console.error("[email] Resend send failed:", body);
+      return { sent: false, error: String(err) };
+    }
+    console.info("[email] Resend accepted", {
+      to: opts.to,
+      subject: opts.subject,
+      id: body.id,
+    });
+    return { sent: true };
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err);
+    console.error("[email] Resend send failed:", err);
+    return { sent: false, error: raw };
+  }
+}
+
+async function sendViaSmtp(opts: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<SendEmailResult> {
   try {
     const transporter = getTransporter();
     const info = await transporter.sendMail({
@@ -59,7 +125,6 @@ export async function sendSmtpMail(opts: {
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
-      // Helps avoid clients treating create + resend as one collapsed thread.
       headers: {
         "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       },
@@ -69,6 +134,7 @@ export async function sendSmtpMail(opts: {
       subject: opts.subject,
       messageId: info.messageId,
       response: info.response,
+      host: process.env.SMTP_HOST,
     });
     return { sent: true };
   } catch (err) {
