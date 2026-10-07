@@ -3,7 +3,7 @@ export function portalCredentialsSourceLabel(source: string | null | undefined):
   if (!source) return "";
   switch (source) {
     case "employee_resend":
-      return "Employee page (Resend)";
+      return "Employee page (credentials button)";
     case "team_bulk":
       return "Team bulk email";
     case "employee_create":
