@@ -14,6 +14,11 @@ function resendConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY?.trim());
 }
 
+/** Default = SMTP. Set EMAIL_PROVIDER=resend to force Resend HTTP even if SMTP vars exist. */
+function preferResend(): boolean {
+  return process.env.EMAIL_PROVIDER?.trim().toLowerCase() === "resend";
+}
+
 function getTransporter() {
   const host = process.env.SMTP_HOST!.trim();
   const port = Number(process.env.SMTP_PORT?.trim() || "465");
@@ -34,33 +39,36 @@ function getTransporter() {
 
 function fromAddress(): string {
   return (
-    process.env.RESEND_FROM_EMAIL?.trim() ||
     process.env.SMTP_FROM?.trim() ||
+    process.env.RESEND_FROM_EMAIL?.trim() ||
     process.env.SMTP_USER?.trim() ||
     "noreply@fts-ksa.com"
   );
 }
 
 /**
- * Prefer Resend HTTP API when RESEND_API_KEY is set (reliable on Vercel).
- * Otherwise use SMTP (fine for local HostersPK / cPanel).
+ * Default: SMTP (HostersPK / cPanel / any SMTP).
+ * Resend HTTP only if EMAIL_PROVIDER=resend, or if SMTP is not configured but RESEND_API_KEY is set.
  */
 export async function sendSmtpMail(opts: {
   to: string;
   subject: string;
   html: string;
 }): Promise<SendEmailResult> {
+  if (preferResend() && resendConfigured()) {
+    return sendViaResend(opts);
+  }
+  if (smtpConfigured()) {
+    return sendViaSmtp(opts);
+  }
   if (resendConfigured()) {
     return sendViaResend(opts);
   }
-  if (!smtpConfigured()) {
-    return {
-      sent: false,
-      error:
-        "Email not configured. On Vercel set RESEND_API_KEY (+ RESEND_FROM_EMAIL or SMTP_FROM). Locally you can use SMTP_HOST / SMTP_USER / SMTP_PASSWORD instead.",
-    };
-  }
-  return sendViaSmtp(opts);
+  return {
+    sent: false,
+    error:
+      "Email not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD (and SMTP_FROM). Optional: RESEND_API_KEY only if you want Resend instead.",
+  };
 }
 
 async function sendViaResend(opts: {
@@ -93,10 +101,7 @@ async function sendViaResend(opts: {
       name?: string;
     };
     if (!res.ok) {
-      const err =
-        body.message ||
-        body.name ||
-        `Resend HTTP ${res.status}`;
+      const err = body.message || body.name || `Resend HTTP ${res.status}`;
       console.error("[email] Resend send failed:", body);
       return { sent: false, error: String(err) };
     }
