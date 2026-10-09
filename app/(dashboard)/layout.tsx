@@ -8,7 +8,11 @@ import { DashboardChrome } from "@/components/layout/DashboardChrome";
 /** Employees (any role) use the Employee Portal only; they must not access the admin panel. */
 async function isAnyEmployee(email: string): Promise<boolean> {
   const supabase = await getDataClient();
-  const { data: emp } = await supabase.from("employees").select("id").eq("email", email.toLowerCase().trim()).maybeSingle();
+  const { data: emp } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("email", email.toLowerCase().trim())
+    .maybeSingle();
   return !!emp;
 }
 
@@ -26,11 +30,31 @@ export default async function DashboardLayout({
     if (access.reason === "invitation_expired") redirect("/invite/expired");
     redirect("/login");
   }
+
   const email = (access.user?.email ?? "").trim();
-  if (email && (await isAnyEmployee(email))) {
+  const userId = access.user?.id ?? null;
+  const supabase = await getDataClient();
+
+  const [{ isSuper, permissions }, isEmployeePortalUser, { count: unreadNotifications }, roleRowsRes] =
+    await Promise.all([
+      getCurrentUserRolesAndPermissions(),
+      email ? isAnyEmployee(email) : Promise.resolve(false),
+      userId
+        ? supabase
+            .from("notifications")
+            .select("id", { count: "exact", head: true })
+            .eq("recipient_user_id", userId)
+            .eq("is_read", false)
+        : Promise.resolve({ count: 0 }),
+      !access.profile.is_super_user && userId
+        ? supabase.from("user_roles").select("roles(name)").eq("user_id", userId)
+        : Promise.resolve({ data: null as { roles: unknown }[] | null }),
+    ]);
+
+  if (email && isEmployeePortalUser) {
     redirect("/api/auth/employee-portal-only");
   }
-  const { isSuper, permissions } = await getCurrentUserRolesAndPermissions();
+
   const pathname = (await headers()).get("x-pathname") ?? "";
   if (
     pathname &&
@@ -40,17 +64,15 @@ export default async function DashboardLayout({
   ) {
     redirect(CHANGE_PASSWORD_PATH);
   }
+
   const permissionList = Array.from(permissions);
-  const supabase = await getDataClient();
-  const userId = access.user?.id ?? null;
 
   let positionLabel: string | null = null;
   if (isSuper) {
     positionLabel = "Super User";
   } else if (userId) {
-    const { data: roleRows } = await supabase.from("user_roles").select("roles(name)").eq("user_id", userId);
     const names: string[] = [];
-    for (const row of roleRows ?? []) {
+    for (const row of roleRowsRes.data ?? []) {
       const r = (row as { roles: { name: string } | { name: string }[] | null }).roles;
       if (!r) continue;
       if (Array.isArray(r)) {
@@ -63,13 +85,6 @@ export default async function DashboardLayout({
     }
     positionLabel = names.length ? [...new Set(names)].join(" · ") : "Administrator";
   }
-  const { count: unreadNotifications } = userId
-    ? await supabase
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("recipient_user_id", userId)
-        .eq("is_read", false)
-    : { count: 0 };
 
   return (
     <div className="fts-app-shell min-h-dvh">

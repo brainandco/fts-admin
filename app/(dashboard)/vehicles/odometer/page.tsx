@@ -11,18 +11,30 @@ import {
 } from "@/lib/odometer/daily-summary";
 
 export default async function OdometerTrackingPage() {
-  const canManage = await can("vehicles.manage");
-  const canAssign = await can("vehicles.assign");
+  const [canManage, canAssign] = await Promise.all([can("vehicles.manage"), can("vehicles.assign")]);
   if (!canManage && !canAssign) redirect("/dashboard");
 
   const supabase = await getDataClient();
-  const { data: rawRows } = await supabase
-    .from("vehicle_odometer_readings")
-    .select(
-      "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, accuracy_m, location_label, activity_notes, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status, duty_shift_id"
-    )
-    .order("reading_date", { ascending: false })
-    .limit(8000);
+  const todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
+  const historyFrom = new Date(`${todayIso}T12:00:00+03:00`);
+  historyFrom.setDate(historyFrom.getDate() - 14);
+  const historyFromIso = historyFrom.toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
+
+  const yesterdayIso = new Date(`${todayIso}T12:00:00+03:00`);
+  yesterdayIso.setDate(yesterdayIso.getDate() - 1);
+  const yesterday = yesterdayIso.toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
+
+  const [{ data: rawRows }, { data: driverRoles }] = await Promise.all([
+    supabase
+      .from("vehicle_odometer_readings")
+      .select(
+        "vehicle_id, employee_id, team_id, reading_date, slot, captured_at, lat, lng, accuracy_m, location_label, activity_notes, plate_number_final, odometer_km_final, plate_photo_url, odometer_photo_urls, ocr_status, duty_shift_id"
+      )
+      .gte("reading_date", historyFromIso)
+      .order("reading_date", { ascending: false })
+      .limit(2000),
+    supabase.from("employee_roles").select("employee_id").eq("role", "Driver/Rigger"),
+  ]);
 
   const readings: OdometerReadingRow[] = (rawRows ?? []).map((row) => ({
     vehicle_id: String(row.vehicle_id),
@@ -47,25 +59,62 @@ export default async function OdometerTrackingPage() {
   const employeeIds = [...new Set(readings.map((r) => r.employee_id))];
   const vehicleIds = [...new Set(readings.map((r) => r.vehicle_id))];
   const teamIds = [...new Set(readings.map((r) => r.team_id).filter(Boolean) as string[])];
+  const driverIds = [...new Set((driverRoles ?? []).map((r) => r.employee_id as string))];
 
-  const [{ data: employees }, { data: vehicleRows }, { data: teams }] = await Promise.all([
-    employeeIds.length
-      ? supabase.from("employees").select("id, full_name, region_id").in("id", employeeIds)
-      : Promise.resolve({ data: [] as Array<{ id: string; full_name: string | null; region_id: string | null }> }),
-    vehicleIds.length
-      ? supabase.from("vehicles").select("id, make, model").in("id", vehicleIds)
-      : Promise.resolve({ data: [] as Array<{ id: string; make: string | null; model: string | null }> }),
-    teamIds.length
-      ? supabase.from("teams").select("id, name").in("id", teamIds)
+  const [{ data: employees }, { data: vehicleRows }, { data: teams }, { data: drivers }, { data: driverAssign }] =
+    await Promise.all([
+      employeeIds.length
+        ? supabase.from("employees").select("id, full_name, region_id").in("id", employeeIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; full_name: string | null; region_id: string | null }> }),
+      vehicleIds.length
+        ? supabase.from("vehicles").select("id, make, model").in("id", vehicleIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; make: string | null; model: string | null }> }),
+      teamIds.length
+        ? supabase.from("teams").select("id, name").in("id", teamIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; name: string | null }> }),
+      driverIds.length
+        ? supabase
+            .from("employees")
+            .select("id, full_name, region_id, status")
+            .in("id", driverIds)
+            .neq("status", "Terminated")
+        : Promise.resolve({ data: [] as Array<{ id: string; full_name: string | null; region_id: string | null; status: string }> }),
+      driverIds.length
+        ? supabase.from("vehicle_assignments").select("employee_id, vehicle_id").in("employee_id", driverIds)
+        : Promise.resolve({ data: [] as Array<{ employee_id: string; vehicle_id: string }> }),
+    ]);
+
+  const driverList = drivers ?? [];
+  const regionIds = [
+    ...new Set(
+      [...(employees ?? []), ...driverList]
+        .map((e) => e.region_id)
+        .filter(Boolean) as string[]
+    ),
+  ];
+  const assignedVehicleIds = [...new Set((driverAssign ?? []).map((a) => a.vehicle_id as string))];
+
+  const [{ data: regions }, { data: assignedVehicles }, { data: dutyRows }] = await Promise.all([
+    regionIds.length
+      ? supabase.from("regions").select("id, name").in("id", regionIds)
       : Promise.resolve({ data: [] as Array<{ id: string; name: string | null }> }),
+    assignedVehicleIds.length
+      ? supabase.from("vehicles").select("id, plate_number").in("id", assignedVehicleIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; plate_number: string | null }> }),
+    assignedVehicleIds.length
+      ? supabase
+          .from("vehicle_duty_shifts")
+          .select("id, vehicle_id, employee_id, started_at, ended_at, start_km, end_km, status, shift_date")
+          .in("vehicle_id", assignedVehicleIds)
+          .or(`status.eq.open,shift_date.eq.${todayIso},shift_date.eq.${yesterday}`)
+      : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
   ]);
 
-  const regionIds = [...new Set((employees ?? []).map((e) => e.region_id).filter(Boolean) as string[])];
-  const { data: regions } = regionIds.length
-    ? await supabase.from("regions").select("id, name").in("id", regionIds)
-    : { data: [] as Array<{ id: string; name: string | null }> };
   const regionMap = new Map((regions ?? []).map((r) => [r.id, r.name ?? ""]));
   const teamMap = new Map((teams ?? []).map((t) => [t.id, t.name ?? ""]));
+  const driverRegionMap = regionMap;
+  const assignByEmp = new Map((driverAssign ?? []).map((a) => [a.employee_id as string, a.vehicle_id as string]));
+  const plateByVehicle = new Map((assignedVehicles ?? []).map((v) => [v.id, v.plate_number ?? ""]));
 
   const people = new Map<string, DailyOdoPerson>();
   for (const e of employees ?? []) {
@@ -88,44 +137,6 @@ export default async function OdometerTrackingPage() {
 
   const summaries = buildDailySummaries(readings, people, vehicles);
 
-  const todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
-  const { data: driverRoles } = await supabase
-    .from("employee_roles")
-    .select("employee_id")
-    .eq("role", "Driver/Rigger");
-  const driverIds = [...new Set((driverRoles ?? []).map((r) => r.employee_id as string))];
-  const { data: drivers } = driverIds.length
-    ? await supabase
-        .from("employees")
-        .select("id, full_name, region_id, status")
-        .in("id", driverIds)
-        .neq("status", "Terminated")
-    : { data: [] };
-  const driverList = drivers ?? [];
-  const driverRegionIds = [...new Set(driverList.map((e) => e.region_id).filter(Boolean) as string[])];
-  const { data: driverRegions } = driverRegionIds.length
-    ? await supabase.from("regions").select("id, name").in("id", driverRegionIds)
-    : { data: [] };
-  const driverRegionMap = new Map((driverRegions ?? []).map((r) => [r.id, r.name ?? ""]));
-  const { data: driverAssign } = driverIds.length
-    ? await supabase.from("vehicle_assignments").select("employee_id, vehicle_id").in("employee_id", driverIds)
-    : { data: [] };
-  const assignByEmp = new Map((driverAssign ?? []).map((a) => [a.employee_id as string, a.vehicle_id as string]));
-  const assignedVehicleIds = [...new Set((driverAssign ?? []).map((a) => a.vehicle_id as string))];
-  const { data: assignedVehicles } = assignedVehicleIds.length
-    ? await supabase.from("vehicles").select("id, plate_number").in("id", assignedVehicleIds)
-    : { data: [] };
-  const plateByVehicle = new Map((assignedVehicles ?? []).map((v) => [v.id, v.plate_number ?? ""]));
-  const yesterdayIso = new Date(`${todayIso}T12:00:00+03:00`);
-  yesterdayIso.setDate(yesterdayIso.getDate() - 1);
-  const yesterday = yesterdayIso.toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" });
-  const { data: dutyRows } = assignedVehicleIds.length
-    ? await supabase
-        .from("vehicle_duty_shifts")
-        .select("id, vehicle_id, employee_id, started_at, ended_at, start_km, end_km, status, shift_date")
-        .in("vehicle_id", assignedVehicleIds)
-        .or(`status.eq.open,shift_date.eq.${todayIso},shift_date.eq.${yesterday}`)
-    : { data: [] };
   type DutyRow = {
     id: string;
     vehicle_id: string;
@@ -161,7 +172,11 @@ export default async function OdometerTrackingPage() {
       mine.find((d) => d.status === "open" && d.employee_id === employeeId) ??
       mine.find((d) => d.status === "open") ??
       mine.find((d) => d.shift_date === todayIso) ??
-      mine.find((d) => d.ended_at && new Date(d.ended_at).toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }) === todayIso)
+      mine.find(
+        (d) =>
+          d.ended_at &&
+          new Date(d.ended_at).toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" }) === todayIso
+      )
     );
   }
 
@@ -200,8 +215,8 @@ export default async function OdometerTrackingPage() {
         <p className="mt-1 max-w-3xl text-sm text-zinc-600">
           Duty starts only when start odometer photos are saved, and ends only when end photos are saved. Night shifts
           stay on the start date. Shift km is end minus start. vs previous is this shift’s total minus the last closed
-          shift. Google Sheet <strong>Today</strong> shows open duties plus today’s starts/ends; <strong>History</strong>{" "}
-          keeps every shift.
+          shift. History below shows the last 14 days. Google Sheet <strong>Today</strong> shows open duties plus
+          today’s starts/ends; <strong>History</strong> keeps every shift.
         </p>
       </div>
       <OdometerDriverStatusTable date={todayIso} rows={driverStatusRows} />
