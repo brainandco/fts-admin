@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DataTable } from "@/components/ui/DataTable";
+import { ServerPagination, ServerSearchForm } from "@/components/ui/ServerPagination";
 
 export type FtsEmployeeTableRow = {
   id: string;
@@ -69,6 +70,7 @@ export function FtsPeopleDirectory({
   isSuper,
   adminPortalOnlyCount,
   stats,
+  serverPaging,
 }: {
   employeeRows: FtsEmployeeTableRow[];
   adminRows: FtsAdminOnlyTableRow[];
@@ -79,6 +81,14 @@ export function FtsPeopleDirectory({
     totalFtsPeople: number;
     rosterCount: number;
     activeAdminPortalOnly: number;
+  };
+  serverPaging?: {
+    pathname: string;
+    page: number;
+    pageSize: number;
+    total: number;
+    q: string;
+    query: Record<string, string>;
   };
 }) {
   return (
@@ -118,17 +128,38 @@ export function FtsPeopleDirectory({
             </p>
           </div>
           <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">
-            {employeeRows.length} on roster
+            {serverPaging ? `${serverPaging.total} on roster` : `${employeeRows.length} on roster`}
           </span>
         </div>
+        {serverPaging ? (
+          <div className="mb-4">
+            <ServerSearchForm
+              pathname={serverPaging.pathname}
+              q={serverPaging.q}
+              placeholder="Search name or email…"
+              preserve={{ pageSize: String(serverPaging.pageSize) }}
+            />
+          </div>
+        ) : null}
         <DataTable<FtsEmployeeTableRow & Record<string, unknown>>
           columns={employeeColumns}
           data={employeeRows}
           keyField="id"
           hrefPrefix="/employees/"
           searchPlaceholder="Search employees…"
-          filterKeys={["status", "region_name"]}
+          filterKeys={serverPaging ? [] : ["status", "region_name"]}
+          searchable={!serverPaging}
+          paginate={!serverPaging}
         />
+        {serverPaging ? (
+          <ServerPagination
+            pathname={serverPaging.pathname}
+            page={serverPaging.page}
+            pageSize={serverPaging.pageSize}
+            total={serverPaging.total}
+            query={serverPaging.query}
+          />
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">

@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { getDataClient } from "@/lib/supabase/server";
 import {
   countActiveAdminPortalUsers,
+  countAllEmployees,
   getEmployeeEmailSet,
-  getTotalFtsPeopleCount,
 } from "@/lib/admin-portal-user-counts";
 import { can, getCurrentUserRolesAndPermissions } from "@/lib/rbac/permissions";
 import { SUPER_ROLE_ID } from "@/lib/rbac/permissions";
@@ -12,6 +12,7 @@ import {
   type FtsAdminOnlyTableRow,
   type FtsEmployeeTableRow,
 } from "@/components/people/FtsPeopleDirectory";
+import { clampPage, parseListPagination, parseSearchQuery } from "@/lib/ui/list-pagination";
 
 type ProfileRow = {
   id: string;
@@ -22,19 +23,47 @@ type ProfileRow = {
   employee_portal_only?: boolean | null;
 };
 
-export default async function PeoplePage() {
+export default async function PeoplePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   if (!(await can("users.view"))) redirect("/dashboard");
 
-  const { isSuper } = await getCurrentUserRolesAndPermissions();
+  const [{ isSuper }, params] = await Promise.all([getCurrentUserRolesAndPermissions(), searchParams]);
   const supabase = await getDataClient();
+  const q = parseSearchQuery(params).replace(/[%_,]/g, " ").trim();
+  const pagination = parseListPagination(params);
 
-  const [employeesRes, regionsRes, profilesEmailRes, totalFtsPeople, activeAdminPortalOnly] = await Promise.all([
-    supabase.from("employees").select("id, full_name, email, status, region_id").order("full_name"),
-    supabase.from("regions").select("id, name"),
-    supabase.from("users_profile").select("email"),
-    getTotalFtsPeopleCount(supabase),
-    countActiveAdminPortalUsers(supabase),
-  ]);
+  const searchOr = q ? `full_name.ilike.%${q}%,email.ilike.%${q}%` : null;
+
+  const countFilteredQuery = (() => {
+    let qy = supabase.from("employees").select("id", { count: "exact", head: true });
+    if (searchOr) qy = qy.or(searchOr);
+    return qy;
+  })();
+
+  const [rosterCount, activeAdminPortalOnly, { count: filteredCount }, regionsRes, profilesEmailRes] =
+    await Promise.all([
+      countAllEmployees(supabase),
+      countActiveAdminPortalUsers(supabase),
+      countFilteredQuery,
+      supabase.from("regions").select("id, name"),
+      supabase.from("users_profile").select("email"),
+    ]);
+
+  const totalFiltered = filteredCount ?? 0;
+  const page = clampPage(pagination.page, totalFiltered, pagination.pageSize);
+  const from = (page - 1) * pagination.pageSize;
+  const to = from + pagination.pageSize - 1;
+
+  let pageQuery = supabase
+    .from("employees")
+    .select("id, full_name, email, status, region_id")
+    .order("full_name")
+    .range(from, to);
+  if (searchOr) pageQuery = pageQuery.or(searchOr);
+  const employeesRes = await pageQuery;
 
   if (employeesRes.error) {
     return (
@@ -65,7 +94,9 @@ export default async function PeoplePage() {
     const usersRes = await supabase
       .from("users_profile")
       .select("id, email, full_name, status, is_super_user, created_at, employee_portal_only")
-      .order("email");
+      .eq("status", "ACTIVE")
+      .order("email")
+      .limit(200);
 
     if (usersRes.error) {
       return (
@@ -83,12 +114,10 @@ export default async function PeoplePage() {
     if (ids.length > 0) {
       const { data: urData } = await supabase
         .from("user_roles")
-        .select("user_id, role_id, roles(name)")
+        .select("user_id, role_id")
         .in("user_id", ids);
-      for (const row of (urData ?? []) as { user_id: string; role_id: string; roles: unknown }[]) {
-        if (row.role_id === SUPER_ROLE_ID) {
-          superRoleUserIds.add(row.user_id);
-        }
+      for (const row of (urData ?? []) as { user_id: string; role_id: string }[]) {
+        if (row.role_id === SUPER_ROLE_ID) superRoleUserIds.add(row.user_id);
       }
     }
 
@@ -97,13 +126,11 @@ export default async function PeoplePage() {
       const em = (u.email ?? "").toLowerCase().trim();
       if (!em || employeeEmails.has(em)) return false;
       if (u.employee_portal_only === true) return false;
-      return u.status === "ACTIVE";
+      return true;
     });
 
     adminRows = adminOnly.map((u) => {
-      const isSuperFlag = Boolean(u.is_super_user);
-      const hasSuperRole = superRoleUserIds.has(u.id);
-      const has_super_access = isSuperFlag || hasSuperRole;
+      const has_super_access = Boolean(u.is_super_user) || superRoleUserIds.has(u.id);
       return {
         id: u.id,
         full_name: (u.full_name ?? "").trim() || "—",
@@ -114,7 +141,11 @@ export default async function PeoplePage() {
     });
   }
 
-  const rosterCount = employeeRows.length;
+  const totalFtsPeople = rosterCount + activeAdminPortalOnly;
+  const queryPreserve = {
+    ...(q ? { q } : {}),
+    ...(pagination.pageSize !== 25 ? { pageSize: String(pagination.pageSize) } : {}),
+  };
 
   return (
     <FtsPeopleDirectory
@@ -126,6 +157,14 @@ export default async function PeoplePage() {
         totalFtsPeople,
         rosterCount,
         activeAdminPortalOnly,
+      }}
+      serverPaging={{
+        pathname: "/people",
+        page,
+        pageSize: pagination.pageSize,
+        total: totalFiltered,
+        q,
+        query: queryPreserve,
       }}
     />
   );

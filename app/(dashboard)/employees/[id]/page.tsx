@@ -10,10 +10,17 @@ import { ResendCredentialsButton } from "@/components/employees/ResendCredential
 import { formatEmployeeRoleDisplay } from "@/lib/employees/employee-role-options";
 import { portalCredentialsSourceLabel } from "@/lib/teams/credentials-email-display";
 
+const EMPLOYEE_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   if (!(await can("users.edit")) && !(await can(PERMISSION_EMPLOYEE_MANAGE))) redirect("/employees");
 
   const { id } = await params;
+  // Keep static sibling routes (e.g. /employees/new, /employees/region-project-assignments)
+  // from being treated as employee ids if the dynamic segment is matched by mistake.
+  if (!EMPLOYEE_ID_RE.test(id)) notFound();
+
   const supabase = await getDataClient();
   const { data: employee } = await supabase.from("employees").select("*").eq("id", id).single();
   if (!employee) notFound();

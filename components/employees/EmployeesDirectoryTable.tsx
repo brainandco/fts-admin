@@ -28,9 +28,12 @@ const columns = [
 export function EmployeesDirectoryTable({
   data,
   canDelete,
+  serverPaged = false,
 }: {
   data: EmployeeDirectoryRow[];
   canDelete: boolean;
+  /** When true, disable client pagination/search (parent handles server paging). */
+  serverPaged?: boolean;
 }) {
   const router = useRouter();
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
@@ -84,7 +87,9 @@ export function EmployeesDirectoryTable({
         keyField="id"
         data={data}
         rowActions={rowActions}
-        filterKeys={["status", "region_name"]}
+        filterKeys={serverPaged ? [] : ["status", "region_name"]}
+        searchable={!serverPaged}
+        paginate={!serverPaged}
         searchPlaceholder="Search employees…"
         columns={columns}
         multiSelect={canDelete}

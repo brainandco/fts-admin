@@ -130,6 +130,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   pageSizeOptions?: number[];
   /** Default page size. Default 10. */
   defaultPageSize?: number;
+  /** When false, show all `data` rows (use with server-side pagination). Default true. */
+  paginate?: boolean;
   /** Multi-select checkboxes + optional bulk delete (POST JSON `{ ids: string[] }` to apiPath). */
   multiSelect?: boolean;
   bulkDelete?: {
@@ -156,6 +158,7 @@ export function DataTable<T extends Record<string, unknown>>({
   toolbarTrailing,
   pageSizeOptions = [10, 25, 50, 100],
   defaultPageSize = 10,
+  paginate = true,
   multiSelect = false,
   bulkDelete,
 }: DataTableProps<T>) {
@@ -272,15 +275,16 @@ export function DataTable<T extends Record<string, unknown>>({
   }, [data, filterKeys]);
 
   const totalFiltered = filteredData.length;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / Math.max(1, pageSize)));
   const currentPage = Math.min(Math.max(1, page), totalPages);
   const paginatedData = useMemo(() => {
+    if (!paginate) return filteredData;
     const start = (currentPage - 1) * pageSize;
     return filteredData.slice(start, start + pageSize);
-  }, [filteredData, currentPage, pageSize]);
+  }, [filteredData, currentPage, pageSize, paginate]);
 
-  const startItem = totalFiltered === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalFiltered);
+  const startItem = totalFiltered === 0 ? 0 : paginate ? (currentPage - 1) * pageSize + 1 : 1;
+  const endItem = paginate ? Math.min(currentPage * pageSize, totalFiltered) : totalFiltered;
   const showActionsColumn = hrefPrefix != null || rowActionsProp != null;
   const labelKey = selectionLabelKey ?? columns[0]?.key;
   const colSpan =
@@ -564,32 +568,34 @@ export function DataTable<T extends Record<string, unknown>>({
           document.body
         )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-600">
-        <span>
-          Showing {startItem}–{endItem} of {totalFiltered}
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            className="rounded border border-zinc-300 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-50"
-          >
-            Previous
-          </button>
-          <span className="px-2">
-            Page {currentPage} of {totalPages}
+      {paginate ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-600">
+          <span>
+            Showing {startItem}–{endItem} of {totalFiltered}
           </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-            className="rounded border border-zinc-300 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-50"
-          >
-            Next
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="rounded border border-zinc-300 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-50"
+            >
+              Previous
+            </button>
+            <span className="px-2">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="rounded border border-zinc-300 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {bulkDelete && (
         <ConfirmModal
