@@ -1,3 +1,5 @@
+import { cache } from "react";
+import type { User } from "@supabase/supabase-js";
 import { createServerSupabaseClient, getDataClient } from "@/lib/supabase/server";
 import type { UsersProfile } from "@/lib/types/database";
 import { getInvitationGate } from "@/lib/invitation";
@@ -15,20 +17,28 @@ export {
 /** Role id for "Regional Project Manager" – not assignable to users; PM is an employee role only (region/project on employee). */
 export const REGIONAL_PM_ROLE_ID = "a0000000-0000-0000-0000-000000000002";
 
-export async function getCurrentUserProfile() {
+/** One auth + profile fetch per request (layout + can() + pages share this). */
+const loadAuthBundle = cache(async (): Promise<{
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>;
+  user: User | null;
+  profile: UsersProfile | null;
+}> => {
   const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { supabase, user: null, profile: null };
+
+  const { data: profile } = await supabase.from("users_profile").select("*").eq("id", user.id).single();
+  return { supabase, user, profile: profile ?? null };
+});
+
+export const getCurrentUserProfile = cache(async () => {
+  const { user, profile } = await loadAuthBundle();
   if (!user) return { user: null, profile: null };
-
-  const { data: profile } = await supabase
-    .from("users_profile")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
   if (!profile) return { user, profile: null };
   return { user, profile: { ...profile, region_id: null } };
-}
+});
 
 export async function getRolesAndPermissionsForUserId(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
@@ -119,37 +129,28 @@ export async function getRolesAndPermissionsForUserId(
   return { permissions: granted, roleIds, isSuper: false };
 }
 
-export async function getCurrentUserRolesAndPermissions() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { permissions: new Set<string>(), roleIds: new Set<string>(), isSuper: false };
+export const getCurrentUserRolesAndPermissions = cache(async () => {
+  const { user, profile } = await loadAuthBundle();
+  if (!user || !profile) {
+    return { permissions: new Set<string>(), roleIds: new Set<string>(), isSuper: false };
+  }
 
-  const profile = await supabase
-    .from("users_profile")
-    .select("is_super_user")
-    .eq("id", user.id)
-    .single();
-
-  if (profile.data?.is_super_user) {
+  if (profile.is_super_user) {
     return { permissions: new Set<string>(["*"]), roleIds: new Set<string>(), isSuper: true };
   }
 
   const dataClient = await getDataClient();
   return getRolesAndPermissionsForUserId(dataClient, user.id, {
-    is_super_user: profile.data?.is_super_user ?? null,
+    is_super_user: profile.is_super_user ?? null,
   });
-}
+});
 
 export async function can(permissionCode: string): Promise<boolean> {
-  // Use same access check as dashboard layout so super user is allowed consistently
   const access = await requireActive();
-  if (access.allowed && access.profile?.is_super_user) return true;
   if (!access.allowed) return false;
-
-  const { profile } = await getCurrentUserProfile();
-  if (!profile) return false;
-  if (profile.is_super_user) return true;
-  const { permissions } = await getCurrentUserRolesAndPermissions();
+  if (access.profile?.is_super_user) return true;
+  const { permissions, isSuper } = await getCurrentUserRolesAndPermissions();
+  if (isSuper) return true;
   return permissions.has("*") || permissions.has(permissionCode);
 }
 
@@ -157,21 +158,14 @@ export async function can(permissionCode: string): Promise<boolean> {
  * Dashboard access: must be logged in, have a users_profile row, and be
  * Super User (flag or Super role), or status ACTIVE.
  */
-export async function requireActive() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+export const requireActive = cache(async () => {
+  const { supabase, user: authUser, profile } = await loadAuthBundle();
 
   if (!authUser) {
     return { allowed: false as const, reason: "unauthenticated" };
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("users_profile")
-    .select("*")
-    .eq("id", authUser.id)
-    .single();
-
-  if (profileError || !profile) {
+  if (!profile) {
     return { allowed: false as const, reason: "no_profile" };
   }
 
@@ -204,7 +198,7 @@ export async function requireActive() {
   }
 
   return { allowed: false as const, reason: "unauthenticated" };
-}
+});
 
 export type RequireSuperResult = { allowed: true; profile: UsersProfile } | { allowed: false };
 
