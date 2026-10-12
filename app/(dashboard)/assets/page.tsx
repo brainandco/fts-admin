@@ -18,11 +18,23 @@ type CountByType = {
   damaged: number;
 };
 
-function countByType(assets: { category: string; status: string; assigned_to_employee_id: string | null }[]): CountByType[] {
-  const map = new Map<string, { total: number; unassigned: number; assigned: number; pending_return: number; under_maintenance: number; damaged: number }>();
+function countByType(
+  assets: { category: string | null; status: string; assigned_to_employee_id: string | null }[]
+): CountByType[] {
+  const map = new Map<
+    string,
+    { total: number; unassigned: number; assigned: number; pending_return: number; under_maintenance: number; damaged: number }
+  >();
   for (const a of assets) {
     const cat = a.category || "Other";
-    const cur = map.get(cat) ?? { total: 0, unassigned: 0, assigned: 0, pending_return: 0, under_maintenance: 0, damaged: 0 };
+    const cur = map.get(cat) ?? {
+      total: 0,
+      unassigned: 0,
+      assigned: 0,
+      pending_return: 0,
+      under_maintenance: 0,
+      damaged: 0,
+    };
     cur.total += 1;
     if (a.status === "Pending_Return") cur.pending_return += 1;
     else if (a.status === "Under_Maintenance") cur.under_maintenance += 1;
@@ -68,37 +80,30 @@ export default async function AssetsPage() {
   if (!(await can("assets.manage"))) redirect("/dashboard");
   const canBulkDelete = await can(PERMISSION_BULK_DELETE);
   const supabase = await getDataClient();
-  const { data: assets } = await supabase
-    .from("assets")
-    .select("id, asset_id, name, category, model, serial, imei_1, imei_2, status, assigned_to_employee_id, software_connectivity, created_at")
-    .eq("is_ehs_tool", false)
-    .order("name");
 
-  const byType = countByType(assets ?? []);
-  const employeeIds = [...new Set((assets ?? []).map((a) => a.assigned_to_employee_id).filter(Boolean) as string[])];
-  const { data: employees } = employeeIds.length
-    ? await supabase.from("employees").select("id, full_name").in("id", employeeIds)
-    : { data: [] };
-  const employeeMap = new Map((employees ?? []).map((e) => [e.id, e.full_name]));
+  // Lightweight fields only — full asset payloads moved to type pages + search API.
+  const [{ data: leanAssets }, { data: regions }] = await Promise.all([
+    supabase
+      .from("assets")
+      .select("category, status, assigned_to_employee_id")
+      .eq("is_ehs_tool", false),
+    supabase.from("regions").select("id, name").order("name"),
+  ]);
 
-  const rows = (assets ?? []).map((a) => ({
-    ...a,
-    assigned_name: a.assigned_to_employee_id ? employeeMap.get(a.assigned_to_employee_id) ?? "—" : "—",
-  }));
-  const unassignedRows = rows.filter((r) => r.status === "Available" && !r.assigned_to_employee_id);
-  const pendingReturnRows = rows.filter((r) => r.status === "Pending_Return");
-  const maintenanceRows = rows.filter((r) => r.status === "Under_Maintenance");
-  const damagedRows = rows.filter((r) => r.status === "Damaged");
-  const assignedRows = rows.filter(
-    (r) =>
-      !(r.status === "Available" && !r.assigned_to_employee_id) &&
-      r.status !== "Pending_Return" &&
-      r.status !== "Under_Maintenance" &&
-      r.status !== "Damaged"
-  );
-  const totalAssets = rows.length;
-
-  const { data: regions } = await supabase.from("regions").select("id, name").order("name");
+  const byType = countByType(leanAssets ?? []);
+  const totalAssets = leanAssets?.length ?? 0;
+  let unassigned = 0;
+  let assigned = 0;
+  let pendingReturn = 0;
+  let maintenance = 0;
+  let damaged = 0;
+  for (const a of leanAssets ?? []) {
+    if (a.status === "Pending_Return") pendingReturn += 1;
+    else if (a.status === "Under_Maintenance") maintenance += 1;
+    else if (a.status === "Damaged") damaged += 1;
+    else if (a.status === "Available" && !a.assigned_to_employee_id) unassigned += 1;
+    else assigned += 1;
+  }
 
   return (
     <div className="space-y-8">
@@ -118,29 +123,15 @@ export default async function AssetsPage() {
           </div>
         </div>
         <div className="mb-6">
-          <AssetGlobalSearch
-            assets={rows.map((r) => ({
-              id: r.id,
-              asset_id: r.asset_id ?? null,
-              name: r.name,
-              category: r.category ?? null,
-              model: r.model ?? null,
-              serial: r.serial ?? null,
-              imei_1: r.imei_1 ?? null,
-              imei_2: r.imei_2 ?? null,
-              status: r.status,
-              assigned_name: r.assigned_name,
-              software_connectivity: r.software_connectivity ?? null,
-            }))}
-          />
+          <AssetGlobalSearch />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard label="Total assets" value={totalAssets} />
-          <StatCard label="Available" value={unassignedRows.length} tone="emerald" />
-          <StatCard label="Assigned" value={assignedRows.length} tone="amber" />
-          <StatCard label="Pending return" value={pendingReturnRows.length} tone="violet" />
-          <StatCard label="Under maintenance" value={maintenanceRows.length} tone="orange" />
-          <StatCard label="Damaged" value={damagedRows.length} tone="red" />
+          <StatCard label="Available" value={unassigned} tone="emerald" />
+          <StatCard label="Assigned" value={assigned} tone="amber" />
+          <StatCard label="Pending return" value={pendingReturn} tone="violet" />
+          <StatCard label="Under maintenance" value={maintenance} tone="orange" />
+          <StatCard label="Damaged" value={damaged} tone="red" />
         </div>
       </div>
 
@@ -153,14 +144,21 @@ export default async function AssetsPage() {
             </span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {byType.map(({ category, total, unassigned, assigned, pending_return, under_maintenance, damaged }) => {
+            {byType.map(({ category, total, unassigned: u, assigned: a, pending_return, under_maintenance, damaged: d }) => {
               const typeHref = `/assets/type/${encodeURIComponent(category)}`;
               return (
                 <AssetPoolQuantityCard
                   key={category}
                   title={category}
                   titleHref={typeHref}
-                  counts={{ total, unassigned, assigned, pending_return, under_maintenance, damaged }}
+                  counts={{
+                    total,
+                    unassigned: u,
+                    assigned: a,
+                    pending_return,
+                    under_maintenance,
+                    damaged: d,
+                  }}
                   footerHref={typeHref}
                   footerLabel={`View ${category} →`}
                 />
@@ -170,7 +168,7 @@ export default async function AssetsPage() {
         </div>
       )}
 
-      {(maintenanceRows.length > 0 || damagedRows.length > 0) ? (
+      {maintenance > 0 || damaged > 0 ? (
         <p className="mt-3 text-sm text-zinc-500">
           Maintenance and damaged assets are listed on{" "}
           <Link href="/assets/returns" className="font-medium text-zinc-700 underline hover:text-zinc-900">
