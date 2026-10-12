@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { employeeMayHaveFormalProjectOnRecord } from "@/lib/employees/employee-record-project-roles";
 import { stickyActionsTdClass, stickyActionsThClassGradientRight } from "@/components/ui/table-sticky-actions";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, totalPages as calcTotalPages } from "@/lib/ui/list-pagination";
 
 type Row = {
   id: string;
@@ -68,6 +69,8 @@ export function EmployeeRegionProjectAssignmentsClient({
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const projectsSorted = useMemo(() => [...projects].sort((a, b) => a.name.localeCompare(b.name)), [projects]);
 
@@ -100,6 +103,23 @@ export function EmployeeRegionProjectAssignmentsClient({
       return a.full_name.localeCompare(b.full_name);
     });
   }, [filtered]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, roleFilter, assignmentFilter, pageSize]);
+
+  const pages = calcTotalPages(sortedRows.length, pageSize);
+  const currentPage = Math.min(Math.max(1, page), pages);
+
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [page, currentPage]);
+  const pageRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedRows.slice(start, start + pageSize);
+  }, [sortedRows, currentPage, pageSize]);
+  const startItem = sortedRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, sortedRows.length);
 
   const stats = useMemo(() => {
     let needRegion = 0;
@@ -244,11 +264,30 @@ export function EmployeeRegionProjectAssignmentsClient({
             <option value="complete">Has region</option>
           </select>
         </div>
+        <div className="grid w-full gap-3 sm:w-auto sm:min-w-[120px]">
+          <label htmlFor="rpa-page-size" className="block text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Per page
+          </label>
+          <select
+            id="rpa-page-size"
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className={selectClass}
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <p className="text-sm text-zinc-500">
-        Showing <span className="font-medium text-zinc-800">{sortedRows.length}</span> of {employees.length} — need attention
-        sorted first
+        Showing <span className="font-medium text-zinc-800">{startItem}–{endItem}</span> of{" "}
+        <span className="font-medium text-zinc-800">{sortedRows.length}</span>
+        {sortedRows.length !== employees.length ? ` (filtered from ${employees.length})` : null} — need attention sorted
+        first
       </p>
 
       <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-md shadow-zinc-900/5">
@@ -264,7 +303,7 @@ export function EmployeeRegionProjectAssignmentsClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {sortedRows.length === 0 ? (
+              {pageRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-16 text-center">
                     <p className="text-sm font-medium text-zinc-700">No employees match these filters</p>
@@ -272,7 +311,7 @@ export function EmployeeRegionProjectAssignmentsClient({
                   </td>
                 </tr>
               ) : (
-                sortedRows.map((row, i) => {
+                pageRows.map((row, i) => {
                   const isEditing = editingId === row.id;
                   const att = rowAttention(row);
                   const rowBg = isEditing
@@ -441,6 +480,35 @@ export function EmployeeRegionProjectAssignmentsClient({
           </table>
         </div>
       </div>
+
+      {sortedRows.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-600">
+          <span>
+            Showing {startItem}–{endItem} of {sortedRows.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="rounded border border-zinc-300 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-zinc-50"
+            >
+              Previous
+            </button>
+            <span className="px-2">
+              Page {currentPage} of {pages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pages, p + 1))}
+              disabled={currentPage >= pages}
+              className="rounded border border-zinc-300 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-zinc-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
