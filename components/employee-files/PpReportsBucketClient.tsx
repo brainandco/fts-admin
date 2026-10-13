@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EMPLOYEE_UPLOAD_ALLOWED_EXTENSIONS_HELP } from "@/lib/employee-files/storage";
 import { stickyActionsTdClass, stickyActionsThClassRight } from "@/components/ui/table-sticky-actions";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, totalPages as calcTotalPages } from "@/lib/ui/list-pagination";
 
 const API = "/api/employee-files/pp-reports";
 
@@ -35,6 +36,10 @@ export function PpReportsBucketClient({ configured }: { configured: boolean }) {
 
   const [selectedZipPaths, setSelectedZipPaths] = useState<string[]>([]);
   const [zipBulkBusy, setZipBulkBusy] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [nameQuery, setNameQuery] = useState("");
+  const [nameQueryDraft, setNameQueryDraft] = useState("");
 
   const loadBrowse = useCallback(async () => {
     if (!configured) return;
@@ -65,7 +70,49 @@ export function PpReportsBucketClient({ configured }: { configured: boolean }) {
 
   useEffect(() => {
     setSelectedZipPaths([]);
+    setPage(1);
+    setNameQuery("");
+    setNameQueryDraft("");
   }, [browsePath]);
+
+  const filteredFolders = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    if (!q) return folders;
+    return folders.filter((f) => f.name.toLowerCase().includes(q));
+  }, [folders, nameQuery]);
+
+  const filteredFiles = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    if (!q) return files;
+    return files.filter((f) => f.name.toLowerCase().includes(q));
+  }, [files, nameQuery]);
+
+  const totalRows = filteredFolders.length + filteredFiles.length;
+  const pages = calcTotalPages(totalRows, pageSize);
+  const currentPage = Math.min(Math.max(1, page), pages);
+
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [page, currentPage]);
+
+  const pageFolders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    if (start >= filteredFolders.length) return [];
+    return filteredFolders.slice(start, Math.min(end, filteredFolders.length));
+  }, [filteredFolders, currentPage, pageSize]);
+
+  const pageFiles = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    if (end <= filteredFolders.length) return [];
+    const fileStart = Math.max(0, start - filteredFolders.length);
+    const fileEnd = end - filteredFolders.length;
+    return filteredFiles.slice(fileStart, fileEnd);
+  }, [filteredFolders.length, filteredFiles, currentPage, pageSize]);
+
+  const startItem = totalRows === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalRows);
 
   function toggleZipFolderSelection(folderPath: string) {
     setSelectedZipPaths((prev) =>
@@ -342,95 +389,193 @@ export function PpReportsBucketClient({ configured }: { configured: boolean }) {
           </div>
         ) : null}
 
+        <form
+          className="mt-3 flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPage(1);
+            setNameQuery(nameQueryDraft.trim());
+          }}
+        >
+          <div className="min-w-[180px] flex-1">
+            <label htmlFor="pp-reports-name-q" className="mb-1 block text-xs font-medium text-zinc-500">
+              Filter by name
+            </label>
+            <input
+              id="pp-reports-name-q"
+              type="search"
+              value={nameQueryDraft}
+              onChange={(e) => setNameQueryDraft(e.target.value)}
+              placeholder="Folder or file name…"
+              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <button type="submit" className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">
+            Filter
+          </button>
+          {nameQuery ? (
+            <button
+              type="button"
+              onClick={() => {
+                setNameQueryDraft("");
+                setNameQuery("");
+                setPage(1);
+              }}
+              className="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              Clear
+            </button>
+          ) : null}
+          <div>
+            <label htmlFor="pp-reports-page-size" className="mb-1 block text-xs font-medium text-zinc-500">
+              Per page
+            </label>
+            <select
+              id="pp-reports-page-size"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        </form>
+
         {loading ? (
           <p className="mt-4 text-sm text-zinc-500">Loading…</p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-100">
-            <table className="w-full min-w-[480px] text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50">
-                  <th className="w-10 px-2 py-2 text-center font-medium text-zinc-800">
-                    <span className="sr-only">Include in multi-folder ZIP</span>
-                  </th>
-                  <th className="px-3 py-2 text-left font-medium text-zinc-800">Name</th>
-                  <th className="px-3 py-2 text-left font-medium text-zinc-800">Size</th>
-                  <th className={stickyActionsThClassRight}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {folders.map((f) => (
-                  <tr key={f.path} className="group border-b border-zinc-100">
-                    <td className="w-10 px-2 py-2 text-center align-middle" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-                        checked={selectedZipPaths.includes(f.path)}
-                        disabled={uploadBusy}
-                        title="Include in multi-folder ZIP download"
-                        aria-label={`Include folder ${f.name} in ZIP bundle`}
-                        onChange={() => toggleZipFolderSelection(f.path)}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <button type="button" className="font-medium text-indigo-600 hover:underline" onClick={() => setBrowsePath(f.path)}>
-                        {f.name}/
-                      </button>
-                    </td>
-                    <td className="px-3 py-2 text-zinc-500">—</td>
-                    <td className={stickyActionsTdClass({ align: "right", compact: true })}>
-                      <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs">
+          <>
+            <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-100">
+              <table className="w-full min-w-[480px] text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 bg-zinc-50">
+                    <th className="w-10 px-2 py-2 text-center font-medium text-zinc-800">
+                      <span className="sr-only">Include in multi-folder ZIP</span>
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium text-zinc-800">Name</th>
+                    <th className="px-3 py-2 text-left font-medium text-zinc-800">Size</th>
+                    <th className={stickyActionsThClassRight}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageFolders.map((f) => (
+                    <tr key={f.path} className="group border-b border-zinc-100">
+                      <td className="w-10 px-2 py-2 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={selectedZipPaths.includes(f.path)}
+                          disabled={uploadBusy}
+                          title="Include in multi-folder ZIP download"
+                          aria-label={`Include folder ${f.name} in ZIP bundle`}
+                          onChange={() => toggleZipFolderSelection(f.path)}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          className="font-medium text-indigo-600 hover:underline"
+                          onClick={() => setBrowsePath(f.path)}
+                        >
+                          {f.name}/
+                        </button>
+                      </td>
+                      <td className="px-3 py-2 text-zinc-500">—</td>
+                      <td className={stickyActionsTdClass({ align: "right", compact: true })}>
+                        <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs">
+                          <button
+                            type="button"
+                            disabled={uploadBusy}
+                            onClick={() => triggerFolderZipDownload(f.path)}
+                            className="font-medium text-indigo-600 hover:underline disabled:opacity-50"
+                          >
+                            Download zip
+                          </button>
+                          <span className="text-zinc-300">|</span>
+                          <button
+                            type="button"
+                            disabled={uploadBusy}
+                            onClick={() => void copyFolderDownloadLink(f.path)}
+                            className="font-medium text-indigo-600 hover:underline disabled:opacity-50"
+                          >
+                            Copy download link
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {pageFiles.map((f) => (
+                    <tr key={f.key} className="group border-b border-zinc-100">
+                      <td className="w-10 px-2 py-2" aria-hidden />
+                      <td className="px-3 py-2 font-medium text-zinc-900">{f.name}</td>
+                      <td className="px-3 py-2 text-zinc-600">{formatBytes(f.size)}</td>
+                      <td className={stickyActionsTdClass({ align: "right", compact: true })}>
+                        <button type="button" onClick={() => void downloadFile(f.key)} className="text-indigo-600 hover:underline">
+                          Download
+                        </button>
+                        {" · "}
                         <button
                           type="button"
                           disabled={uploadBusy}
-                          onClick={() => triggerFolderZipDownload(f.path)}
-                          className="font-medium text-indigo-600 hover:underline disabled:opacity-50"
+                          onClick={() => void deleteFile(f.key, f.name)}
+                          className="text-rose-600 hover:underline disabled:opacity-50"
                         >
-                          Download zip
+                          Delete
                         </button>
-                        <span className="text-zinc-300">|</span>
-                        <button
-                          type="button"
-                          disabled={uploadBusy}
-                          onClick={() => void copyFolderDownloadLink(f.path)}
-                          className="font-medium text-indigo-600 hover:underline disabled:opacity-50"
-                        >
-                          Copy download link
-                        </button>
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {files.map((f) => (
-                  <tr key={f.key} className="group border-b border-zinc-100">
-                    <td className="w-10 px-2 py-2" aria-hidden />
-                    <td className="px-3 py-2 font-medium text-zinc-900">{f.name}</td>
-                    <td className="px-3 py-2 text-zinc-600">{formatBytes(f.size)}</td>
-                    <td className={stickyActionsTdClass({ align: "right", compact: true })}>
-                      <button type="button" onClick={() => void downloadFile(f.key)} className="text-indigo-600 hover:underline">
-                        Download
-                      </button>
-                      {" · "}
-                      <button
-                        type="button"
-                        disabled={uploadBusy}
-                        onClick={() => void deleteFile(f.key, f.name)}
-                        className="text-rose-600 hover:underline disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {folders.length === 0 && files.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-3 py-8 text-center text-zinc-500">
-                      Empty. Create a project folder or upload files.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {totalRows === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center text-zinc-500">
+                        {nameQuery
+                          ? "No folders or files match this filter."
+                          : "Empty. Create a project folder or upload files."}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            {totalRows > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-600">
+                <span>
+                  Showing {startItem}–{endItem} of {totalRows}
+                  {nameQuery && totalRows !== folders.length + files.length
+                    ? ` (filtered from ${folders.length + files.length})`
+                    : null}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="rounded border border-zinc-300 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-zinc-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-2 tabular-nums">
+                    Page {currentPage} of {pages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                    disabled={currentPage >= pages}
+                    className="rounded border border-zinc-300 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-zinc-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </div>
