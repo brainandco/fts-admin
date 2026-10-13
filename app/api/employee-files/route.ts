@@ -1,24 +1,36 @@
 import { getDataClient } from "@/lib/supabase/server";
 import { PERMISSION_EMPLOYEE_FILES_MANAGE } from "@/lib/rbac/permission-codes";
 import { can } from "@/lib/rbac/permissions";
+import { parseListPagination } from "@/lib/ui/list-pagination";
 import { NextResponse } from "next/server";
 
-/** GET /api/employee-files?regionId= — list files in a region (all employees). */
+/** GET /api/employee-files?regionId=&q=&page=&pageSize= — paginated files in a region. */
 export async function GET(req: Request) {
   if (!(await can(PERMISSION_EMPLOYEE_FILES_MANAGE))) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
-  const regionId = new URL(req.url).searchParams.get("regionId")?.trim();
+  const url = new URL(req.url);
+  const regionId = url.searchParams.get("regionId")?.trim();
   if (!regionId) {
     return NextResponse.json({ message: "regionId query parameter is required" }, { status: 400 });
   }
 
+  const q = (url.searchParams.get("q") ?? "").trim();
+  const { page, pageSize, from, to } = parseListPagination(url.searchParams);
+
   const supabase = await getDataClient();
-  const { data: files, error } = await supabase
+  let query = supabase
     .from("employee_personal_files")
-    .select("id, file_name, mime_type, byte_size, upload_status, created_at, employee_id")
+    .select("id, file_name, mime_type, byte_size, upload_status, created_at, employee_id", { count: "exact" })
     .eq("region_id", regionId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (q) {
+    query = query.ilike("file_name", `%${q}%`);
+  }
+
+  const { data: files, error, count } = await query;
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 400 });
   }
@@ -41,5 +53,10 @@ export async function GET(req: Request) {
       employeeEmail: e?.email ?? null,
     };
   });
-  return NextResponse.json({ files: list });
+  return NextResponse.json({
+    files: list,
+    total: count ?? list.length,
+    page,
+    pageSize,
+  });
 }

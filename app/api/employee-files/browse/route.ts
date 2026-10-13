@@ -43,8 +43,15 @@ export async function GET(req: Request) {
   }
 
   const regionSeg = regionFolder.path_segment as string;
-  const s3 = getWasabiEmployeeFilesS3Client();
-  const bucket = getWasabiEmployeeFilesBucket();
+  let s3;
+  let bucket: string;
+  try {
+    s3 = getWasabiEmployeeFilesS3Client();
+    bucket = getWasabiEmployeeFilesBucket();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Employee file storage is not configured.";
+    return NextResponse.json({ message: msg }, { status: 503 });
+  }
 
   if (!employeeId) {
     const searchPrefix = normalized ? `${buildRegionFilesPrefix(regionSeg)}${normalized}/` : buildRegionFilesPrefix(regionSeg);

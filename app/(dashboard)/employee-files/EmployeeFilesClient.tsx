@@ -7,6 +7,7 @@ import { adminUploadFilesBatch, type AdminUploadItem } from "@/lib/employee-file
 import { EMPLOYEE_UPLOAD_ALLOWED_EXTENSIONS_HELP } from "@/lib/employee-files/storage";
 import { filterEmployeeUploadItems, type SkippedUpload } from "@/lib/employee-files/upload-filter";
 import { stickyActionsTdClass, stickyActionsThClassRight } from "@/components/ui/table-sticky-actions";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, totalPages as calcTotalPages } from "@/lib/ui/list-pagination";
 
 type Region = { id: string; name: string; code: string | null };
 type Folder = {
@@ -168,6 +169,11 @@ export function EmployeeFilesClient({
   const [folders, setFolders] = useState<Folder[]>(initialFolders);
   const [regionId, setRegionId] = useState<string>(initialFolders[0]?.regionId ?? "");
   const [files, setFiles] = useState<FileRow[]>([]);
+  const [filesTotal, setFilesTotal] = useState(0);
+  const [filesPage, setFilesPage] = useState(1);
+  const [filesPageSize, setFilesPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [filesQuery, setFilesQuery] = useState("");
+  const [filesQueryDraft, setFilesQueryDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState("");
@@ -201,6 +207,7 @@ export function EmployeeFilesClient({
   const [siteSearchTruncated, setSiteSearchTruncated] = useState(false);
   const [siteSearchError, setSiteSearchError] = useState("");
   const [siteSearchHasRun, setSiteSearchHasRun] = useState(false);
+  const [siteSearchMode, setSiteSearchMode] = useState<"fast" | "deep">("fast");
 
   const [selectedZipPaths, setSelectedZipPaths] = useState<string[]>([]);
   const [zipBulkBusy, setZipBulkBusy] = useState(false);
@@ -218,18 +225,26 @@ export function EmployeeFilesClient({
     });
   }, []);
 
-  const loadFiles = useCallback(async (rid: string) => {
+  const loadFiles = useCallback(async (rid: string, opts: { page: number; pageSize: number; q: string }) => {
     if (!rid) {
       setFiles([]);
+      setFilesTotal(0);
       return;
     }
     setFileLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/employee-files?regionId=${encodeURIComponent(rid)}`);
+      const params = new URLSearchParams({
+        regionId: rid,
+        page: String(opts.page),
+        pageSize: String(opts.pageSize),
+      });
+      if (opts.q) params.set("q", opts.q);
+      const res = await fetch(`/api/employee-files?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error((data as { message?: string }).message || "Failed to list files");
       setFiles((data as { files: FileRow[] }).files ?? []);
+      setFilesTotal((data as { total?: number }).total ?? 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
@@ -241,26 +256,32 @@ export function EmployeeFilesClient({
     if (!regionId) return;
     setBrowseLoading(true);
     try {
+      let res: Response;
       if (browseAtRegionRoot) {
-        const res = await fetch(
+        res = await fetch(
           `/api/employee-files/browse?regionId=${encodeURIComponent(regionId)}&path=${encodeURIComponent(browsePath)}`
         );
-        const data = await res.json();
-        if (!res.ok) throw new Error((data as { message?: string }).message || "Browse failed");
-        setBrowseFolders((data as { folders?: BrowseFolder[] }).folders ?? []);
-        setBrowseFiles((data as { files?: BrowseFile[] }).files ?? []);
       } else if (browseEmployeeId) {
-        const res = await fetch(
+        res = await fetch(
           `/api/employee-files/browse?regionId=${encodeURIComponent(regionId)}&employeeId=${encodeURIComponent(browseEmployeeId)}&path=${encodeURIComponent(browsePath)}`
         );
-        const data = await res.json();
-        if (!res.ok) throw new Error((data as { message?: string }).message || "Browse failed");
-        setBrowseFolders((data as { folders?: BrowseFolder[] }).folders ?? []);
-        setBrowseFiles((data as { files?: BrowseFile[] }).files ?? []);
       } else {
         setBrowseFolders([]);
         setBrowseFiles([]);
+        return;
       }
+      const text = await res.text();
+      let data: { message?: string; folders?: BrowseFolder[]; files?: BrowseFile[] } = {};
+      if (text) {
+        try {
+          data = JSON.parse(text) as typeof data;
+        } catch {
+          throw new Error(res.ok ? "Invalid browse response" : text.slice(0, 200) || "Browse failed");
+        }
+      }
+      if (!res.ok) throw new Error(data.message || `Browse failed (${res.status})`);
+      setBrowseFolders(data.folders ?? []);
+      setBrowseFiles(data.files ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Browse failed");
       setBrowseFolders([]);
@@ -283,10 +304,6 @@ export function EmployeeFilesClient({
   const pickerLocked = uploadBusy || uploadFlowBusy || uploadSession !== null;
 
   useEffect(() => {
-    if (regionId) void loadFiles(regionId);
-  }, [regionId, loadFiles]);
-
-  useEffect(() => {
     setBrowseAtRegionRoot(true);
     setBrowseEmployeeId(null);
     setBrowsePath("");
@@ -296,7 +313,15 @@ export function EmployeeFilesClient({
     setSiteSearchTruncated(false);
     setSiteSearchError("");
     setSiteSearchHasRun(false);
+    setFilesPage(1);
+    setFilesQuery("");
+    setFilesQueryDraft("");
   }, [regionId]);
+
+  useEffect(() => {
+    if (!regionId) return;
+    void loadFiles(regionId, { page: filesPage, pageSize: filesPageSize, q: filesQuery });
+  }, [regionId, filesPage, filesPageSize, filesQuery, loadFiles]);
 
   useEffect(() => {
     setAdminUploadPathOverride("");
@@ -470,7 +495,7 @@ export function EmployeeFilesClient({
           : prev
       );
 
-      if (regionId) await loadFiles(regionId);
+      if (regionId) await loadFiles(regionId, { page: filesPage, pageSize: filesPageSize, q: filesQuery });
       await loadBrowse();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Upload failed";
@@ -507,7 +532,7 @@ export function EmployeeFilesClient({
       if (!res.ok) throw new Error((data as { message?: string }).message || "Delete failed");
       setPendingDeleteFile(null);
       setMessage("File deleted.");
-      if (regionId) await loadFiles(regionId);
+      if (regionId) await loadFiles(regionId, { page: filesPage, pageSize: filesPageSize, q: filesQuery });
       await loadBrowse();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed");
@@ -528,6 +553,7 @@ export function EmployeeFilesClient({
       setDeleteRegionModalOpen(false);
       setMessage("Region storage folder removed.");
       setFiles([]);
+      setFilesTotal(0);
       await loadFolders();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -588,7 +614,7 @@ export function EmployeeFilesClient({
   async function refreshWorkspace() {
     setFileLoading(true);
     try {
-      if (regionId) await loadFiles(regionId);
+      if (regionId) await loadFiles(regionId, { page: filesPage, pageSize: filesPageSize, q: filesQuery });
       await loadBrowse();
       setMessage("Refreshed.");
     } finally {
@@ -596,7 +622,7 @@ export function EmployeeFilesClient({
     }
   }
 
-  async function runSiteSearch() {
+  async function runSiteSearch(mode: "fast" | "deep" = "fast") {
     if (!regionId || !selectedFolder) {
       setSiteSearchError("Select a region with storage first.");
       return;
@@ -606,13 +632,17 @@ export function EmployeeFilesClient({
       setSiteSearchError("Enter at least 2 characters (e.g. a Site ID folder name).");
       return;
     }
+    setSiteSearchMode(mode);
     setSiteSearchLoading(true);
     setSiteSearchError("");
     setSiteSearchHasRun(false);
     try {
-      const res = await fetch(
-        `/api/employee-files/site-search?regionId=${encodeURIComponent(regionId)}&q=${encodeURIComponent(q)}`
-      );
+      const params = new URLSearchParams({
+        regionId,
+        q,
+        mode,
+      });
+      const res = await fetch(`/api/employee-files/site-search?${params}`);
       const data = (await res.json().catch(() => ({}))) as {
         message?: string;
         results?: SiteSearchHit[];
@@ -732,7 +762,11 @@ export function EmployeeFilesClient({
     setBrowseEmployeeId(hit.employeeId);
     setUploadEmployeeId(hit.employeeId);
     setBrowsePath(hit.pathUnderEmployee);
-    setMessage(`Opened: ${hit.employeeName} → ${hit.pathUnderEmployee}`);
+    setMessage(
+      hit.pathUnderEmployee
+        ? `Opened: ${hit.employeeName} → ${hit.pathUnderEmployee}`
+        : `Opened: ${hit.employeeName} (employee folder)`
+    );
   }
 
   return (
@@ -848,37 +882,66 @@ export function EmployeeFilesClient({
                 Global search (site / folder name in region)
               </label>
               <p className="text-[11px] leading-relaxed text-zinc-600">
-                Searches every active employee in this region for paths like{" "}
-                <span className="font-mono">Month-Year / Day / … / Site ID</span>. The same Site ID can appear on different
-                dates — each match is listed separately with employee and folder path. Results stay here while you open a
-                row in the browser below.
+                Fast search uses upload records in the database. Search by{" "}
+                <span className="font-medium text-zinc-800">Site ID</span>,{" "}
+                <span className="font-medium text-zinc-800">file name</span>,{" "}
+                <span className="font-medium text-zinc-800">employee name</span>, or the short id in an employee folder
+                (e.g. <span className="font-mono">50341b36</span>). Paths look like{" "}
+                <span className="font-mono">Month-Year / Day / … / Site ID</span>. Use Deep search only for empty folders /
+                legacy Wasabi-only objects — it is much slower.
               </p>
               <div className="mt-2 flex flex-wrap items-end gap-2">
                 <input
                   type="search"
                   className="min-w-[200px] flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm"
-                  placeholder="e.g. ZJZ766"
+                  placeholder="e.g. ZJZ766 or employee id / name"
                   value={siteSearchQuery}
                   onChange={(e) => setSiteSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") void runSiteSearch();
+                    if (e.key === "Enter") void runSiteSearch("fast");
                   }}
                   disabled={pickerLocked}
                 />
                 <button
                   type="button"
-                  onClick={() => void runSiteSearch()}
+                  onClick={() => void runSiteSearch("fast")}
                   disabled={pickerLocked || siteSearchLoading}
                   className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-800 disabled:opacity-50"
                 >
-                  {siteSearchLoading ? "Searching…" : "Search"}
+                  {siteSearchLoading && siteSearchMode === "fast" ? "Searching…" : "Search"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runSiteSearch("deep")}
+                  disabled={pickerLocked || siteSearchLoading}
+                  title="Scans Wasabi for every employee in this region (slow)"
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  {siteSearchLoading && siteSearchMode === "deep" ? "Deep searching…" : "Deep search"}
                 </button>
               </div>
               {siteSearchError ? <p className="mt-2 text-sm text-red-600">{siteSearchError}</p> : null}
               {siteSearchHasRun && !siteSearchLoading && !siteSearchError && siteSearchResults.length === 0 ? (
                 <p className="mt-2 text-sm text-zinc-600">
-                  No matching folder names under any employee in this region. Empty site folders are included in the index;
-                  try the exact Site ID spelling.
+                  {siteSearchMode === "fast" ? (
+                    <>
+                      No matching folder names in indexed uploads. Try the exact Site ID spelling, or run{" "}
+                      <button
+                        type="button"
+                        className="font-medium text-indigo-700 underline"
+                        onClick={() => void runSiteSearch("deep")}
+                        disabled={pickerLocked || siteSearchLoading}
+                      >
+                        Deep search
+                      </button>{" "}
+                      for empty folders / legacy Wasabi-only paths.
+                    </>
+                  ) : (
+                    <>
+                      No matching folder names under employees in this region. Try the exact Site ID spelling, or browse by
+                      employee.
+                    </>
+                  )}
                 </p>
               ) : null}
               {siteSearchResults.length > 0 ? (
@@ -930,8 +993,9 @@ export function EmployeeFilesClient({
               ) : null}
               {siteSearchTruncated ? (
                 <p className="mt-2 text-xs text-amber-800">
-                  Some employee trees were not fully scanned or the result cap was reached. Try a more specific Site ID, or
-                  browse by employee.
+                  {siteSearchMode === "fast"
+                    ? "Result or scan cap reached on indexed uploads. Try a more specific Site ID, or use Deep search."
+                    : "Some employee trees were not fully scanned or the result cap was reached. Try a more specific Site ID, or browse by employee."}
                 </p>
               ) : null}
             </div>
@@ -1367,69 +1431,171 @@ export function EmployeeFilesClient({
                 </div>
               </div>
 
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-zinc-900">All files in this region (searchable list)</h3>
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-zinc-900">All files in this region (searchable list)</h3>
+                <form
+                  className="flex flex-wrap items-end gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setFilesPage(1);
+                    setFilesQuery(filesQueryDraft.trim());
+                  }}
+                >
+                  <div className="min-w-[200px] flex-1">
+                    <label htmlFor="region-files-q" className="mb-1 block text-xs font-medium text-zinc-500">
+                      Search by file name
+                    </label>
+                    <input
+                      id="region-files-q"
+                      type="search"
+                      value={filesQueryDraft}
+                      onChange={(e) => setFilesQueryDraft(e.target.value)}
+                      placeholder="e.g. ZSK938"
+                      className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+                  >
+                    Search
+                  </button>
+                  {filesQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilesQueryDraft("");
+                        setFilesQuery("");
+                        setFilesPage(1);
+                      }}
+                      className="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                  <div>
+                    <label htmlFor="region-files-size" className="mb-1 block text-xs font-medium text-zinc-500">
+                      Per page
+                    </label>
+                    <select
+                      id="region-files-size"
+                      value={filesPageSize}
+                      onChange={(e) => {
+                        setFilesPageSize(Number(e.target.value));
+                        setFilesPage(1);
+                      }}
+                      className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </form>
+
                 {fileLoading ? (
                   <p className="text-sm text-zinc-500">Loading…</p>
                 ) : files.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-center text-sm text-zinc-500">
-                    No file records for this region yet.
+                    {filesQuery ? "No file records match this search." : "No file records for this region yet."}
                   </p>
                 ) : (
-                  <div className="overflow-x-auto rounded-lg border border-zinc-200">
-                    <table className="w-full min-w-[820px] text-sm">
-                      <thead>
-                        <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
-                          <th className="px-3 py-2.5">File</th>
-                          <th className="px-3 py-2.5">Employee</th>
-                          <th className="px-3 py-2.5">Status</th>
-                          <th className="px-3 py-2.5">Size</th>
-                          <th className="px-3 py-2.5">Uploaded</th>
-                          <th className={stickyActionsThClassRight}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {files.map((f) => (
-                          <tr key={f.id} className="group border-b border-zinc-100 last:border-0 hover:bg-zinc-50/60">
-                            <td className="px-3 py-2.5 font-medium text-zinc-900">{f.fileName}</td>
-                            <td className="px-3 py-2.5 text-zinc-700">
-                              {f.employeeName}
-                              {f.employeeEmail ? (
-                                <span className="mt-0.5 block text-xs text-zinc-500">{f.employeeEmail}</span>
-                              ) : null}
-                            </td>
-                            <td className="px-3 py-2.5 text-zinc-600 capitalize">
-                              {(f.uploadStatus ?? "").replace(/_/g, " ") || "—"}
-                            </td>
-                            <td className="px-3 py-2.5 text-zinc-600">{formatBytes(f.byteSize)}</td>
-                            <td className="px-3 py-2.5 text-zinc-600">{new Date(f.createdAt).toLocaleString()}</td>
-                            <td className={`${stickyActionsTdClass({ align: "right", bgClass: "bg-white group-hover:bg-zinc-50/60" })} whitespace-nowrap`}>
-                              {f.uploadStatus === "active" ? (
+                  <>
+                    <div className="overflow-x-auto rounded-lg border border-zinc-200">
+                      <table className="w-full min-w-[820px] text-sm">
+                        <thead>
+                          <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                            <th className="px-3 py-2.5">File</th>
+                            <th className="px-3 py-2.5">Employee</th>
+                            <th className="px-3 py-2.5">Status</th>
+                            <th className="px-3 py-2.5">Size</th>
+                            <th className="px-3 py-2.5">Uploaded</th>
+                            <th className={stickyActionsThClassRight}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {files.map((f) => (
+                            <tr key={f.id} className="group border-b border-zinc-100 last:border-0 hover:bg-zinc-50/60">
+                              <td className="px-3 py-2.5 font-medium text-zinc-900">{f.fileName}</td>
+                              <td className="px-3 py-2.5 text-zinc-700">
+                                {f.employeeName}
+                                {f.employeeEmail ? (
+                                  <span className="mt-0.5 block text-xs text-zinc-500">{f.employeeEmail}</span>
+                                ) : null}
+                              </td>
+                              <td className="px-3 py-2.5 text-zinc-600 capitalize">
+                                {(f.uploadStatus ?? "").replace(/_/g, " ") || "—"}
+                              </td>
+                              <td className="px-3 py-2.5 text-zinc-600">{formatBytes(f.byteSize)}</td>
+                              <td className="px-3 py-2.5 text-zinc-600">{new Date(f.createdAt).toLocaleString()}</td>
+                              <td
+                                className={`${stickyActionsTdClass({
+                                  align: "right",
+                                  bgClass: "bg-white group-hover:bg-zinc-50/60",
+                                })} whitespace-nowrap`}
+                              >
+                                {f.uploadStatus === "active" ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => download(f.id)}
+                                    className="font-medium text-indigo-600 hover:underline"
+                                  >
+                                    Download
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-zinc-400">—</span>
+                                )}
+                                {" · "}
                                 <button
                                   type="button"
-                                  onClick={() => download(f.id)}
-                                  className="font-medium text-indigo-600 hover:underline"
+                                  onClick={() => requestDeleteFile(f.id, f.fileName)}
+                                  disabled={uploadBusy}
+                                  className="font-medium text-rose-600 hover:underline disabled:opacity-50"
                                 >
-                                  Download
+                                  Delete
                                 </button>
-                              ) : (
-                                <span className="text-xs text-zinc-400">—</span>
-                              )}
-                              {" · "}
-                              <button
-                                type="button"
-                                onClick={() => requestDeleteFile(f.id, f.fileName)}
-                                disabled={uploadBusy}
-                                className="font-medium text-rose-600 hover:underline disabled:opacity-50"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {(() => {
+                      const pages = calcTotalPages(filesTotal, filesPageSize);
+                      const start = filesTotal === 0 ? 0 : (filesPage - 1) * filesPageSize + 1;
+                      const end = Math.min(filesPage * filesPageSize, filesTotal);
+                      return (
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-600">
+                          <span>
+                            Showing {start}–{end} of {filesTotal}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setFilesPage((p) => Math.max(1, p - 1))}
+                              disabled={filesPage <= 1 || fileLoading}
+                              className="rounded border border-zinc-300 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-zinc-50"
+                            >
+                              Previous
+                            </button>
+                            <span className="px-2 tabular-nums">
+                              Page {filesPage} of {pages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setFilesPage((p) => Math.min(pages, p + 1))}
+                              disabled={filesPage >= pages || fileLoading}
+                              className="rounded border border-zinc-300 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-zinc-50"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
                 )}
               </div>
             </>
