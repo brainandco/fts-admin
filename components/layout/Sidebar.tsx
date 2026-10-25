@@ -28,6 +28,22 @@ const navStructure: NavEntry[] = [
   { type: "link", item: { href: "/dashboard", label: "Dashboard" } },
   { type: "link", item: { href: "/mobile-app", label: "Mobile app" } },
   { type: "link", item: { href: "/leave", label: "Leave" } },
+  {
+    type: "link",
+    item: {
+      href: "/petty-cash",
+      label: "Petty cash",
+      permissionAnyOf: ["users.view", PERMISSION_EMPLOYEE_MANAGE],
+    },
+  },
+  {
+    type: "link",
+    item: {
+      href: "/purchase-invoices",
+      label: "Purchase invoices",
+      permissionAnyOf: ["users.view", PERMISSION_EMPLOYEE_MANAGE],
+    },
+  },
   { type: "link", item: { href: "/settings/profile", label: "My profile" } },
   {
     type: "group",
